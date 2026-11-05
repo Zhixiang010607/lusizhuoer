@@ -21,4 +21,4 @@
 
 效果：[产品查询下拉](assets/2026-11-05-name-only/phone-390-product-options.png)、[办理门店结果](assets/2026-11-05-name-only/phone-390-store-search.png)、[320 手机产品表](assets/2026-11-05-name-only/phone-320-retail.png)、[390 手机产品表](assets/2026-11-05-name-only/phone-390-retail.png)、[430 手机产品表](assets/2026-11-05-name-only/phone-430-retail.png)、[834 iPad 门店结果](assets/2026-11-05-name-only/ipad-834-store-search.png)、[1024 iPad 产品卡片](assets/2026-11-05-name-only/ipad-1024-retail.png)、[横屏产品卡片](assets/2026-11-05-name-only/ipad-landscape-retail.png)。
 
-源代码检查完成，接续上传开发版 0.3.55；上传回执确认后更新此处。服务端沿用已部署验收的 faceRecognition v138／staffAccount v98，不需新 SQL 或云函数代码更新。
+开发版 [0.3.55](../../miniprogram-app/releases/0.3.55.md) 已取得官方最终 `✔ upload` 及后台成功终态，业务源码为 `8e77dd4e13d43d5b6b7d588d92e838fee8b314e3`；主包 1695525 字节、总包 3447883 字节，189839 ms，无重试。222 份已跟踪客户端文件及用户配置上传前后一致。服务端沿用已部署验收的 faceRecognition v138／staffAccount v98，不需新 SQL 或云函数代码更新；体验版选择、微信审核与正式发布未独立确认。
