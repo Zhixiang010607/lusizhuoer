@@ -17,4 +17,6 @@
 
 已在 390 手机实际点击“提交充值申请”，不点加号直接进入带“医用面膜 3 件”的待审详情；834 iPad 同一详情完整显示。效果：[手机草稿](assets/2026-11-05-retail-gift/phone-390-draft.png)、[手机详情](assets/2026-11-05-retail-gift/phone-390-detail.png)、[iPad 详情](assets/2026-11-05-retail-gift/ipad-834-detail.png)。
 
-本修复尚待下一开发版上传；云函数沿用已验收 v138，不需新 SQL 或后台业务代码部署。
+开发版 [0.3.54](../../miniprogram-app/releases/0.3.54.md) 已上传，官方最终 `✔ upload` 与后台 `progressSuccess` 均确认；业务源码提交为 `5d3dcac74d6e521f8391a5654feb1d3421772e60`。首次 CLI 超时，但后台随后成功；先核对终态、备份编辑器，再由原 84 线路切至当次通过 TLS 的 85 线路串行重传同一版本，取得完整回执。主包 1695806 字节、总包 3448769 字节；222 份已跟踪客户端文件及用户配置上传前后不变。未独立确认体验版选择、审核或正式发布。
+
+用户要求同时更新云函数后，独立回读确认线上 `staffAccount v98` 的运行代码和 package 与源码一致，包含 GIFT／PURCHASE 合并查询；仅 README 是旧部署说明。按用户要求用官方显式函数路径同步当前三文件包，health 返回 v98，三个根文件再次回下载逐字节一致。同步包 `deployments/staffAccount-v98.zip` 为 72060 字节，SHA-256 `80f89e1e74a3b8ee3b10b643274d9d3681cbbfc3c155e29e0c7d7f1f61a9eed5`。运行代码未变化，不虚增版本；额外八项版本／赠品／产品查询契约测试通过。`faceRecognition v138` 六文件包仍与线上一致。不需新 SQL，未补写原单或改变任何生产业务数据。
