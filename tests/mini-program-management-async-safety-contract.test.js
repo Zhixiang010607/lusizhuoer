@@ -34,6 +34,7 @@ function loadPage(pageName, dependencies) {
   vm.runInNewContext(read("pages", pageName, "index.js"), {
     Page(value) { definition = value; },
     require(id) {
+      if (id === "../../services/teacher-team") return { requireTeamAccess: async () => { throw new Error("HQ regression must not enter a team route"); } };
       if (id === "../../services/attendance-map") return require("../miniprogram-app/miniprogram/services/attendance-map");
       if (Object.prototype.hasOwnProperty.call(dependencies, id)) return dependencies[id];
       if (id === "../../services/query-tools") return { displayDateTimeAny: (...values) => String(values.find(Boolean) || "—") };

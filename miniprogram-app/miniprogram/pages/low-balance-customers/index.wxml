@@ -22,7 +22,7 @@
 
   <view class="card result-card">
     <view class="card-title"><text>客户＋项目结果</text><text class="badge">共 {{total}} 个卡项</text></view>
-    <view wx:if="{{searched && total > 0}}" class="result-export">
+    <view wx:if="{{!teamScope && searched && total > 0}}" class="result-export">
       <text>全部结果按门店分组 · 上限 1000 个卡项</text>
       <view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view>
     </view>
@@ -34,7 +34,7 @@
         <scroll-view wx:if="{{zeroBalances.length}}" class="low-balance-table-scroll" scroll-x="true" data-visible-rows="{{zeroBalances.length > 10 ? 10 : zeroBalances.length}}" scroll-left="{{zeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
           <view class="low-balance-table">
             <view class="low-balance-row low-balance-head"><text class="list-row-number">序号</text><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text></view>
-            <view wx:for="{{zeroBalances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
+            <view wx:for="{{zeroBalances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="{{teamScope ? '' : 'customer-name'}}">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类卡项</view>
@@ -47,7 +47,7 @@
         <scroll-view wx:if="{{nonzeroBalances.length}}" class="low-balance-table-scroll" scroll-x="true" data-visible-rows="{{nonzeroBalances.length > 10 ? 10 : nonzeroBalances.length}}" scroll-left="{{nonzeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
           <view class="low-balance-table">
             <view class="low-balance-row low-balance-head"><text class="list-row-number">序号</text><text>姓名</text><text>项目</text><text>当前剩余</text><text>净开卡</text><text>已核销</text><text>门店</text></view>
-            <view wx:for="{{nonzeroBalances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="customer-name">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
+            <view wx:for="{{nonzeroBalances}}" wx:key="rowKey" class="low-balance-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="{{teamScope ? '' : 'customer-name'}}">{{item.customerName}}</text><text>{{item.productName}}</text><text class="remaining-count">{{item.remainingCount}} 次</text><text>{{item.purchasedCount}} 次</text><text>{{item.consumedCount}} 次</text><text>{{item.storeName}}</text></view>
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类卡项</view>

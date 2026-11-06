@@ -3,6 +3,7 @@ const { requireSession } = require("../../services/session");
 const { displayDateTimeAny } = require("../../services/query-tools");
 const rechargeIntent = require("../../services/teacher-experience-recharge");
 const { attendanceMap } = require("../../services/attendance-map");
+const { requireTeamAccess } = require("../../services/teacher-team");
 
 function text(...values) { return String(values.find((value) => value !== undefined && value !== null && String(value).trim()) || "").trim(); }
 function number(row, names, fallback = 0) { for (const name of names) { const value = Number(row && row[name]); if (Number.isFinite(value)) return value; } return fallback; }
@@ -200,6 +201,7 @@ function selectedWorkDay(cell) {
 
 Page({
   data: {
+    teamScope:false, teamReady:false, teamLeader:false, teamMemberCount:0, teamAssignedLeader:"", teamMutating:false, teamError:"",
     punchKind: "clockIn",
     teacherRef: "", staff: null, teacherId: "", profile: {}, loading: true, mutating: "", message: "", error: false,
     entitlements: [], summaryRows: [], history: [],
@@ -212,18 +214,26 @@ Page({
     workLoading: false, workLoadedMonth: "", serverToday: "", faceCaptureReady: false, faceConsent: false,
     faceResultToast: "", faceResultToastError: false
   },
-  onLoad(options) {
+  async onLoad(options) {
+    if(options.scope==="TEAM"){
+      this._unloaded=false;this.setData({teamScope:true,teacherId:String(options.teacherId||""),teacherRef:String(options.teacherId||"")});
+      try{await requireTeamAccess();if(!this._unloaded){await this.loadTeamProfile();this._teamLoaded=true;}}catch(e){if(!this._unloaded)this.setData({loading:false,staff:null,message:e.message,error:true});}
+      return;
+    }
     if (!requireSession(["hq"])) return;
     this._unloaded = false;
-    this.setData({ teacherRef: decodeURIComponent(options.teacherRef || "") });
+    this._exactTeacherId=Boolean(options.teacherId);
+    this.setData({ teacherRef: decodeURIComponent(options.teacherId || options.teacherRef || "") });
     this.syncRechargePending();
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     this.load();
   },
+  onShow(){if(this.data.teamScope&&this._teamLoaded)this.loadTeamProfile();else if(this.data.staff&&!this.data.teamScope)this.loadTeamState();},
   onUnload() {
     this._unloaded = true;
     if (this._faceResultToastTimer) clearTimeout(this._faceResultToastTimer);
     REQUEST_EPOCH_KEYS.forEach((key) => bump(this, key));
+    bump(this,"_teamEpoch");
   },
   async onPullDownRefresh() {
     try {
@@ -235,7 +245,9 @@ Page({
   back() { wx.navigateBack(); },
   switchSection(event) {
     const section = text(event.currentTarget.dataset.section);
-    if (!["home", "basic", "configuration", "work"].includes(section)) return;
+    if (!["home", "basic", "configuration", "work"].includes(section) && section !== "personnel") return;
+    if(this.data.teamScope&&!["home","work"].includes(section))return;
+    if(section==="personnel"&&!this.data.teamLeader)return;
     this.setData({ activeSection: section, message: "", error: false });
     if (section === "work" && this.data.workLoadedMonth !== this.data.workMonth) this.loadWorkMonth();
   },
@@ -249,6 +261,7 @@ Page({
     return { name, initials: Array.from(name)[0] || "师", phone: text(staff.phone) || "未填写", archived: archived(staff), authUid: text(staff.auth_uid) };
   },
   async load() {
+    if(this.data.teamScope)return this.loadTeamProfile();
     if (this._unloaded) return;
     const request = Object.freeze({
       epoch: bump(this, "_loadRequestEpoch"), profileEpoch: bump(this, "_profileRequestEpoch"),
@@ -259,7 +272,7 @@ Page({
     try {
       const [staffResult, productResult] = await Promise.all([callStaff("listStaff", Object.freeze({ role: "teacher" })), callStaff("listProducts")]);
       if (!current(this, "_loadRequestEpoch", request.epoch)) return;
-      const staff = (staffResult.staff || []).find((item) => [item.auth_uid, item.id, item.staff_id, item.teacher_id, item.teacher_code, item.person_code].map(text).includes(request.teacherRef));
+      const staff = (staffResult.staff || []).find((item) => this._exactTeacherId ? text(item.teacher_id)===request.teacherRef : [item.auth_uid, item.id, item.staff_id, item.teacher_id, item.teacher_code, item.person_code].map(text).includes(request.teacherRef));
       if (!staff) throw new Error("未找到该老师账号或老师主档");
       const teacherId = text(staff.teacher_id, staff.teacherId);
       if (!/^\d+$/.test(teacherId)) throw new Error("老师资料缺少有效数据库编号");
@@ -268,6 +281,7 @@ Page({
       if (current(this, "_profileRequestEpoch", request.profileEpoch)) Object.assign(patch, { staff, profile: this.profileView(staff) });
       if (current(this, "_productsRequestEpoch", request.productsEpoch)) patch.products = products;
       this.setData(patch);
+      this.loadTeamState();
       try {
         await this.loadExperience({ teacherId, products });
       } catch (error) {
@@ -283,6 +297,27 @@ Page({
     } finally {
       if (current(this, "_loadRequestEpoch", request.epoch)) this.setData({ loading: false });
     }
+  },
+  async loadTeamProfile(){
+    const epoch=bump(this,"_teamEpoch");this.setData({loading:true,staff:null,entitlements:[],calendarDays:[],selectedWorkDay:null,message:"",error:false});
+    try{const [r,q]=await Promise.all([callStaff("getTeamTeacherProfile",{teacherId:this.data.teacherId}),callStaff("getTeamTeacherEntitlements",{teacherId:this.data.teacherId})]);if(!current(this,"_teamEpoch",epoch))return;
+      const t=r.teacher,staff={teacher_id:t.teacherId,teacher_name:t.teacherName,phone:t.phone,teacher_status:t.teacherStatus,account_status:t.accountStatus};
+      this.setData({staff,profile:this.profileView(staff),entitlements:(q.entitlements||[]).map(entitlement)});
+      if(this.data.activeSection==="work")await this.loadWorkMonth();
+    }catch(e){if(current(this,"_teamEpoch",epoch))this.setData({staff:null,entitlements:[],calendarDays:[],selectedWorkDay:null,message:e.message||"成员资料读取失败",error:true});}
+    finally{if(current(this,"_teamEpoch",epoch))this.setData({loading:false});}
+  },
+  async loadTeamState(){
+    if(this.data.teamScope||!this.data.teacherId)return;const epoch=bump(this,"_teamEpoch");this.setData({teamReady:false,teamError:""});
+    try{const r=await callStaff("getTeacherTeam",{teacherId:this.data.teacherId});if(!current(this,"_teamEpoch",epoch))return;const leader=r.teacher.isTeamLeader===true;this.setData({teamReady:true,teamLeader:leader,teamMemberCount:Number(r.members.total||0),teamAssignedLeader:r.teacher.assignedLeaderName||"",...(!leader&&this.data.activeSection==="personnel"?{activeSection:"basic"}:{})});}
+    catch(e){if(current(this,"_teamEpoch",epoch))this.setData({teamReady:false,teamLeader:false,teamError:e.message||"组长状态读取失败",...(this.data.activeSection==="personnel"?{activeSection:"basic"}:{})});}
+  },
+  async toggleTeamLeader(){
+    if(this.data.teamScope||!this.data.teamReady||this.data.teamMutating||this.data.mutating)return;
+    const enabled=!this.data.teamLeader;
+    if(enabled&&(this.data.profile.archived||this.data.teamAssignedLeader))return;
+    if(!await confirm(enabled?"将该老师设置为小组长？之后由总部分配普通老师。":`取消组长后，当前 ${this.data.teamMemberCount} 位成员会全部释放为未分配状态。原业务、考勤和日报保留。`,enabled?"设为组长":"取消组长"))return;
+    this.setData({teamMutating:true,teamError:""});let message="";try{await callStaff("setTeacherTeamLeader",{teacherId:this.data.teacherId,enabled});}catch(e){message=e.message||"结果暂未确认，请刷新后核对";}finally{if(!this._unloaded){await this.loadTeamState();if(!this._unloaded)this.setData({teamMutating:false,teamError:message||this.data.teamError});}}
   },
   async refreshStaff() {
     const request = Object.freeze({
@@ -327,7 +362,7 @@ Page({
     const epoch = bump(this, "_workRequestEpoch");
     this.setData({ workLoading: true, message: "", error: false });
     try {
-      const result = await callStaff("getHqTeacherWorkMonth", Object.freeze({ teacherId, month }));
+      const result = this.data.teamScope ? await callStaff("getTeamTeacherWorkMonth", Object.freeze({teacherId,month})) : await callStaff("getHqTeacherWorkMonth", Object.freeze({ teacherId, month }));
       if (!current(this, "_workRequestEpoch", epoch)) return false;
       const employmentStartDate = text(result.teacher?.employmentStartDate);
       const maximum = text(result.serverToday).slice(0, 7) || shanghaiMonth();
@@ -349,7 +384,7 @@ Page({
       return true;
     } catch (error) {
       if (current(this, "_workRequestEpoch", epoch)) {
-        this.setData({ calendarDays: [], selectedWorkDay: null, workLoadedMonth: "", message: error.message || "考勤日报月历读取失败", error: true });
+        this.setData({ ...(this.data.teamScope ? { staff: null, entitlements: [] } : {}), calendarDays: [], selectedWorkDay: null, workLoadedMonth: "", message: error.message || "考勤日报月历读取失败", error: true });
       }
       return false;
     } finally {

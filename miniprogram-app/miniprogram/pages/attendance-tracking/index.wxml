@@ -1,6 +1,6 @@
 <view class="page tracking-page">
-  <view class="page-heading"><view><text class="title">打卡追踪</text><text class="subtitle">总部按日期查看在职老师的上班、下班时间和工作时长</text></view><button class="back" bindtap="back"><text class="button-label">返回工作台</text></button></view>
-  <view wx:if="{{!authorized}}" class="notice-card">正在确认总部账号…</view>
+  <view class="page-heading"><view><text class="title">打卡追踪</text><text class="subtitle">{{teamScope ? '按日期查看本组老师的上班、下班时间和工作时长' : '总部按日期查看在职老师的上班、下班时间和工作时长'}}</text></view><button class="back" bindtap="back"><text class="button-label">返回工作台</text></button></view>
+  <view wx:if="{{!authorized}}" class="notice-card">{{message || (teamScope ? '正在确认小组权限…' : '正在确认总部账号…')}}</view>
   <view wx:else class="tracking-layout">
     <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading}}"><text class="button-label">确认</text></button></view>
     <view class="results">

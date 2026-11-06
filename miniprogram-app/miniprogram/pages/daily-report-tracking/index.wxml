@@ -1,10 +1,10 @@
 <view class="page tracking-page">
   <view class="page-heading">
-    <view><text class="title">日报追踪</text><text class="subtitle">总部只读查看在职老师日报完成情况</text></view>
+    <view><text class="title">日报追踪</text><text class="subtitle">{{teamScope ? '查看本组在职老师日报完成情况' : '总部只读查看在职老师日报完成情况'}}</text></view>
     <button class="back" bindtap="back">返回工作台</button>
   </view>
 
-  <view wx:if="{{!authorized}}" class="notice-card">正在确认总部账号…</view>
+  <view wx:if="{{!authorized}}" class="notice-card">{{message || (teamScope ? '正在确认小组权限…' : '正在确认总部账号…')}}</view>
   <view wx:else class="tracking-layout">
     <view class="calendar-card date-query-card">
       <date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector>

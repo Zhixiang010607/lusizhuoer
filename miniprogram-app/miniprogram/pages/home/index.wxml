@@ -5,6 +5,7 @@
       <view wx:else class="rail-current" aria-label="{{roleTitle}}"><text class="rail-icon">总览</text></view>
       <view wx:if="{{session.role !== 'hq'}}" class="rail-link {{businessMenuOpen ? 'active' : ''}}" bindtap="toggleBusinessMenu" role="button" aria-label="业务办理" aria-expanded="{{businessMenuOpen}}">办理</view>
       <view wx:if="{{session.role === 'teacher'}}" id="learning-menu-trigger" class="rail-link {{learningMenuOpen ? 'active' : ''}}" bindtap="toggleLearningMenu" role="button" aria-label="学习" aria-expanded="{{learningMenuOpen}}">学习</view>
+      <view wx:if="{{session.role === 'teacher' && isTeamLeader}}" class="rail-link" bindtap="openTeamOperations" role="button" aria-label="小组运营">小组运营</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" role="button" aria-label="业务查询" aria-expanded="{{queryMenuOpen}}">查询</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" role="button" aria-label="运营核心指标查询" aria-expanded="{{coreMetricsMenuOpen}}">运营</view>
       <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" role="button" aria-label="管理" aria-expanded="{{managementMenuOpen}}">管理</view>

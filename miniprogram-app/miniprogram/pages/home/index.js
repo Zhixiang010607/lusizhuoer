@@ -139,7 +139,7 @@ function hqRangePayload(period, range) {
 
 Page({
   data: {
-    session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false,
+    session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false, isTeamLeader:false,
     overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, learningPopoverStyle: "", queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"),
     rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "",
@@ -172,7 +172,7 @@ Page({
     if (!session) return;
     const meta = ROLE_META[session.role] || { title: "工作台", subtitle: "" };
     this.setData({ session, roleTitle: meta.title, roleSubtitle: meta.subtitle, message: "", error: false });
-    if (session.role === "teacher") this.loadTeacherHome();
+    if (session.role === "teacher") { this.loadTeamAccess(startupEpoch); this.loadTeacherHome(); }
     else if (session.role === "store") this.loadStoreHome();
     else this.loadHqHome();
   },
@@ -191,6 +191,13 @@ Page({
       ARCHIVED: Number(customerPageRequestEpochs.ARCHIVED || 0) + 1
     };
   },
+
+  async loadTeamAccess(epoch) {
+    this.setData({isTeamLeader:false});
+    try {const value=await callStaff("getTeamAccess");if(epoch===this._startupEpoch)this.setData({isTeamLeader:value.isTeamLeader===true});}
+    catch (_) {if(epoch===this._startupEpoch)this.setData({isTeamLeader:false});}
+  },
+  openTeamOperations(){if(this.data.session.role==="teacher"&&this.data.isTeamLeader){this.closeMenus();wx.navigateTo({url:"/pages/team-operations/index"});}},
 
   async loadTeacherHome() {
     const requestEpoch = (this._teacherHomeRequestEpoch || 0) + 1;

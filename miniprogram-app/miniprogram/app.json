@@ -11,6 +11,8 @@
     { "root": "pages/project-intro", "pages": ["index"] },
     { "root": "pages/store-detail", "pages": ["index"] },
     { "root": "pages/teacher-detail", "pages": ["index"] },
+    { "root": "pages/team-operations", "pages": ["index"] },
+    { "root": "pages/team-dashboard", "pages": ["index"] },
     { "root": "pages/teacher-customers", "pages": ["index"] },
     { "root": "pages/daily-report", "pages": ["index"] },
     { "root": "pages/daily-report-tracking", "pages": ["index"] },

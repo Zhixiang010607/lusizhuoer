@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v138";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v139";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -29,6 +29,7 @@ let storeBindingLayout = null;
 let iaiClientClass = null;
 let pinyinFunction = null;
 let verificationPhotoUploadSchemaReady = null;
+let teacherTeamReadService = null;
 const signedCustomerPhotoCache = new Map();
 const signedVerificationPhotoCache = new Map();
 
@@ -1298,7 +1299,15 @@ async function activeScopedQueryCaller(event = {}) {
 }
 
 function scopedStoreClause(caller, column) {
-  return caller.storeId ? `${column} = ${caller.storeId}::bigint` : "TRUE";
+  const store = caller.storeId ? `${column} = ${caller.storeId}::bigint` : "TRUE";
+  return caller.teamCustomerScope ? `(${store} AND ${caller.teamCustomerScope})` : store;
+}
+
+function teacherTeamReads() {
+  if (!teacherTeamReadService) teacherTeamReadService = require("./teacher-team").createTeacherTeamReads({
+    executeSql, sqlText, fail, activeTeacherCaller, positiveDatabaseId, teacherBusinessAttributionSourceCondition
+  });
+  return teacherTeamReadService;
 }
 
 async function activeCustomerProfileCaller() {
@@ -2465,8 +2474,8 @@ function operationalBalanceCategory(event = {}) {
 // days. The baseline follows the required fixed ladder: latest approved NORMAL
 // first; only when no NORMAL exists may the latest approved EXPERIENCE be used;
 // customers with neither type use their immutable customer-created time.
-async function queryInactiveVerificationCustomers(event = {}) {
-  const caller = await activeScopedQueryCaller(event);
+async function queryInactiveVerificationCustomers(event = {}, teamCaller = null) {
+  const caller = teamCaller || await activeScopedQueryCaller(event);
   const balanceCategory = operationalBalanceCategory(event);
   const minimumDaysText = String(event.minimumDays ?? "").trim();
   const minimumDays = Number(minimumDaysText);
@@ -2513,6 +2522,7 @@ async function queryInactiveVerificationCustomers(event = {}) {
           FROM public.verification_records v
           JOIN public.products p ON p.id = v.product_id
          WHERE v.customer_id = c.id
+           AND ${caller.teamVerificationScope || 'TRUE'}
            AND v.record_status = 'APPROVED'
            AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
          ORDER BY CASE WHEN v.verification_type IN ('NORMAL', 'SUPPLEMENT') THEN 0 ELSE 1 END ASC,
@@ -2678,8 +2688,8 @@ function lowBalanceCursor(event = {}) {
 // card.  Never synthesize zero-balance rows for products the customer did not
 // purchase.  EXPERIENCE verifications are already excluded by the balance
 // state machine and therefore cannot lower the remaining purchased units.
-async function queryLowBalanceCustomers(event = {}) {
-  const caller = await activeScopedQueryCaller(event);
+async function queryLowBalanceCustomers(event = {}, teamCaller = null) {
+  const caller = teamCaller || await activeScopedQueryCaller(event);
   const balanceCategory = operationalBalanceCategory(event);
   const remainingBelowText = String(event.remainingBelow ?? "").trim();
   const remainingBelow = Number(remainingBelowText);
@@ -5771,7 +5781,7 @@ async function getTeacherBusinessCustomers(event = {}) {
 }
 
 async function getTeacherWorkspace(event = {}, hqTarget = null) {
-  // hqTarget is supplied only by the independently authenticated HQ read action.
+  // hqTarget is a trusted read-only target from independently authenticated HQ/team actions.
   // The public teacher action never accepts a target identity from event.
   const caller = hqTarget || await activeTeacherCaller();
   const options = teacherWorkspaceOptions(event);
@@ -5786,6 +5796,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
     const { alias, table, codeColumn, typeColumn } = config;
     const baseRecordType = config.baseRecordType;
     const clauses = [];
+    if (caller.teamReadScopeSql) clauses.push(caller.teamReadScopeSql);
     if (detailMode) {
       clauses.push(`${alias}.id = ${options.recordId}::bigint`);
       clauses.push(`(
@@ -5891,6 +5902,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
        WHERE ${teacherBusinessAttributionCondition(caller, "r", "RECHARGE")}
          AND r.record_status = 'APPROVED'
          AND r.recharge_type IN ('NEW', 'REFUND')
+         AND ${caller.teamReadScopeSql || 'TRUE'}
          ${rechargeDateClauses.length ? `AND ${rechargeDateClauses.join(" AND ")}` : ""}
       UNION ALL
       SELECT CASE WHEN v.verification_type = 'EXPERIENCE' THEN 'experience' ELSE 'verification' END AS metric,
@@ -5899,6 +5911,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
        WHERE ${teacherBusinessAttributionCondition(caller, "v", "VERIFICATION")}
          AND v.record_status = 'APPROVED'
          AND v.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')
+         AND ${caller.teamReadScopeSql || 'TRUE'}
          ${verificationDateClauses.length ? `AND ${verificationDateClauses.join(" AND ")}` : ""}
     )`;
     const [summaryRows, balanceRows] = await Promise.all([
@@ -5910,6 +5923,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
              FROM public.teacher_product_experience_quotas quota
             WHERE quota.teacher_id = ${sqlText(teacherId)}::bigint
               AND quota.quota_status = 'ACTIVE'
+              AND ${caller.teamReadScopeSql || 'TRUE'}
          )
          SELECT p.id AS product_id, p.product_code, p.product_name,
                 COALESCE(SUM(event.amount) FILTER (WHERE event.metric = 'verification'), 0) AS verification_count,
@@ -5919,6 +5933,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
            FROM product_members member
            JOIN public.products p ON p.id = member.product_id
            LEFT JOIN business_events event ON event.product_id = p.id
+          WHERE ${caller.teamReadScopeSql || 'TRUE'}
           GROUP BY p.id, p.product_code, p.product_name
           ORDER BY p.product_name, p.product_code`
       ),
@@ -6016,6 +6031,23 @@ async function getHqTeacherWorkspace(event = {}) {
     role: "hq", teacherId: String(target.teacher_id), teacherCode: String(target.teacher_code || ""),
     teacherName: String(target.teacher_name || ""), teacherPhone: String(target.phone || ""),
     staffId: Number(target.staff_id || 0)
+  }));
+}
+
+async function getTeamTeacherWorkspace(event = {}) {
+  const membership = await teacherTeamReads().member(event.teacherId);
+  if (event.recordId) fail("请从本人原有工单入口读取详情。", "FORBIDDEN");
+  const rows = await executeSql(`SELECT t.id AS teacher_id, t.teacher_code, t.teacher_name,
+    a.id AS staff_id, a.phone FROM public.teachers t
+    JOIN public.staff_accounts a ON a.id = t.staff_account_id AND a.role_code = 'teacher'
+    WHERE t.id = ${sqlText(membership.teacherId)}::bigint
+      AND ${teacherTeamReads().scope(membership.caller.uid, 't.id')} LIMIT 1`);
+  const target = rows[0];
+  if (!target) fail("该老师不在你当前的管理名单中。", "FORBIDDEN");
+  return getTeacherWorkspace({ ...event, recordType: event.recordType || "VERIFICATION" }, Object.freeze({
+    role: "teacher", teacherId: String(target.teacher_id), teacherCode: String(target.teacher_code || ""),
+    teacherName: String(target.teacher_name || ""), teacherPhone: String(target.phone || ""),
+    staffId: Number(target.staff_id), teamReadScopeSql: membership.predicate
   }));
 }
 
@@ -6605,7 +6637,9 @@ async function getAttendancePhoto(event) {
   const id = String(event.attendanceId || "");
   if (!/^[1-9]\d{0,17}$/.test(id)) fail("打卡记录无效。", "BAD_REQUEST");
   await requireTeacherAttendanceSchema();
-  const rows = await executeSql(
+  // Preserve the original self/HQ fast path. Only an otherwise denied
+  // request attempts the separately scoped group read, including during rollout.
+  const readPhoto = (groupPhotoScope = "") => executeSql(
     `SELECT attendance.id, attendance.checked_in_at, attendance.photo_object_ref,
             attendance.photo_bytes, attendance.photo_sha256, attendance.photo_width, attendance.photo_height
        FROM public.teacher_attendance_records AS attendance
@@ -6614,9 +6648,14 @@ async function getAttendancePhoto(event) {
       WHERE attendance.id = ${id}::bigint AND actor.account_status = 'ACTIVE'
         AND (actor.role_code = 'hq' OR
              (actor.role_code = 'teacher' AND actor.id = attendance.staff_account_id
-              AND teacher.staff_account_id = actor.id AND teacher.teacher_status = 'ACTIVE'))
+              AND teacher.staff_account_id = actor.id AND teacher.teacher_status = 'ACTIVE') ${groupPhotoScope})
       LIMIT 1`
   );
+  let rows = await readPhoto();
+  if (!rows[0]) {
+    rows = await teacherTeamReads().safeRead(async () => await teacherTeamReads().available()
+      ? readPhoto(`OR (actor.role_code = 'teacher' AND ${teacherTeamReads().scope(uid, 'attendance.teacher_id')})`) : []);
+  }
   const row = rows[0];
   if (!row) fail("无权查看该次打卡照片。", "FORBIDDEN");
   if (!row.photo_object_ref) return { ok: true, attendanceId: id, photo: null };
@@ -7857,6 +7896,9 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getAttendancePhoto") return await getAttendancePhoto(event);
     if (action === "registerCustomer") return await registerCustomer(event);
     if (action === "listActiveStoreCustomers") return await listActiveStoreCustomers(event);
+    if (action === "queryTeamInactiveVerificationCustomers") return await teacherTeamReads().safeRead(async () => queryInactiveVerificationCustomers(event, await teacherTeamReads().context(event)));
+    if (action === "queryTeamLowBalanceCustomers") return await teacherTeamReads().safeRead(async () => queryLowBalanceCustomers(event, await teacherTeamReads().context(event)));
+    if (action === "getTeamTeacherWorkspace") return await teacherTeamReads().safeRead(() => getTeamTeacherWorkspace(event));
     if (action === "queryStoreCustomers") return await queryStoreCustomers(event);
     if (action === "queryInactiveVerificationCustomers") return await queryInactiveVerificationCustomers(event);
     if (action === "queryLowBalanceCustomers") return await queryLowBalanceCustomers(event);

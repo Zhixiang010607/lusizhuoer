@@ -11,7 +11,7 @@ function emptyResults() {
 Component({
   properties: {
     teacherId: { type: String, value: "" }, teacherName: { type: String, value: "" },
-    teacherPhone: { type: String, value: "" }, balances: { type: Array, value: [] }
+    teacherPhone: { type: String, value: "" }, balances: { type: Array, value: [] }, viewerMode:{type:String,value:"HQ"}
   },
   data: {
     ...emptyResults(), rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS.slice(0, 3),
@@ -42,7 +42,7 @@ Component({
       const request = Object.freeze({ teacherId: this.data.teacherId, recordType: this.data.businessType, page, pageSize: PAGE_SIZE, includeOverview: true, ...dashboard.payload(range.startDate, range.endDate) });
       this.setData({ loading: true, error: "", startDate: range.startDate, endDate: range.endDate });
       try {
-        const result = await callFace("getHqTeacherWorkspace", request);
+        const result = await callFace(this.data.viewerMode === "TEAM" ? "getTeamTeacherWorkspace" : "getHqTeacherWorkspace", request);
         if (!this._ready || epoch !== this._epoch) return;
         if (String(result.profile?.teacherId || "") !== request.teacherId) throw new Error("老师资料不一致，请返回列表重试");
         const rows = dashboard.records(result.page?.records, request.recordType);
@@ -95,12 +95,14 @@ Component({
       return this.load(page);
     },
     openOrder(event) {
+      if(this.data.viewerMode === "TEAM")return;
       const row = this.data.rows.find(item => item.id === String(event.currentTarget.dataset.id));
       if (!row) return;
       const type = ["RECHARGE", "REFUND"].includes(row.type) ? "RECHARGE" : "VERIFICATION";
       wx.navigateTo({ url: `/pages/order-detail/index?type=${type.toLowerCase()}&category=${row.type}&recordId=${encodeURIComponent(row.id)}&recordCode=${encodeURIComponent(row.recordCode)}` });
     },
     openCustomer(event) {
+      if(this.data.viewerMode === "TEAM")return;
       const code = String(event.currentTarget.dataset.code || "");
       if (code) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` });
     }

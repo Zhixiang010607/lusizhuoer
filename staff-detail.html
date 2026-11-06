@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css?v=0.15.61">
   <link rel="stylesheet" href="web-tablet-parity.css?v=1.0.13" data-web-tablet-parity>
   <link rel="stylesheet" href="attendance-photo.css?v=1.0.1">
+  <link rel="stylesheet" href="staff-team.css?v=1.0.0">
 </head>
 <body data-staff-detail>
   <aside class="side-project-bar" aria-label="项目栏">
@@ -29,6 +30,7 @@
       <button type="button" class="active" data-staff-section="basic" role="tab" aria-selected="true">基本资料</button>
       <button type="button" data-staff-section="configuration" role="tab" aria-selected="false">项目配置</button>
       <button type="button" data-staff-section="work" role="tab" aria-selected="false">考勤日报</button>
+      <button type="button" id="staffTeamTab" data-staff-section="personnel" role="tab" aria-selected="false" hidden>人员管理</button>
     </nav>
 
     <section id="staffBasicSection" class="staff-detail-section">
@@ -158,17 +160,19 @@
         <div id="staffWorkDayContent" class="staff-work-day-content"><p class="staff-work-empty">选择月历中的日期查看详情</p></div>
       </section>
     </section>
+    <section id="staffPersonnelSection" class="staff-detail-section" hidden><div id="staffTeamContent" aria-live="polite"></div></section>
   </main>
 
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-  <script src="cloudbase-phone-auth.js?v=0.20.7"></script>
+  <script src="cloudbase-phone-auth.js?v=0.20.8"></script>
   <script src="datetime.js?v=0.1.2"></script>
   <script src="web-work-common.js?v=1.0.0"></script>
   <script src="attendance-photo.js?v=1.0.0"></script>
-  <script src="staff-detail.js?v=0.15.16"></script>
+  <script src="staff-team.js?v=1.0.0"></script>
+  <script src="staff-detail.js?v=0.15.17"></script>
   <script src="auth-ui.js?v=0.21.5"></script>
 </body>
 </html>

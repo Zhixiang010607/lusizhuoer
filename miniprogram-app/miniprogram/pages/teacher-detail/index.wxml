@@ -1,21 +1,23 @@
 <view class="workspace-page">
   <view class="workspace-topbar detail-topbar">
-    <view class="detail-heading-block"><button class="back-button" bindtap="back"><text>‹ 返回老师管理</text></button><text class="topbar-title">老师主页</text></view>
+    <view class="detail-heading-block"><button class="back-button" bindtap="back"><text>‹ {{teamScope ? '返回管理名单' : '返回老师管理'}}</text></button><text class="topbar-title">老师主页</text></view>
   </view>
   <view class="workspace-main">
     <view wx:if="{{message}}" class="form-message {{error ? 'error' : ''}}">{{message}}</view>
     <view wx:if="{{loading && !staff}}" class="web-panel empty">正在读取老师数据库…</view>
     <block wx:if="{{staff}}">
-      <view class="teacher-section-tabs" role="tablist">
+      <view class="teacher-section-tabs {{teamScope ? 'team-read-tabs' : teamLeader ? 'team-five-tabs' : ''}}" role="tablist">
         <button class="teacher-section-tab {{activeSection === 'home' ? 'active' : ''}}" data-section="home" bindtap="switchSection">老师主页</button>
-        <button class="teacher-section-tab {{activeSection === 'basic' ? 'active' : ''}}" data-section="basic" bindtap="switchSection">基本资料</button>
-        <button class="teacher-section-tab {{activeSection === 'configuration' ? 'active' : ''}}" data-section="configuration" bindtap="switchSection">项目配置</button>
+        <button wx:if="{{!teamScope}}" class="teacher-section-tab {{activeSection === 'basic' ? 'active' : ''}}" data-section="basic" bindtap="switchSection">基本资料</button>
+        <button wx:if="{{!teamScope}}" class="teacher-section-tab {{activeSection === 'configuration' ? 'active' : ''}}" data-section="configuration" bindtap="switchSection">项目配置</button>
         <button class="teacher-section-tab {{activeSection === 'work' ? 'active' : ''}}" data-section="work" bindtap="switchSection">考勤日报</button>
+        <button wx:if="{{!teamScope && teamLeader}}" class="teacher-section-tab {{activeSection === 'personnel' ? 'active' : ''}}" data-section="personnel" bindtap="switchSection">人员管理</button>
       </view>
 
-      <teacher-workspace wx:if="{{activeSection === 'home'}}" id="teacher-workspace" teacher-id="{{teacherId}}" teacher-name="{{profile.name}}" teacher-phone="{{profile.phone}}" balances="{{entitlements}}" />
+      <teacher-workspace wx:if="{{activeSection === 'home'}}" id="teacher-workspace" teacher-id="{{teacherId}}" teacher-name="{{profile.name}}" teacher-phone="{{profile.phone}}" balances="{{entitlements}}" viewer-mode="{{teamScope ? 'TEAM' : 'HQ'}}" />
+      <teacher-team-manager wx:if="{{!teamScope && teamLeader && activeSection === 'personnel'}}" teacher-id="{{teacherId}}" bindchanged="loadTeamState"/>
 
-      <view wx:if="{{activeSection === 'basic'}}" class="teacher-detail-grid">
+      <view wx:if="{{!teamScope && activeSection === 'basic'}}" class="teacher-detail-grid">
         <view class="teacher-detail-sidebar">
           <view class="web-panel profile-hero teacher-profile-hero">
             <view class="profile-avatar">{{profile.initials}}</view>
@@ -24,7 +26,9 @@
               <view class="profile-title-row"><text>{{profile.name}}</text><text class="store-status-badge {{profile.archived ? 'archived' : ''}}">{{profile.archived ? '封存' : '活跃'}}</text></view>
               <view class="teacher-profile-meta"><text>联系电话 {{profile.phone}}</text></view>
             </view>
+            <button class="team-role-button" bindtap="toggleTeamLeader" disabled="{{!teamReady || teamMutating || mutating || (!teamLeader && (profile.archived || teamAssignedLeader))}}" loading="{{teamMutating}}">{{teamLeader ? '取消组长' : '设为组长'}}</button>
           </view>
+          <text wx:if="{{teamError || teamAssignedLeader}}" class="team-role-note">{{teamError || '请先从原组长名单移除，再设置为组长'}}</text>
           <view class="web-panel security-panel">
             <view class="panel-heading"><view><text class="panel-title">老师账号管理</text></view></view>
             <view class="field"><text class="field-label">新临时密码</text><view class="temporary-password-control"><input class="input" password="{{!newPasswordVisible}}" maxlength="32" value="{{newPassword}}" data-field="newPassword" bindinput="input" placeholder="请输入新临时密码" disabled="{{mutating || !profile.authUid}}" /><button class="temporary-password-toggle" bindtap="toggleNewPassword" aria-label="{{newPasswordVisible ? '隐藏新临时密码' : '显示新临时密码'}}" disabled="{{mutating || !profile.authUid}}">{{newPasswordVisible ? '隐藏' : '显示'}}</button></view></view>
@@ -41,7 +45,7 @@
         </view>
       </view>
 
-      <view wx:if="{{activeSection === 'configuration'}}" class="configuration-section">
+      <view wx:if="{{!teamScope && activeSection === 'configuration'}}" class="configuration-section">
         <view class="web-panel experience-panel experience-overview-panel">
           <view class="panel-heading"><view><text class="panel-title">配置项目当月汇总</text><text class="panel-note monthly-summary-note">按上海自然月分别统计；删除后重新配置不会清空已完成体验</text></view><text class="web-badge">{{profile.archived ? '老师已封存 · 仅可查询' : overview.activeProducts + ' 个配置项目'}}</text></view>
           <text wx:if="{{entitlements.length}}" class="monthly-scroll-hint">左右滑动查看完整额度</text>

@@ -17,6 +17,7 @@ function loadIntent(storage, uid = "hq-auth-uid") {
   const context = {
     module: { exports: {} }, exports: {},
     require(id) {
+      if (id === "../../services/teacher-team") return { requireTeamAccess: async () => { throw new Error("HQ regression must not enter a team route"); } };
       if (id === "./session") return { readSession: () => ({ uid }) };
       throw new Error(`unexpected intent dependency ${id}`);
     },
@@ -36,6 +37,7 @@ function loadPage(intent, callStaff) {
   vm.runInNewContext(pageSource, {
     Page(value) { definition = value; },
     require(id) {
+      if (id === "../../services/teacher-team") return { requireTeamAccess: async () => { throw new Error("HQ regression must not enter a team route"); } };
       if (id === "../../services/api") return { callStaff };
       if (id === "../../services/session") return { requireSession: () => ({ role: "hq", uid: "hq-auth-uid" }) };
       if (id === "../../services/teacher-experience-recharge") return intent;

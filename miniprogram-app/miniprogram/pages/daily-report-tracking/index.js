@@ -1,3 +1,4 @@
+const { requireTeamAccess, teacherUrl } = require("../../services/teacher-team");
 const { callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession } = require("../../services/session");
 const { formatShanghaiTimestamp } = require("../../services/business-time");
@@ -28,17 +29,19 @@ function reportSections(report = {}) {
 }
 
 Page({
-  data: { authorized: false, loading: true, detailLoading: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false, calendarCells: [], completed: [], incomplete: [], message: "", error: false, detailOpen: false, detailTeacher: {}, detailSections: [] },
-  async onLoad() {
+  data: { teamScope:false, authorized: false, loading: true, detailLoading: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false, calendarCells: [], completed: [], incomplete: [], message: "", error: false, detailOpen: false, detailTeacher: {}, detailSections: [] },
+  async onLoad(options = {}) {
     this._unloaded = false;
     const today = localShanghaiDate();
     this.setData({ serverToday: today, visibleMonth: today.slice(0, 7), selectedDate: today, pendingDate: today, calendarCells: calendarCells(today.slice(0, 7), today, today) });
     await waitForStartupSession();
     if (this._unloaded) return;
-    if (!requireSession(["hq"])) return;
+    if(options.scope === "TEAM") { this.setData({teamScope:true});try{await requireTeamAccess();}catch(error){if(!this._unloaded)this.setData({loading:false,message:error.message,error:true});return;} } else { if (!requireSession(["hq"])) return; }
+    if(this._unloaded)return;
     this.setData({ authorized: true });
-    await this.loadDay(today);
+    await this.loadDay(today); this._teamMounted=true;
   },
+  onShow(){if(this.data.teamScope && this._teamMounted){this.setData({authorized:true});this.loadDay(this.data.selectedDate);}},
   onUnload() { this._unloaded = true; this._dayEpoch = (this._dayEpoch || 0) + 1; this._detailEpoch = (this._detailEpoch || 0) + 1; },
   onPullDownRefresh() { this.loadDay(this.data.selectedDate).finally(() => wx.stopPullDownRefresh()); },
   back() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.reLaunch({ url: "/pages/home/index" }); },
@@ -47,13 +50,13 @@ Page({
     const epoch = this._dayEpoch = (this._dayEpoch || 0) + 1;
     this.setData({ loading: true, completed: [], incomplete: [], message: "正在读取日报完成情况…", error: false, detailOpen: false });
     try {
-      const result = await callStaff("getHqDailyReportTrackingDay", { reportDate });
+      const result = this.data.teamScope ? await callStaff("getTeamDailyReportTrackingDay", { reportDate }) : await callStaff("getHqDailyReportTrackingDay", { reportDate });
       if (this._unloaded || epoch !== this._dayEpoch) return;
       const serverToday = String(result.serverToday || this.data.serverToday);
       const selectedDate = String(result.reportDate || reportDate);
       const visibleMonth = selectedDate.slice(0, 7);
       this.setData({ serverToday, selectedDate, pendingDate: selectedDate, visibleMonth, canNextMonth: monthShift(visibleMonth, 1) <= serverToday.slice(0, 7), calendarCells: calendarCells(visibleMonth, selectedDate, serverToday), completed: (result.completed || []).map(teacher), incomplete: (result.incomplete || []).map(teacher), message: "", error: false });
-    } catch (error) { if (!this._unloaded && epoch === this._dayEpoch) this.setData({ message: error.message || "日报追踪读取失败", error: true }); }
+    } catch (error) { if (!this._unloaded && epoch === this._dayEpoch) this.setData({ message: error.message || "日报追踪读取失败", error: true, ...(this.data.teamScope?{authorized:false,completed:[],incomplete:[],detailOpen:false,detailTeacher:{},detailSections:[]}:{}) }); }
     finally { if (!this._unloaded && epoch === this._dayEpoch) this.setData({ loading: false }); }
   },
   selectDate(event) { const date = String(event.currentTarget.dataset.date || ""); if (date && date <= this.data.serverToday && !this.data.loading) return this.loadDay(date); },
@@ -63,17 +66,17 @@ Page({
   chooseDate(event) { const date = String(event.detail.value || ""); if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date <= this.data.serverToday) this.setData({ pendingDate: date }); },
   confirmDate() { const date = String(this.data.pendingDate || ""); if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date <= this.data.serverToday && !this.data.loading) return this.loadDay(date); },
   today() { if (!this.data.loading) return this.loadDay(this.data.serverToday); },
-  openTeacher(event) { const teacherId = String(event.currentTarget.dataset.id || ""); if (teacherId) wx.navigateTo({ url: `/pages/teacher-detail/index?teacherRef=${encodeURIComponent(teacherId)}` }); },
+  openTeacher(event) { const teacherId = String(event.currentTarget.dataset.id || ""); if (teacherId) wx.navigateTo({ url: this.data.teamScope ? teacherUrl(teacherId) : `/pages/teacher-detail/index?teacherRef=${encodeURIComponent(teacherId)}` }); },
   async openReport(event) {
     const reportId = String(event.currentTarget.dataset.id || "");
     if (!reportId || this.data.detailLoading) return;
     const epoch = this._detailEpoch = (this._detailEpoch || 0) + 1;
     this.setData({ detailLoading: true, message: "正在读取日报内容…", error: false });
     try {
-      const result = await callStaff("getHqDailyReportDetail", { reportId });
+      const result = this.data.teamScope ? await callStaff("getTeamDailyReportDetail", { reportId }) : await callStaff("getHqDailyReportDetail", { reportId });
       if (this._unloaded || epoch !== this._detailEpoch) return;
       this.setData({ detailOpen: true, detailTeacher: teacher(result.teacher), detailSections: reportSections(result.report), message: "", error: false });
-    } catch (error) { if (!this._unloaded && epoch === this._detailEpoch) this.setData({ message: error.message || "日报详情读取失败", error: true }); }
+    } catch (error) { if (!this._unloaded && epoch === this._detailEpoch) this.setData({ message: error.message || "日报详情读取失败", error: true, ...(this.data.teamScope?{authorized:false,completed:[],incomplete:[],detailOpen:false,detailTeacher:{},detailSections:[]}:{}) }); }
     finally { if (!this._unloaded && epoch === this._detailEpoch) this.setData({ detailLoading: false }); }
   },
   closeDetail() { if (!this.data.detailLoading) this.setData({ detailOpen: false, detailTeacher: {}, detailSections: [] }); },

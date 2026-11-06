@@ -19,7 +19,7 @@
 
   <view class="card result-card">
     <view class="card-title"><text>客户结果</text><text class="badge">共 {{total}} 位</text></view>
-    <view wx:if="{{searched && total > 0}}" class="result-export">
+    <view wx:if="{{!teamScope && searched && total > 0}}" class="result-export">
       <text>全部结果按门店分组 · 上限 1000 位</text>
       <view class="export-buttons"><button class="secondary" bindtap="exportPdf" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 PDF</button><button class="secondary" bindtap="exportExcel" loading="{{exporting}}" disabled="{{loading || exporting || total <= 0}}">导出 Excel</button></view>
     </view>
@@ -31,7 +31,7 @@
         <scroll-view wx:if="{{zeroCustomers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{zeroCustomers.length > 10 ? 10 : zeroCustomers.length}}" scroll-left="{{zeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
           <view class="inactive-table">
             <view class="inactive-row inactive-head"><text class="list-row-number">序号</text><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
-            <view wx:for="{{zeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
+            <view wx:for="{{zeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="{{teamScope ? '' : 'customer-name'}}">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类客户</view>
@@ -44,7 +44,7 @@
         <scroll-view wx:if="{{nonzeroCustomers.length}}" class="inactive-table-scroll" scroll-x="true" data-visible-rows="{{nonzeroCustomers.length > 10 ? 10 : nonzeroCustomers.length}}" scroll-left="{{nonzeroTableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
           <view class="inactive-table">
             <view class="inactive-row inactive-head"><text class="list-row-number">序号</text><text>客户</text><text>门店</text><text>间隔时间</text><text>计算起点</text><text>上次核销</text></view>
-            <view wx:for="{{nonzeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="customer-name">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
+            <view wx:for="{{nonzeroCustomers}}" wx:key="customerCode" class="inactive-row" data-code="{{item.customerCode}}" bindtap="openCustomer"><text class="list-row-number">{{index + 1}}</text><text class="{{teamScope ? '' : 'customer-name'}}">{{item.customerName}}</text><text>{{item.storeName}}</text><text class="days-since">{{item.daysSince}} 天</text><text>{{item.baselineSourceLabel}}</text><text>{{item.lastVerificationLabel}}</text></view>
           </view>
         </scroll-view>
         <view wx:else class="empty compact-empty">当前条件下没有这类客户</view>

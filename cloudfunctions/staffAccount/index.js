@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v98";
+const FUNCTION_VERSION = "v99";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -50,6 +50,7 @@ let retailProductCapabilities = null;
 let rechargeProductGiftSchemaReady = null;
 let dailyReportSchemaReady = null;
 let trainingMaterialSchemaReady = null;
+let teacherTeamServiceInstance = null;
 const productLogoDownloadCache = new Map();
 const productLogoDownloadFlights = new Map();
 const productLogoSignCache = new Map();
@@ -1544,6 +1545,11 @@ function requireHq(caller) {
   if (caller.profile?.role !== "hq") fail("仅总部账号可以管理员工账号", "FORBIDDEN");
 }
 
+function teacherTeamService() {
+  if (!teacherTeamServiceInstance) teacherTeamServiceInstance = require("./teacher-team").createTeacherTeams({ executeSql, sqlText, numericId, fail });
+  return teacherTeamServiceInstance;
+}
+
 function requireReviewer(caller) {
   if (caller.profile?.role !== "hq") {
     fail("仅总部账号可以审核业务工单", "FORBIDDEN");
@@ -1754,8 +1760,8 @@ function hqDailyReportTeacher(row = {}) {
   };
 }
 
-async function getHqDailyReportTrackingDay(caller, event = {}) {
-  requireHq(caller);
+async function getHqDailyReportTrackingDay(caller, event = {}, teamScope = null) {
+  if (!teamScope) requireHq(caller);
   await requireDailyReportSchema();
   const reportDate = validCalendarDate(event.reportDate);
   const rows = await executeSql(
@@ -1770,6 +1776,7 @@ async function getHqDailyReportTrackingDay(caller, event = {}) {
         WHERE teacher.teacher_status = 'ACTIVE'
           AND account.role_code = 'teacher'
           AND account.account_status = 'ACTIVE'
+          AND ${teamScope ? teamScope('teacher.id') : 'TRUE'}
      )
      SELECT context.server_today, roster.teacher_id, roster.teacher_code,
             roster.teacher_name, roster.phone,
@@ -1796,8 +1803,8 @@ async function getHqDailyReportTrackingDay(caller, event = {}) {
   };
 }
 
-async function getHqDailyReportDetail(caller, event = {}) {
-  requireHq(caller);
+async function getHqDailyReportDetail(caller, event = {}, teamScope = null) {
+  if (!teamScope) requireHq(caller);
   await requireDailyReportSchema();
   const reportId = numericId(event.reportId, "日报编号");
   const rows = await executeSql(
@@ -1810,6 +1817,7 @@ async function getHqDailyReportDetail(caller, event = {}) {
         AND account.role_code = 'teacher'
         AND account.account_status = 'ACTIVE'
         AND teacher.teacher_status = 'ACTIVE'
+        AND ${teamScope ? teamScope('teacher.id') : 'TRUE'}
       LIMIT 1`
   );
   const row = rows?.[0];
@@ -1912,8 +1920,8 @@ async function getOwnAttendanceMonth(caller, event = {}) {
   };
 }
 
-async function getHqAttendanceTrackingDay(caller, event = {}) {
-  requireHq(caller);
+async function getHqAttendanceTrackingDay(caller, event = {}, teamScope = null) {
+  if (!teamScope) requireHq(caller);
   await requireTeacherAttendanceSchema();
   const attendanceDate = validCalendarDate(event.attendanceDate, "考勤日期");
   const rows = await executeSql(
@@ -1930,6 +1938,7 @@ async function getHqAttendanceTrackingDay(caller, event = {}) {
         WHERE teacher.teacher_status = 'ACTIVE'
           AND account.role_code = 'teacher'
           AND account.account_status = 'ACTIVE'
+          AND ${teamScope ? teamScope('teacher.id') : 'TRUE'}
      )
      SELECT context.server_today, roster.*,
             clock_in.id AS clock_in_id, clock_in.attendance_date AS clock_in_attendance_date,
@@ -2041,8 +2050,8 @@ function teacherWorkMonthResponse(rows, month) {
   };
 }
 
-async function getHqTeacherWorkMonth(caller, event = {}) {
-  requireHq(caller);
+async function getHqTeacherWorkMonth(caller, event = {}, teamScope = null) {
+  if (!teamScope) requireHq(caller);
   await Promise.all([requireDailyReportSchema(), requireTeacherAttendanceSchema()]);
   const teacherId = numericId(event.teacherId, "老师编号");
   const month = validCalendarMonth(event.month);
@@ -2061,6 +2070,7 @@ async function getHqTeacherWorkMonth(caller, event = {}) {
            ON profile.teacher_id = teacher.id AND profile.staff_account_id = account.id
         WHERE teacher.id = ${teacherId}::bigint
           AND account.role_code = 'teacher'
+          AND ${teamScope ? teamScope('teacher.id') : 'TRUE'}
         LIMIT 1
      ), events AS (
        SELECT 'ATTENDANCE'::text AS event_kind,
@@ -5448,6 +5458,20 @@ async function main(event = {}, context = {}) {
     }
     return { ok: true, version: FUNCTION_VERSION, uid: caller.uid, profile: caller.profile };
   }
+  if (["getTeamAccess", "getTeacherTeam", "listTeacherTeamCandidates", "setTeacherTeamLeader", "setTeacherTeamMember", "getMyTeacherTeam", "getTeamTeacherProfile", "getTeamTeacherEntitlements"].includes(action)) {
+    return teacherTeamService().handle(action, caller, event);
+  }
+  if (["getTeamAttendanceTrackingDay", "getTeamDailyReportTrackingDay", "getTeamDailyReportDetail", "getTeamTeacherWorkMonth"].includes(action)) {
+    const teams = teacherTeamService();
+    return teams.safeRead(async () => {
+    await teams.requireLeader(caller);
+    const teamScope = (column) => teams.scope(caller, column);
+    if (action === "getTeamAttendanceTrackingDay") return getHqAttendanceTrackingDay(caller, event, teamScope);
+    if (action === "getTeamDailyReportTrackingDay") return getHqDailyReportTrackingDay(caller, event, teamScope);
+    if (action === "getTeamDailyReportDetail") return getHqDailyReportDetail(caller, event, teamScope);
+    return getHqTeacherWorkMonth(caller, event, teamScope);
+    });
+  }
   if (action === "listTrainingMaterials") {
     return { ok: true, ...(await listTrainingMaterials(caller, event)) };
   }
@@ -5500,6 +5524,12 @@ async function main(event = {}, context = {}) {
   if (action === "getHqDashboard") {
     requireHq(caller);
     return await getHqDashboard(event);
+  }
+  if (action === "getTeamDashboard") {
+    return require("./teacher-team-dashboard").createTeacherTeamDashboard({executeSql,teams:teacherTeamService(),
+      dateRange:dashboardDateRange,readMode:dashboardReadMode,rankingRequest:dashboardRankingRequest,summaryRequest:dashboardProductSummaryRequest,
+      dateSql:hqDashboardDateSql,eventsCte:hqBusinessEventsCte,projection:hqDashboardRankingProjection,metricColumn:hqDashboardRankingMetricColumn,
+      mapRow:hqDashboardRow,version:FUNCTION_VERSION}).read(caller,event);
   }
   if (action === "getTeacherExperienceEntitlements") {
     requireHq(caller);

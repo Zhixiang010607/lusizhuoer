@@ -1,3 +1,4 @@
+const { requireTeamAccess } = require("../../services/teacher-team");
 const { callFace, callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const {
@@ -61,7 +62,7 @@ function emptyCategoryPatch(prefix) {
 
 Page({
   data: {
-    rulesExpanded: false,
+    rulesExpanded: false, teamScope:false,
     session: {}, loading: false, exporting: false, searched: false, message: "", error: false,
     minimumDays: "", summary: { ...EMPTY_SUMMARY }, total: 0, pageSize: PAGE_SIZE,
     zeroCustomers: [], zeroPage: 1, zeroTotal: 0, zeroTotalPages: 1, zeroPageJump: "1",
@@ -73,12 +74,16 @@ Page({
 
   toggleRules() { this.setData({ rulesExpanded: !this.data.rulesExpanded }); },
 
-  async onLoad() {
-    const session = requireSession(["hq", "store"]);
+  async onLoad(options = {}) {
+    let session;
+    if(options.scope === "TEAM") {this.setData({teamScope:true});try{session=await requireTeamAccess();}catch(error){this.setData({message:error.message,error:true});return;}}
+    else session = requireSession(["hq", "store"]);
     if (!session) return;
     this.setData({ session });
     if (session.role === "hq") await this.loadStores();
   },
+
+  async onShow(){if(this.data.teamScope&&this.data.session.role==="teacher"){this.clearResults();try{await requireTeamAccess();}catch(error){this.setData({message:error.message,error:true});}}},
 
   onPullDownRefresh() {
     if (this.data.exporting) { wx.stopPullDownRefresh(); return; }
@@ -151,6 +156,7 @@ Page({
       payload.cursorBaselineAt = cursor.baselineAt;
       payload.cursorCustomerId = cursor.customerId;
     }
+    if(this.data.teamScope)return callFace("queryTeamInactiveVerificationCustomers", payload);
     return callFace("queryInactiveVerificationCustomers", payload);
   },
 
@@ -244,7 +250,7 @@ Page({
         ...this.categoryPatch(category, targetPage, state)
       }, () => this.resetTableScroll(category));
     } catch (error) {
-      if (epoch === this._requestEpoch) this.setData({ message: error.message || "活跃预警读取失败", error: true });
+      if (epoch === this._requestEpoch) this.setData({ message: error.message || "活跃预警读取失败", error: true, ...(this.data.teamScope?{...emptyCategoryPatch("zero"),...emptyCategoryPatch("nonzero"),total:0,summary:{...EMPTY_SUMMARY}}:{}) });
     } finally {
       if (epoch === this._requestEpoch) this.setData({ loading: false });
     }
@@ -312,6 +318,7 @@ Page({
   },
 
   async exportAll(format = "excel") {
+    if(this.data.teamScope)return;
     const expectedTotal = Number(this.data.total || 0);
     if (!this.data.searched || this.data.loading || this.data.exporting || expectedTotal <= 0) return;
     const exportLimit = format === "pdf" ? PDF_EXPORT_MAX_ROWS : EXPORT_MAX_ROWS;
@@ -357,6 +364,7 @@ Page({
   exportPdf() { return this.exportAll("pdf"); },
 
   openCustomer(event) {
+    if(this.data.teamScope)return;
     const code = String(event.currentTarget.dataset.code || "");
     if (code) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` });
   }

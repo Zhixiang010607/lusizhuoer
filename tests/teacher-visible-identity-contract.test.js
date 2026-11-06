@@ -17,13 +17,13 @@ const teacherDetail = read("miniprogram-app/miniprogram/pages/teacher-detail/ind
 const dashboard = read("miniprogram-app/miniprogram/services/home-dashboard.js");
 const orderDetail = read("miniprogram-app/miniprogram/pages/order-detail/index.js");
 
-assert.match(staff, /const FUNCTION_VERSION = "v98"/);
+assert.match(staff, /const FUNCTION_VERSION = "v99"/);
 assert.match(staff, /COALESCE\(NULLIF\(BTRIM\(t\.teacher_code\), ''\),[\s\S]*a\.id::text\)/,
   "teacher directory compatibility code must use the real unique teacher code");
 assert.doesNotMatch(staff.slice(staff.indexOf('if (action === "listStaff")'), staff.indexOf('if (action === "listProducts")')), /LPAD\(a\.id::text, 3/,
   "staff IDs must never be truncated into duplicate three-character display codes");
 
-assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v138"/);
+assert.match(face, /const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION \? "v12" : "v139"/);
 assert.match(face, /SELECT t\.id AS teacher_id, t\.teacher_code, t\.teacher_name, a\.phone AS teacher_phone/);
 assert.match(face, /teacherPhone: teacher\.teacher_phone/);
 assert.match(face, /teacherPhone: caller\.teacherPhone/);

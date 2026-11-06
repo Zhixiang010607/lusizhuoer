@@ -151,11 +151,13 @@
   }
 
   function setStaffSection(section) {
-    if (role !== "teacher" || !["basic", "configuration", "work"].includes(section)) return;
+    if (role !== "teacher" || !["basic", "configuration", "work","personnel"].includes(section)) return;
+    if(section === "personnel" && !window.TeacherTeamManagement?.isLeader())return;
     work.section = section;
     $("staffBasicSection").hidden = section !== "basic";
     $("staffConfigurationSection").hidden = section !== "configuration";
     $("staffWorkSection").hidden = section !== "work";
+    $("staffPersonnelSection").hidden = section !== "personnel";
     document.querySelectorAll("[data-staff-section]").forEach((button) => {
       const selected = button.dataset.staffSection === section;
       button.classList.toggle("active", selected);
@@ -765,6 +767,7 @@
     const credentialAction = $("staffCredentialAction");
     credentialAction.hidden = !staff.auth_uid;
     credentialAction.textContent = "重置临时密码";
+    if(isTeacher)window.TeacherTeamManagement?.mount({teacherId:teacherId(),archived:isStaffArchived(),onRevoked:()=>setStaffSection("basic")});
   }
 
   async function load() {

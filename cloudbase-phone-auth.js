@@ -544,6 +544,10 @@
         "老师考勤日报月历读取失败"
       );
     },
+    async teacherTeam(action, data = {}) {
+      if (!["getTeacherTeam","listTeacherTeamCandidates","setTeacherTeamLeader","setTeacherTeamMember"].includes(action)) throw new Error("小组操作无效");
+      return callStaffAccount({ ...data, action }, "小组管理请求失败，请刷新状态后核对");
+    },
     async upsertTeacherExperienceEntitlement({ teacherId, productId, monthlyAllowance }) {
       return callStaffAccount(
         { action: "upsertTeacherExperienceEntitlement", teacherId, productId, monthlyAllowance },

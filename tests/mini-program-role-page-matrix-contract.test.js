@@ -32,6 +32,8 @@ const ROLE_MATRIX = Object.freeze({
   "pages/store-detail/index": ["hq"],
   "pages/teacher-create/index": ["hq"],
   "pages/teacher-detail/index": ["hq"],
+  "pages/team-operations/index": ["teacher"],
+  "pages/team-dashboard/index": ["teacher"],
   "pages/teacher-customers/index": ["teacher"],
   "pages/daily-report/index": ["teacher"],
   "pages/daily-report-tracking/index": ["hq"],
@@ -66,7 +68,7 @@ function declaredHandler(source, handler) {
 
 function guardedRoles(source) {
   const calls = [...source.matchAll(/requireSession\((\[[^\]]*\])?\)/g)];
-  if (!calls.length) return null;
+  if (!calls.length) return /requireTeamAccess/.test(source) ? ["teacher"] : null;
   const explicit = calls.filter((match) => match[1]);
   if (!explicit.length) return ["hq", "store", "teacher"];
   const sets = explicit.map((match) => [...match[1].matchAll(/"(hq|store|teacher)"/g)].map((role) => role[1]).sort());
