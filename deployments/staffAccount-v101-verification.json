@@ -1,0 +1,16 @@
+{
+  "function": "staffAccount",
+  "runtimeVersion": "v101",
+  "packageVersion": "101.0.0",
+  "archive": "staffAccount-v101.zip",
+  "sha256": "92bcef73f8c45cc8ca69f7f5f7927a6bd993d9c942bd2fb8fdbc6a27f305e539",
+  "files": {
+    "README.md": "6599fd7140e81e5d885b89a8fe70c088d8399cf3091df2cd3a7bf4f35f98298e",
+    "index.js": "6bb04fbb88bcd0728291cb0a83bff5b8cf01386ad971928e434f07062da0dce7",
+    "package.json": "365b72e3f4403be94dc8ab36403f9a4a3404d736ede580ddb6132b718f1beb55",
+    "teacher-team-dashboard.js": "410969045b88fe732db9c1d604db1f232431e967e1b9a453248134efa27c416b",
+    "teacher-team.js": "48c875f9f60d1087ad7d688024835f96e2efbfe1e672c364fbe76ed3540603e1"
+  },
+  "rootReadmeVersionVerified": true,
+  "zipBytesEqualSource": true
+}

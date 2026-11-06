@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v141";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v142";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -5863,11 +5863,14 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
   // The public teacher action never accepts a target identity from event.
   const caller = hqTarget || await activeTeacherCaller();
   const options = teacherWorkspaceOptions(event);
+  const leaderRows = await executeSql(`SELECT public.teacher_team_leader_name_v93(${positiveDatabaseId(caller.teacherId, "老师")}::bigint) AS assigned_leader_name
+    WHERE ${caller.teamReadScopeSql || "TRUE"}`);
   const profile = {
     teacherId: caller.teacherId,
     teacherCode: caller.teacherCode,
     teacherName: caller.teacherName,
-    teacherPhone: caller.teacherPhone
+    teacherPhone: caller.teacherPhone,
+    assignedLeaderName: String(leaderRows?.[0]?.assigned_leader_name || "")
   };
   const query = async (recordType, { detailMode = false, legacyCombined = false } = {}) => {
     const config = TEACHER_WORKSPACE_TYPE_CONFIG[recordType];

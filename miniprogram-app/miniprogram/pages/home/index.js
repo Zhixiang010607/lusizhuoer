@@ -144,7 +144,7 @@ Page({
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"),
     rangeMoreOptions: dashboard.RANGE_OPTIONS.slice(3), rangeMoreIndex: 0, rangeMoreLabel: "更多", rangeStart: "", rangeEnd: "",
     rangeLabel: "今天", customRangeVisible: false,
-    profileFacts: [], storeHero: {}, experienceBalances: [], summaryRows: [],
+    profileFacts: [], assignedLeaderName: "", storeHero: {}, experienceBalances: [], summaryRows: [],
     totals: { ...dashboard.EMPTY_TOTALS }, businessType: "VERIFICATION",
     businessTabs: readyTabs(dashboard.EMPTY_TOTALS, "VERIFICATION"), ...businessRecordsView([], "VERIFICATION"),
     businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0, businessLoading: false,
@@ -211,7 +211,7 @@ Page({
     this.setData({
       loading: true,
       rangeStart: range.startDate, rangeEnd: range.endDate,
-      profileFacts: [], experienceBalances: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
+      profileFacts: [], assignedLeaderName: "", experienceBalances: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
       businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), ...businessRecordsView([], businessType),
       businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0,
       activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),
@@ -230,6 +230,7 @@ Page({
       const totals = dashboard.totals(value.summary?.totals);
       Object.assign(changes, {
         profileFacts: dashboard.teacherFacts(value.profile, this.data.session),
+        assignedLeaderName: String(value.profile?.assignedLeaderName || ""),
         experienceBalances: quotaRows(value.experienceBalances), totals,
         summaryRows: summaryRows(value.summary?.products, totals),
         businessTabs: readyTabs(totals, this.data.businessType),
@@ -263,7 +264,7 @@ Page({
     const rangeData = dashboard.payload(range.startDate, range.endDate);
     this.setData({
       loading: true, rangeStart: range.startDate, rangeEnd: range.endDate, message: "", error: false,
-      storeHero: {}, profileFacts: [], summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
+      storeHero: {}, profileFacts: [], assignedLeaderName: "", summaryRows: [], totals: { ...dashboard.EMPTY_TOTALS },
       businessTabs: readyTabs(dashboard.EMPTY_TOTALS, businessType), ...businessRecordsView([], businessType),
       businessPage: pageView({}), businessPageInput: "1", businessScrollLeft: 0, summaryScrollLeft: 0,
       activeCustomers: customerView(dashboard.customerGroup()), archivedCustomers: customerView(dashboard.customerGroup()),

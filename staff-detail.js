@@ -758,7 +758,7 @@
     statusAction.disabled = false;
     statusAction.title = "";
     const baseStatusHint = status === "活跃"
-      ? "封存后该人员无法登录，历史业务记录和体验额度记录都会保留。"
+      ? "封存后该人员无法登录，历史业务记录和体验额度记录都会保留。" + (isTeacher ? "老师将退出小组；组长同时取消资格并释放全部成员，恢复不自动归组。" : "")
       : "激活后该人员可再次登录；历史业务记录保持不变。";
     delete $("staffStatusHint").dataset.tone;
     $("staffStatusHint").textContent = staff.auth_uid

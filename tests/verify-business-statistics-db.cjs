@@ -75,6 +75,9 @@ async function main() {
       INSERT INTO products(id,product_code,product_name) VALUES(1,'QA-P-1','合成项目一'),(2,'QA-P-2','合成项目二'),(3,'QA-P-3','无业务项目');
       INSERT INTO customers(id,customer_code,customer_name,birth_date,created_store_id,created_by_account_id) VALUES(1,'QA-C-1','合成客户一','1990-01-01',1,2),(2,'QA-C-2','合成客户二','2000-01-01',2,12);
     `);
+    // This fixture audits business numbers; leadership-name semantics are
+    // exercised separately with the real 093 migration.
+    await db.exec("CREATE FUNCTION public.teacher_team_leader_name_v93(bigint) RETURNS text LANGUAGE sql STABLE AS $$SELECT ''::text$$");
     const faceSource = read("cloudfunctions/faceRecognition/index.js"), staffSource = read("cloudfunctions/staffAccount/index.js");
     let caller = { role: "hq", scopeMode: "ALL", staffId: 1 };
     const face = vm.createContext({ Number,String,Object,Math,Date,Set,Map,JSON,sqlText,fail,

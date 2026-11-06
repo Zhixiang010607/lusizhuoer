@@ -113,6 +113,8 @@ async function main() {
     await appoint(1, false);
     check(await scalar("SELECT count(*)::int FROM public.teacher_team_members WHERE leader_teacher_id=1") === 0, "HQ can revoke archived leader and release members");
 
+    await db.exec(`CREATE FUNCTION public.teacher_team_leader_name_v93(p_teacher_id bigint) RETURNS text LANGUAGE sql STABLE AS $$
+      SELECT COALESCE((SELECT t.teacher_name FROM teacher_team_members m JOIN teachers t ON t.id=m.leader_teacher_id WHERE m.member_teacher_id=p_teacher_id),'');$$`);
     const { createTeacherTeams } = require("../cloudfunctions/staffAccount/teacher-team");
     const teams = createTeacherTeams({
       executeSql: async (sql) => (await db.query(sql)).rows,

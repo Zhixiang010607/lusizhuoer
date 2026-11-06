@@ -426,3 +426,8 @@
   .customer-pagination .customer-page-jump { grid-template-columns: auto 72px auto 80px; gap: 8px; }
   .customer-pagination .customer-page-jump input { width: 72px; height: 42px; min-height: 42px; padding: 0 8px; border-radius: 8px; }
 }
+
+.teacher-leader-line { min-width: 0; max-width: 100%; display: flex; align-items: flex-start; gap: 16rpx; margin-top: 16rpx; color: #7c7062; font-size: 26rpx; line-height: 1.5; }
+.teacher-leader-line > text:first-child { flex: none; white-space: nowrap; }
+.teacher-leader-line > text:last-child { min-width: 0; color: #4a3825; overflow-wrap: anywhere; white-space: normal; }
+@media (min-width: 700px) { .teacher-leader-line { gap: 10px; margin-top: 12px; font-size: 14px; } }

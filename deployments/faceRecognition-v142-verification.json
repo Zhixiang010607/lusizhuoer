@@ -1,0 +1,18 @@
+{
+  "function": "faceRecognition",
+  "runtimeVersion": "v142",
+  "packageVersion": "142.0.0",
+  "archive": "faceRecognition-v142.zip",
+  "sha256": "7cf544d3d3cc3ab7de7e5ccdfcaad7ca4a32e3fed0c5f4e1f448b4ee9f15e020",
+  "files": {
+    "index.js": "328ac2da1701e4d765457a2d86ba232e880522d5d825eb10724bccc95abb06ae",
+    "teacher-team.js": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39",
+    "package.json": "2f39f7d9c273d43cac535d14fefdb3f583e16ffa1069ef9ff6c352d691886840",
+    "README.md": "17dc8897dc0d7c5b6416b069ab79cdd7658897e1b316a40a10736d8d58594ecf",
+    "attendance-photo.js": "82d6d2da5f381c293b46e966fad6b5adebb2cc7dea8e2b4428dd3eb3d6b76f3a",
+    "attendance-glyphs.json": "bb19ed8b183a935f45b03dd69a0a12dd6bc75e01d39e4fe5911755e48ca7a835",
+    "attendance-glyphs-LICENSE.txt": "148c524a428f4c84bcdce3717d549649d7248d382a6fefce252f38461f5470eb"
+  },
+  "rootReadmeVersionVerified": true,
+  "zipBytesEqualSource": true
+}

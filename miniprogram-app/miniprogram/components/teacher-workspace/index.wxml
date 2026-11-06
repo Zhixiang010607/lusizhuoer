@@ -1,5 +1,5 @@
 <view class="teacher-home">
-  <view class="web-panel teacher-home-profile"><view><text>老师姓名</text><text>{{teacherName}}</text></view><view><text>联系电话</text><text>{{teacherPhone}}</text></view></view>
+  <view class="web-panel teacher-home-profile"><view><text>老师姓名</text><text>{{teacherName}}</text></view><view><text>联系电话</text><text>{{teacherPhone}}</text></view><view wx:if="{{assignedLeaderName}}" class="teacher-leader-line"><text>所属组长</text><text>{{assignedLeaderName}}</text></view></view>
   <view wx:if="{{balances.length}}" class="web-panel">
     <view class="panel-heading"><text class="panel-title">体验项目剩余次数</text></view>
     <view class="quota-overview"><view class="quota-line quota-head"><text>项目</text><text>当前可用</text><text>每月基础</text><text>本月已用</text></view><view wx:for="{{balances}}" wx:key="productId" class="quota-line"><text>{{item.productName}}</text><text>{{item.availableCount}} 次</text><text>{{item.monthlyAllowance}} 次</text><text>{{item.usedCount}} 次</text></view></view>

@@ -144,7 +144,7 @@ const recoverySource = functionSource(cloud, "recoverBusinessSubmission");
 includes(recoverySource, "usage.verification_id AS quota_usage_id", "canonical experience usage primary key");
 assert.doesNotMatch(recoverySource, /usage\.id\b/, "recovery must not query a nonexistent quota usage id");
 const attributionSource = functionSource(cloud, "teacherBusinessAttributionSourceCondition");
-includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v141"', "cloud function version");
+includes(cloud, 'const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v142"', "cloud function version");
 includes(cloud, 'if (action === "recoverBusinessSubmission")', "recovery dispatcher");
 includes(recoverySource, "r.idempotency_key", "recharge lookup by idempotency key");
 includes(recoverySource, "v.idempotency_key", "verification lookup by idempotency key");

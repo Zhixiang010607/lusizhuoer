@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v100";
+const FUNCTION_VERSION = "v101";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -4018,7 +4018,7 @@ async function requireTeacherStatusSchema() {
   }
 }
 
-async function archiveTeacherProvisioning(staffId, { uid = "", phone = "" } = {}) {
+async function archiveTeacherProvisioning(staffId, { uid = "", phone = "", actorUid = "" } = {}) {
   if (!staffId) return;
   try {
     // Migration 046's teacher-status trigger updates the linked account in
@@ -4027,6 +4027,12 @@ async function archiveTeacherProvisioning(staffId, { uid = "", phone = "" } = {}
     const ownershipPredicate = uid && phone
       ? `AND account.auth_uid = ${sqlText(uid)} AND account.phone = ${sqlText(phone)}`
       : "";
+    if (actorUid) {
+      await executeSql(`SELECT public.set_teacher_status_v93(${sqlText(actorUid)}, teacher.id, 'ARCHIVED')
+        FROM public.teachers teacher JOIN public.staff_accounts account ON account.id=teacher.staff_account_id
+        WHERE account.id=${Number(staffId)} AND account.role_code='teacher' ${ownershipPredicate}`);
+      return;
+    }
     await executeSql(
       `UPDATE public.teachers AS teacher
           SET teacher_status = 'ARCHIVED', updated_at = NOW()
@@ -4427,21 +4433,7 @@ async function setMasterStatus(caller, event = {}) {
     // The 046 trigger updates the linked staff account as part of this
     // statement. Avoid a second same-statement account write, which is not
     // deterministic when a PostgreSQL trigger already changed that row.
-    const changedRows = await executeSql(
-      `UPDATE public.teachers
-          SET teacher_status = ${sqlText(status)}, updated_at = NOW()
-        WHERE id = ${teacherId}::bigint
-        RETURNING staff_account_id`
-    );
-    if (!changedRows?.[0]) fail("老师状态未能保存。", "DATABASE_ERROR");
-    const accountRows = await executeSql(
-      `SELECT account_status FROM public.staff_accounts
-        WHERE id = ${Number(changedRows[0].staff_account_id)}
-        LIMIT 1`
-    );
-    if (String(accountRows?.[0]?.account_status || "") !== status) {
-      fail("老师主档状态未能同步到账号，请确认迁移 046 已完整执行。", "STATUS_SYNC_FAILED");
-    }
+    await persistStaffStatusAndMaster({ id:teacher.staff_account_id, teacher_id:teacherId, role_code:"teacher" }, status, caller);
     return { ok: true, entity: "teacher", teacherId: String(teacherId), status, noAuthAccount: true };
   }
 
@@ -6038,7 +6030,7 @@ async function main(event = {}, context = {}) {
     }
     // Teacher activation depends only on the account/master status invariant.
     try {
-      await persistStaffStatusAndMaster(staff, status);
+      await persistStaffStatusAndMaster(staff, status, caller);
     } catch (error) {
       if (["TEACHER_PROFILE_MISSING", "STORE_PROFILE_MISSING", "STATUS_SYNC_FAILED"].includes(error?.code)) throw error;
       asDatabaseError(error, "同步人员与业务主档状态");
@@ -6047,7 +6039,7 @@ async function main(event = {}, context = {}) {
     let warning = "";
     let warningCode = "";
     if (!staff.auth_uid && status === "ACTIVE") {
-      if (staff.role_code === "teacher") await archiveTeacherProvisioning(staff.id);
+      if (staff.role_code === "teacher") await archiveTeacherProvisioning(staff.id, { actorUid: caller.uid });
       fail("该人员没有可恢复的 CloudBase 认证账号，业务状态已保持封存。", "AUTH_CREDENTIAL_MISSING");
     }
     if (staff.auth_uid) {
@@ -6058,7 +6050,7 @@ async function main(event = {}, context = {}) {
         if (status === "ACTIVE") {
           // Never leave an account selectable/active in PostgreSQL when its
           // corresponding CloudBase login could not be restored consistently.
-          if (staff.role_code === "teacher") await archiveTeacherProvisioning(staff.id);
+          if (staff.role_code === "teacher") await archiveTeacherProvisioning(staff.id, { actorUid: caller.uid });
           else if (staff.role_code === "store") await archiveStoreProvisioning(staff.id);
           else {
             try {
@@ -6125,7 +6117,7 @@ async function main(event = {}, context = {}) {
 // teacher, migration 046's teacher trigger performs the account update inside
 // the same UPDATE statement; doing a second CTE update of the same account
 // row would conflict with that trigger's write.
-async function persistStaffStatusAndMaster(staff, status) {
+async function persistStaffStatusAndMaster(staff, status, caller) {
   const staffId = Number(staff.id);
   if (!Number.isSafeInteger(staffId) || staffId < 1) fail("人员账号编号无效。", "BAD_REQUEST");
 
@@ -6134,11 +6126,11 @@ async function persistStaffStatusAndMaster(staff, status) {
       const repaired = await ensureTeacherDatabaseProfile(staffId);
       staff.teacher_id = repaired.id;
     }
+    requireHq(caller);
     const rows = await executeSql(
-      `UPDATE public.teachers
-          SET teacher_status = ${sqlText(status)}, updated_at = NOW()
-        WHERE staff_account_id = ${staffId}
-        RETURNING id, teacher_status`
+      `SELECT result->>'teacherId' AS id, result->>'status' AS teacher_status
+         FROM (SELECT public.set_teacher_status_v93(${sqlText(caller.uid)},
+           ${numericId(staff.teacher_id, "老师")}::bigint, ${sqlText(status)}) AS result) changed`
     );
     if (!rows?.[0]) fail("老师主档自动修复后仍无法保存状态。", "TEACHER_PROFILE_MISSING");
     // trg_sync_teacher_account_status makes this status update atomic with

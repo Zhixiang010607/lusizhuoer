@@ -29,6 +29,7 @@
               <view class="profile-copy">
                 <view class="profile-title-row"><text>{{profile.name}}</text><text class="store-status-badge {{profile.archived ? 'archived' : ''}}">{{profile.archived ? '封存' : '活跃'}}</text></view>
                 <view class="teacher-profile-meta"><text>联系电话 {{profile.phone}}</text></view>
+                <view wx:if="{{teamAssignedLeader}}" class="teacher-leader-line"><text>所属组长</text><text>{{teamAssignedLeader}}</text></view>
               </view>
             </view>
           </view>

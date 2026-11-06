@@ -18,3 +18,8 @@
   .quota-line { border-width: 1px; }
   .quota-line text { padding: 12px 8px; font-size: 14px; }
 }
+
+.teacher-home-profile > .teacher-leader-line { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 16rpx; padding: 0; margin: 0; border: 0; border-radius: 0; background: transparent; text-align: left; }
+.teacher-home-profile > .teacher-leader-line text { font-size: 26rpx; line-height: 1.5; }
+.teacher-home-profile > .teacher-leader-line text:last-child { white-space: normal; font-weight: 400; }
+@media (min-width: 700px) { .teacher-home-profile > .teacher-leader-line { gap: 10px; padding: 0; border: 0; border-radius: 0; } .teacher-home-profile > .teacher-leader-line text { font-size: 14px; } }

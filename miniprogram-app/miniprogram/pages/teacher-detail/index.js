@@ -308,9 +308,9 @@ Page({
     finally{if(current(this,"_teamEpoch",epoch))this.setData({loading:false});}
   },
   async loadTeamState(){
-    if(this.data.teamScope||!this.data.teacherId)return;const epoch=bump(this,"_teamEpoch");this.setData({teamReady:false,teamError:""});
+    if(this.data.teamScope||!this.data.teacherId)return;const epoch=bump(this,"_teamEpoch");this.setData({teamReady:false,teamError:"",teamAssignedLeader:""});
     try{const r=await callStaff("getTeacherTeam",{teacherId:this.data.teacherId});if(!current(this,"_teamEpoch",epoch))return;const leader=r.teacher.isTeamLeader===true;this.setData({teamReady:true,teamLeader:leader,teamMemberCount:Number(r.members.total||0),teamAssignedLeader:r.teacher.assignedLeaderName||"",...(!leader&&this.data.activeSection==="personnel"?{activeSection:"basic"}:{})});}
-    catch(e){if(current(this,"_teamEpoch",epoch))this.setData({teamReady:false,teamLeader:false,teamError:e.message||"组长状态读取失败",...(this.data.activeSection==="personnel"?{activeSection:"basic"}:{})});}
+    catch(e){if(current(this,"_teamEpoch",epoch))this.setData({teamReady:false,teamLeader:false,teamAssignedLeader:"",teamError:e.message||"组长状态读取失败",...(this.data.activeSection==="personnel"?{activeSection:"basic"}:{})});}
   },
   async toggleTeamLeader(){
     if(this.data.teamScope||!this.data.teamReady||this.data.teamMutating||this.data.mutating)return;
@@ -633,7 +633,7 @@ Page({
     if (this.data.mutating || !this.data.staff) return;
     const next = this.data.profile.archived ? "ACTIVE" : "ARCHIVED";
     const action = next === "ARCHIVED" ? "封存" : "激活";
-    if (!await confirm(`确认${action}老师“${this.data.profile.name}”？历史业务和体验额度记录会完整保留。`, action)) return;
+    if (!await confirm(`确认${action}老师“${this.data.profile.name}”？历史业务和体验额度记录会完整保留。${next === "ARCHIVED" ? "将退出小组；如为组长，同时取消资格并释放全部组员。恢复后不自动归组。" : ""}`, action)) return;
     if (this._unloaded) return;
     const request = Object.freeze({
       epoch: bump(this, "_mutationRequestEpoch"), next, action, authUid: text(this.data.profile.authUid),

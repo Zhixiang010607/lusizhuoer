@@ -258,3 +258,8 @@
   .team-role-profile { gap: 14px; }
 }
 .teacher-section-tabs.team-five-tabs{grid-template-columns:repeat(5,minmax(0,1fr))}.teacher-section-tabs.team-read-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.team-five-tabs .teacher-section-tab{font-size:24rpx;padding:0 2rpx}.team-role-button{flex-shrink:0;box-sizing:border-box;width:auto!important;margin:0;padding:0 16rpx;height:70rpx;min-height:70rpx;display:flex;align-items:center;justify-content:center;font-size:24rpx;line-height:1;color:#74592d;background:#f5e8cf;border:1rpx solid #d8c5a3;border-radius:12rpx;white-space:nowrap}.team-role-note{display:block;margin:12rpx 0;color:#8b6b3b;font-size:24rpx;line-height:1.7}@media(min-width:700px){.team-five-tabs .teacher-section-tab{font-size:14px;padding:0 6px}.team-role-button{height:42px;min-height:42px;padding:0 16px;font-size:14px;border-width:1px;border-radius:9px}.team-role-note{font-size:14px;margin:10px 0}}
+
+.teacher-leader-line { min-width: 0; max-width: 100%; display: flex; align-items: flex-start; gap: 16rpx; margin-top: 12rpx; color: #7c7062; font-size: 26rpx; line-height: 1.5; }
+.teacher-leader-line > text:first-child { flex: none; white-space: nowrap; }
+.teacher-leader-line > text:last-child { min-width: 0; color: #4a3825; overflow-wrap: anywhere; white-space: normal; }
+@media (min-width: 700px) { .teacher-leader-line { gap: 10px; margin-top: 8px; font-size: 14px; } }

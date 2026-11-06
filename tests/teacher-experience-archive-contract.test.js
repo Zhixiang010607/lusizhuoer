@@ -370,8 +370,10 @@ assert.match(staffDetailUi, /teacherExperienceRechargeProduct/,
 assert.match(staffDetailUi, /isStaffArchived\(\).*不能新增配置或充值|老师已封存.*不能新增配置或充值/s,
   "teacher archive must disable quota configuration and recharge controls while retaining history");
 
-assert.match(staffCloud, /if \(action === "setStaffStatus"\)[\s\S]*UPDATE public\.teachers\s+SET teacher_status/i,
-  "archiving a teacher must persist the teacher master status, not only a page-session flag");
+assert.match(staffCloud, /if \(action === "setStaffStatus"\)[\s\S]*public\.set_teacher_status_v93/i,
+  "archiving a teacher must persist status and release membership in one database transaction");
+assert.match(read("database/migrations/093_teacher_archive_team_release.sql"), /UPDATE public\.teachers SET teacher_status=p_status/,
+  "the atomic archival function must still update the original teacher master");
 assert.match(staffCloud, /if \(action === "setStaffStatus"\)[\s\S]*UPDATE public\.stores(?:\s+\w+)?\s+SET store_status/i,
   "archiving a store account must persist the bound store master status");
 assert.match(staffCloud, /userStatus:\s*status === "ACTIVE" \? "ACTIVE" : "BLOCKED"/,

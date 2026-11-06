@@ -88,6 +88,7 @@
         <view class="detail-info-grid teacher-profile-row">
           <view wx:for="{{profileFacts}}" wx:key="label" class="detail-info-item"><text>{{item.label}}</text><text>{{item.value}}</text></view>
         </view>
+        <view wx:if="{{assignedLeaderName}}" class="teacher-leader-line"><text>所属组长</text><text>{{assignedLeaderName}}</text></view>
       </view>
 
       <view class="web-panel teacher-quota-panel">

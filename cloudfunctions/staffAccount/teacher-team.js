@@ -110,7 +110,7 @@ function createTeacherTeams({ executeSql, sqlText, numericId, fail }) {
     const teacherId = numericId(event.teacherId, "老师");
     const { page: requestedPage } = options(event);
     const rows = await query(`SELECT ${teacherFields}, COALESCE(l.enabled, FALSE) AS is_team_leader,
-      own_membership.leader_teacher_id::text AS assigned_leader_id, owner.teacher_name AS assigned_leader_name
+      own_membership.leader_teacher_id::text AS assigned_leader_id, public.teacher_team_leader_name_v93(t.id) AS assigned_leader_name
       FROM public.teachers t JOIN public.staff_accounts a ON a.id = t.staff_account_id AND a.role_code = 'teacher'
       LEFT JOIN public.teacher_team_leaders l ON l.teacher_id = t.id
       LEFT JOIN public.teacher_team_members own_membership ON own_membership.member_teacher_id = t.id

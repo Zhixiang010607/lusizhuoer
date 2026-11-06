@@ -14,7 +14,7 @@ Component({
     teacherPhone: { type: String, value: "" }, balances: { type: Array, value: [] }, viewerMode:{type:String,value:"HQ"}
   },
   data: {
-    ...emptyResults(), rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS.slice(0, 3),
+    ...emptyResults(), assignedLeaderName: "", rangePreset: "TODAY", rangeOptions: dashboard.RANGE_OPTIONS.slice(0, 3),
     moreOptions: dashboard.RANGE_OPTIONS.slice(3), moreIndex: 0, moreLabel: "更多", customVisible: false,
     startDate: "", endDate: "", rangeLabel: "今天", businessType: "VERIFICATION",
     businessTabs: dashboard.tabs({}, "VERIFICATION"), loading: false, error: ""
@@ -29,7 +29,7 @@ Component({
     resetTeacher() {
       this._epoch = (this._epoch || 0) + 1;
       this._loadedOnce = false;
-      this.setData({ ...emptyResults(), rangePreset: "TODAY", businessType: "VERIFICATION", businessTabs: dashboard.tabs({}, "VERIFICATION"), customVisible: false, moreIndex: 0, moreLabel: "更多", error: "" });
+      this.setData({ ...emptyResults(), assignedLeaderName: "", rangePreset: "TODAY", businessType: "VERIFICATION", businessTabs: dashboard.tabs({}, "VERIFICATION"), customVisible: false, moreIndex: 0, moreLabel: "更多", error: "" });
       if (this.data.teacherId) return this.load(1);
     },
     async load(page = 1) {
@@ -40,7 +40,7 @@ Component({
       }
       const epoch = this._epoch = (this._epoch || 0) + 1;
       const request = Object.freeze({ teacherId: this.data.teacherId, recordType: this.data.businessType, page, pageSize: PAGE_SIZE, includeOverview: true, ...dashboard.payload(range.startDate, range.endDate) });
-      this.setData({ loading: true, error: "", startDate: range.startDate, endDate: range.endDate });
+      this.setData({ loading: true, error: "", assignedLeaderName: "", startDate: range.startDate, endDate: range.endDate });
       try {
         const result = await callFace(this.data.viewerMode === "TEAM" ? "getTeamTeacherWorkspace" : "getHqTeacherWorkspace", request);
         if (!this._ready || epoch !== this._epoch) return;
@@ -48,10 +48,10 @@ Component({
         const rows = dashboard.records(result.page?.records, request.recordType);
         const totals = dashboard.totals(result.summary?.totals);
         const currentPage = pageView(result.page);
-        this.setData({ rows, totals, summaryRows: dashboard.products(result.summary?.products), page: currentPage, pageInput: String(currentPage.page), visibleRows: rows.length, viewportHeight: 64 + rows.length * 72, tableHeight: 0, businessTabs: dashboard.tabs(totals, request.recordType), rangeLabel: dashboard.periodLabel(this.data.rangePreset, range.startDate, range.endDate) }, () => this.measureTable());
+        this.setData({ assignedLeaderName: String(result.profile?.assignedLeaderName || ""), rows, totals, summaryRows: dashboard.products(result.summary?.products), page: currentPage, pageInput: String(currentPage.page), visibleRows: rows.length, viewportHeight: 64 + rows.length * 72, tableHeight: 0, businessTabs: dashboard.tabs(totals, request.recordType), rangeLabel: dashboard.periodLabel(this.data.rangePreset, range.startDate, range.endDate) }, () => this.measureTable());
       } catch (error) {
         if (!this._ready || epoch !== this._epoch) return;
-        this.setData({ ...emptyResults(), businessTabs: dashboard.tabs({}, this.data.businessType), error: "老师业务读取失败，请重试" });
+        this.setData({ ...emptyResults(), assignedLeaderName: "", businessTabs: dashboard.tabs({}, this.data.businessType), error: "老师业务读取失败，请重试" });
       } finally { if (this._ready && epoch === this._epoch) { this._loadedOnce = true; this.setData({ loading: false }); } }
     },
     measureTable() {
