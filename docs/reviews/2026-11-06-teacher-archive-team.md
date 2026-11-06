@@ -29,4 +29,4 @@ staffAccount v101 统一状态入口与实时姓名；faceRecognition v142 仅�
 
 ## 部署状态
 
-源码验收完成；生产 SQL、云函数、Web 和小程序分别以随后独立部署回执为准。
+生产SQL093、staffAccount v101、faceRecognition v142及Web三份限定资源已部署并分别独立验收；小程序开发版0.3.59已取得官方最终上传回执。未选体验版、提审或正式发布。见[独立部署回执](2026-11-06-teacher-archive-team-deployment.md)。
