@@ -5,7 +5,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),cryp
 const source=path.resolve(__dirname,'../miniprogram-app/miniprogram'),target=fs.mkdtempSync(path.join(os.tmpdir(),'lusizhuoer-team-qa-'));
 function write(file,value){fs.mkdirSync(path.dirname(path.join(target,file)),{recursive:true});fs.writeFileSync(path.join(target,file),value);}
 const pages=['home','teacher-detail','team-operations','team-dashboard','attendance-tracking','daily-report-tracking','inactive-customers','low-balance-customers'];
-const components=['teacher-workspace','teacher-team-manager','team-pager','project-summary','month-selector','date-selector','punch-tabs','attendance-photo'];
+const components=['teacher-workspace','teacher-team-manager','project-summary','month-selector','date-selector','punch-tabs','attendance-photo'];
 const files=['app.wxss','styles/query-refinements.wxss',...pages.flatMap(p=>['js','wxml','wxss','json'].map(e=>`pages/${p}/index.${e}`)),...components.flatMap(p=>['js','wxml','wxss','json'].map(e=>`components/${p}/index.${e}`)),...fs.readdirSync(path.join(source,'services')).filter(f=>f.endsWith('.js')&&!['api.js','session.js','cloudbase.js'].includes(f)).map(f=>'services/'+f)];
 const manifest=files.map(file=>{const bytes=fs.readFileSync(path.join(source,file));write(file,bytes);return{file,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};});
 write('images/fixture.jpg',fs.readFileSync(path.join(source,'images/login/lusizhuoer-login-bg-v4.jpg')));

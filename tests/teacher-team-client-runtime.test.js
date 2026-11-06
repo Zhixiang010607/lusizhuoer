@@ -39,3 +39,7 @@ test("new member read errors never return raw database diagnostics",async()=>{
   const fail=(message,code)=>{throw Object.assign(new Error(message),{code});};const staff=require("../cloudfunctions/staffAccount/teacher-team").createTeacherTeams({fail});const face=require("../cloudfunctions/faceRecognition/teacher-team").createTeacherTeamReads({fail});
   for(const service of [staff,face])await assert.rejects(()=>service.safeRead(async()=>{throw Object.assign(new Error("column private_table.secret does not exist"),{code:"DATABASE_ERROR"});}),error=>error.code==="TEAM_SERVICE_UNAVAILABLE"&&!error.message.includes("private_table"));
 });
+test("member directory rejects invalid page input and preserves the scoped search when paging",()=>{
+  const h=harness(),p=h.page("pages/team-operations/index.js"),requests=[];p.reload=page=>requests.push(page);p.setData({members:{page:2,totalPages:3,total:21},keyword:"成员",membersInput:"4"});p.jumpPage();assert.equal(requests.length,0);p.changePageInput({detail:{value:"1"}});p.jumpPage();p.movePage({currentTarget:{dataset:{delta:1}}});assert.deepEqual(requests,[1,3]);assert.equal(p.data.keyword,"成员");p.setData({loading:true,membersInput:"2"});p.jumpPage();assert.equal(requests.length,2);
+  const template=read("pages/team-operations/index.wxml");assert.ok(!template.includes("<team-pager"));assert.equal((template.match(/bindtap="jumpPage"/g)||[]).length,1);
+});
