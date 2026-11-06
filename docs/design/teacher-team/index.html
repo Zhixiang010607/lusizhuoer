@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>露思卓儿 · 小组长页面样板</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div><span class="preview-kicker">露思卓儿 · 交互样板</span><h1>小组长与人员管理</h1></div>
+    <span class="preview-note">隔离示例数据，不连接真实账号</span>
+  </header>
+  <div class="preview-layout">
+    <aside class="preview-tools">
+      <p class="tool-label">查看页面</p>
+      <button data-scene="basic" class="tool-button active">总部 · 老师资料 <span>01</span></button>
+      <button data-scene="personnel" class="tool-button">总部 · 人员管理 <span>02</span></button>
+      <button data-scene="leader" class="tool-button">组长 · 工作台 <span>03</span></button>
+      <p class="tool-label device-label">设备宽度</p>
+      <div class="device-controls"><button data-device="phone" class="active">手机</button><button data-device="ipad">iPad</button><button data-device="desktop">电脑</button></div>
+      <p class="tool-help">可以点击设置／取消组长、搜索添加、移除成员，再切到组长端查看。</p>
+      <button class="reset-demo" data-action="reset">载入 3 位成员的样例</button>
+      <div class="design-state" id="designState"></div>
+    </aside>
+    <main class="preview-stage"><div class="device-frame phone" id="deviceFrame"><div id="app"></div></div></main>
+  </div>
+  <div class="modal-backdrop" id="modal" hidden><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h2 id="modalTitle"></h2><p id="modalBody"></p><div class="modal-actions"><button class="secondary" data-action="close-modal">取消</button><button class="primary" id="modalConfirm">确认</button></div></section></div>
+  <div class="modal-backdrop" id="attendanceModal" hidden><section class="attendance-dialog" role="dialog" aria-modal="true" aria-labelledby="attendanceTitle"><div id="attendanceContent"></div></section></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="./app.js"></script>
+</body>
+</html>
