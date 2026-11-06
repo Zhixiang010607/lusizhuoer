@@ -13,5 +13,5 @@ Page({
   changePageInput(e){this.setData({membersInput:String(e.detail.value||"")});},
   jumpPage(){const p=Number(this.data.membersInput);if(!this.data.loading&&Number.isInteger(p)&&p>=1&&p<=this.data.members.totalPages)this.reload(p);else wx.showToast({title:"请输入有效页码",icon:"none"});},
   openTeacher(event){const id=String(event.currentTarget.dataset.id||"");if(this.data.members.records.some(t=>t.teacherId===id))wx.navigateTo({url:teacherUrl(id)});},
-  openQuery(event){if(this.data.loading||this.data.error)return;const type=event.currentTarget.dataset.type;if(["team-dashboard","attendance-tracking","daily-report-tracking","inactive-customers","low-balance-customers"].includes(type))wx.navigateTo({url:`/pages/${type}/index?scope=TEAM`});}
+  openQuery(event){if(this.data.loading||this.data.error)return;const type=event.currentTarget.dataset.type;if(["team-dashboard","attendance-tracking","daily-report-tracking","inactive-customers","low-balance-customers","rating-analysis"].includes(type))wx.navigateTo({url:`/pages/${type}/index?scope=TEAM`});}
 });

@@ -177,7 +177,7 @@ async function main() {
       CREATE TABLE public.verification_records(id BIGINT PRIMARY KEY,customer_id BIGINT,teacher_id BIGINT,submitted_by_account_id BIGINT,verification_type TEXT,record_status TEXT);
       CREATE TABLE public.recharge_records(id BIGINT PRIMARY KEY,customer_id BIGINT,teacher_id BIGINT,submitted_by_account_id BIGINT,recharge_type TEXT,record_status TEXT);
       CREATE TABLE public.retail_product_purchase_records(id BIGINT PRIMARY KEY,customer_id BIGINT,teacher_id BIGINT,submitted_by_account_id BIGINT,record_status TEXT);
-      INSERT INTO public.customers VALUES (1,17),(2,2),(3,2),(4,2),(5,2),(6,2),(7,2);
+      INSERT INTO public.customers VALUES (1,17),(2,2),(3,2),(4,2),(5,2),(6,2),(7,2),(8,13);
       INSERT INTO public.verification_records VALUES
         (1,2,7,2,'NORMAL','APPROVED'),(2,3,6,2,'NORMAL','APPROVED'),
         (3,4,7,16,'NORMAL','APPROVED'),(4,5,7,2,'EXPERIENCE','APPROVED'),
@@ -201,9 +201,9 @@ async function main() {
     const groupScope = await reads.context({ role: "hq", uid: "qa-hq", leaderId: "2" });
     check(groupScope.scopeMode === "TEAM" && groupScope.role === "teacher", "team reader never becomes HQ from event identity");
     const scopedCustomers = await db.query(`SELECT c.id::text FROM public.customers c WHERE ${groupScope.teamCustomerScope} ORDER BY c.id`);
-    check(JSON.stringify(scopedCustomers.rows.map((row) => row.id)) === JSON.stringify(["1", "2", "6"]), "operational scope includes only member-created or trusted approved member customers");
+    check(JSON.stringify(scopedCustomers.rows.map((row) => row.id)) === JSON.stringify(["1", "2", "6", "8"]), "customer operations include current members and leader own customers only");
     const scopedEvents = await db.query(`SELECT v.id::text FROM public.verification_records v WHERE v.record_status='APPROVED' AND ${groupScope.teamVerificationScope} ORDER BY v.id`);
-    check(JSON.stringify(scopedEvents.rows.map((row) => row.id)) === JSON.stringify(["1", "5"]), "activity baseline excludes other teachers, pending records, wrong submitter and store experience");
+    check(JSON.stringify(scopedEvents.rows.map((row) => row.id)) === JSON.stringify(["1", "2", "3", "4", "5", "7"]), "within authorized customers the activity baseline retains actual provider handovers");
     await assert.rejects(() => reads.context({ teacherId: "6" }), (error) => error.code === "FORBIDDEN"); passed += 1;
     await assert.rejects(() => reads.member("6"), (error) => error.code === "FORBIDDEN"); passed += 1;
     check((await reads.member("7")).teacherId === "7", "group workspace target is pinned to an actual assigned member");
@@ -235,7 +235,7 @@ async function main() {
     const teamDashboard=createTeacherTeamDashboard({executeSql:async sql=>{try{return(await db.query(sql)).rows;}catch(error){console.error("Isolated dashboard SQL failed:",error.message);throw error;}},teams,
       dateRange:context.dashboardDateRange,readMode:context.dashboardReadMode,rankingRequest:context.dashboardRankingRequest,
       summaryRequest:context.dashboardProductSummaryRequest,dateSql:context.hqDashboardDateSql,eventsCte:context.hqBusinessEventsCte,
-      projection:context.hqDashboardRankingProjection,metricColumn:context.hqDashboardRankingMetricColumn,mapRow:context.hqDashboardRow,version:"v99"});
+      projection:context.hqDashboardRankingProjection,metricColumn:context.hqDashboardRankingMetricColumn,mapRow:context.hqDashboardRow,version:"v100"});
     const dashboardCaller={uid:"qa-teacher-3",profile:{role:"teacher",teacherId:"3",staffId:"13"}};
     const overview=await teamDashboard.read(dashboardCaller,{allTime:true,role:"hq",leaderId:"2"});
     check(overview.totals.verification===2&&overview.totals.recharge===6&&overview.totals.refund===1&&overview.totals.experience===0,"dashboard uses trusted member facts including supplements, excluding wrong submitters");
@@ -257,8 +257,54 @@ async function main() {
     const removed=await teamDashboard.read(dashboardCaller,{mode:"ranking",dimension:"teacher",allTime:true});
     check(removed.ranking.total===0&&removed.ranking.rows.length===0,"removing a member immediately removes their ranking and counts");
     await assign(3,7);
+    // Run the actual rating function and SQL, with only SDK transport mocked.
+    await db.exec(`ALTER TABLE public.stores ADD COLUMN store_account_id BIGINT;
+      ALTER TABLE public.customers ADD COLUMN customer_code TEXT, ADD COLUMN customer_name TEXT;
+      UPDATE public.customers SET customer_code='QA-C-'||id,customer_name='隔离客户'||id;
+      ALTER TABLE public.verification_records ADD COLUMN verification_code TEXT;
+      UPDATE public.verification_records SET verification_code='QA-V-'||id;
+      CREATE TABLE public.verification_customer_ratings(verification_id BIGINT PRIMARY KEY,rating_status TEXT,
+        submitted_at TIMESTAMPTZ,store_environment_score INT,teacher_service_score INT,overall_experience_score INT);
+      INSERT INTO public.verification_records(id,customer_id,teacher_id,submitted_by_account_id,verification_type,record_status,verification_code)
+        VALUES(8,8,3,13,'NORMAL','APPROVED','QA-V-8');
+      INSERT INTO public.verification_customer_ratings VALUES
+        (1,'SUBMITTED','2026-11-06T02:00:00Z',5,4,5),(2,'SUBMITTED','2026-11-06T02:00:00Z',1,1,1),
+        (8,'SUBMITTED','2026-11-06T02:00:00Z',5,5,5);
+      INSERT INTO public.verification_records(id,customer_id,teacher_id,submitted_by_account_id,verification_type,record_status,verification_code)
+        SELECT n,8,3,13,'NORMAL','APPROVED','QA-V-'||n FROM generate_series(20,31) n;`);
+    const ratingModule={exports:{}};
+    vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../cloudfunctions/customerRating/index.js'),'utf8'),{
+      module:ratingModule,exports:ratingModule.exports,Buffer,URL,setTimeout,process:{env:{CLOUDBASE_ENV_ID:'isolated'}},console:{error(){}},
+      require(name){
+        if(name==='node:crypto')return require(name);
+        if(name==='qrcode')return {};
+        if(name==='./teacher-team')return require('../cloudfunctions/customerRating/teacher-team');
+        if(name==='@cloudbase/node-sdk')return{init:()=>({auth:()=>({getUserInfo:()=>({uid:authenticatedUid})})})};
+        if(name==='@cloudbase/manager-node')return{init:()=>({database:{executePGSql:async({Sql})=>{
+          const result=await db.query(Sql);return{Columns:result.fields.map(f=>f.name),Rows:result.rows.map(row=>result.fields.map(f=>row[f.name]))};
+        }}})};
+        throw Error('Unexpected dependency '+name);
+      }
+    });
+    const rating=(event)=>ratingModule.exports.main(event);
+    check((await rating({action:'queryRatingAnalysis',role:'hq'})).error.code==='FORBIDDEN','leader does not acquire original HQ/store rating action');
+    const ratingOptions=await rating({action:'getTeamRatingAnalysisOptions'});
+    check(ratingOptions.success&&ratingOptions.data.products.length===1,'group rating options run actual authorized-customer SQL');
+    const ratingPage=await rating({action:'queryTeamRatingAnalysis',pageSize:1000,role:'hq',leaderId:'2'});
+    check(ratingPage.success&&ratingPage.data.total===15&&ratingPage.data.orders.length===10&&ratingPage.data.totalPages===2,'group ratings include member and own customers with fixed ten-row pages');
+    check(ratingPage.data.summary.rated===2&&ratingPage.data.summary.scoreCounts[1]===0,'outside-group low rating cannot enter chart totals');
+    const scorePage=await rating({action:'queryTeamRatingAnalysis',scores:[4]});
+    check(scorePage.data.total===1&&scorePage.data.summary.total===15&&scorePage.data.summary.rated===2,'rating score filter never shrinks scoped chart denominators');
+    check((await rating({action:'queryTeamRatingAnalysis',exportAll:true})).error.code==='FORBIDDEN','group rating export is denied server-side');
+    const ratingLast=await rating({action:'queryTeamRatingAnalysis',pageNumber:99});
+    check(ratingLast.data.pageNumber===2&&ratingLast.data.orders.length===5,'group rating stale-page clamp preserves scoped snapshot');
+    await assign(3,7,false);
+    const selfOnly=await rating({action:'queryTeamRatingAnalysis'});
+    check(selfOnly.success&&selfOnly.data.total===13&&selfOnly.data.orders.every(row=>row.customerCode==='QA-C-8'),'released member customers disappear while leader own customers remain');
+    await assign(3,7);
     const financialBefore = await scalar("SELECT jsonb_agg(to_jsonb(v) ORDER BY id) FROM public.verification_records v");
     await appoint(3, false);
+    check((await rating({action:'queryTeamRatingAnalysis'})).error.code==='FORBIDDEN','revoking leader immediately denies rating read including own group route');
     const staleCustomers = await db.query(`SELECT c.id FROM public.customers c WHERE ${groupScope.teamCustomerScope}`);
     check(staleCustomers.rows.length === 0, "even a prebuilt scope cannot read after revocation");
     await assert.rejects(() => reads.context(), (error) => error.code === "FORBIDDEN"); passed += 1;

@@ -89,6 +89,17 @@
 
 @import "../../styles/query-refinements.wxss";
 .refined-query .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.query-action { grid-column: 1 / -1; min-width: 0; margin-top: 8rpx; }
+.query-action .primary { width: 100%; margin: 0; min-height: 72rpx; font-size: 24rpx; }
+@media (min-width: 700px) {
+  .query-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) 180px; align-items: end; }
+  .query-grid.with-store { grid-template-columns: repeat(3, minmax(0, 1fr)) 160px; }
+  .query-grid .field { margin-bottom: 0; }
+  .query-grid .field-label { height: 20px; margin-bottom: 5px; white-space: nowrap; }
+  .query-grid .input, .query-grid .picker { height: 42px; min-height: 42px; }
+  .query-action { grid-column: auto; margin-top: 0; }
+  .query-action .primary { height: 42px; min-height: 42px; font-size: 14px; }
+}
 
 /* Ten complete rows; keep physical-pixel tablet sizes separate from phone rpx. */
 .low-balance-table-scroll[data-visible-rows="6"] { height: 498rpx; }

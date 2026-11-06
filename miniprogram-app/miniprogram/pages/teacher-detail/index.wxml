@@ -19,7 +19,7 @@
 
       <view wx:if="{{!teamScope && activeSection === 'basic'}}" class="teacher-detail-grid">
         <view class="teacher-detail-sidebar">
-          <view class="web-panel profile-hero teacher-profile-hero">
+          <view class="web-panel profile-hero teacher-profile-hero team-role-hero">
             <view class="profile-avatar">{{profile.initials}}</view>
             <view class="profile-copy">
               <text class="profile-type">老师档案</text>

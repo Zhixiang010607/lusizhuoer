@@ -1,14 +1,14 @@
 # staffAccount 云函数
 
-当前版本：`v99`
+当前版本：`v100`
 
-`v99` 增加老师兼任小组长的总部任免、人员分配及组内只读接口。仍只有总部／门店／老师三种业务角色；组长是老师附加资格，不取得总部或成员写入权限。普通老师全局只能归属一个组长，组长不能成为成员，换组先移除。取消组长由迁移 091 的同一数据库事务自动释放全部成员并保留审计。每次组内读取均按当前 UID 和实际查询内的成员关系鉴权，旧总部 action 仍仅总部可用。独立 `getTeamDashboard` 复用总部可信业务归属、汇总和排名布局，事实、名单、分页和全部时间起点均限定当前成员；成员只读页面仅保留老师主页和考勤日报。先完整备份并执行、验收 091，再联动部署 staffAccount v99 与 faceRecognition v139，最后更新客户端。本源码状态不表示已经部署。
+`v100` 增加老师兼任小组长的总部任免、人员分配及组内只读接口。仍只有总部／门店／老师三种业务角色；组长是老师附加资格，不取得总部或成员写入权限。普通老师全局只能归属一个组长，组长不能成为成员，换组先移除。取消组长由迁移 091 的同一数据库事务自动释放全部成员并保留审计。每次组内读取均按当前 UID 和实际查询内的成员关系鉴权，旧总部 action 仍仅总部可用。独立 `getTeamDashboard` 复用总部可信业务归属、汇总和排名布局，事实、名单、分页和全部时间起点均限定当前成员；成员只读页面仅保留老师主页和考勤日报。先完整备份并执行、验收 091，再联动部署 staffAccount v100 与 faceRecognition v140，最后更新客户端。本源码状态不表示已经部署。
 
 
 `v98` 配合照片打卡，只把考勤只读响应中的 NULL 人脸分数原样返回 NULL，不再转换成 0 分；历史真实分数不变。不改查询权限、日报、培训发布、审核或核销。2026-11-01 已按 090 指引备份、迁移、验收并与 faceRecognition v137 一起部署。2026-11-05 的 faceRecognition v138 只修复结果恢复读取，不需重新部署本函数或重跑迁移。
 
-当前联动部署矩阵：`staffAccount v99`、`faceRecognition v139`、
-`verificationPhoto v13`、`teacherCreate v9`、`customerRating v8`。迁移 075—086
+当前联动部署矩阵：`staffAccount v100`、`faceRecognition v140`、
+`verificationPhoto v13`、`teacherCreate v9`、`customerRating v9`。迁移 075—086
 验收通过后再部署当前版本；照片打卡还须先按 090 指引完整备份、迁移和验收（既有 087 不重复执行）。下文较旧版本号属于历史说明。
 
 `v97` 修正培训 PDF 发布确认：INSERT 空 RETURNING 或写入回执丢失时，按原请求号独立回读，不能返回无效资料 ID。数据库结果不确定时保留已完整上传的私有 PDF，返回 `TRAINING_MATERIAL_PUBLISH_PENDING`，原任务重试确认而不是重传；格式／字节校验明确失败仍拒绝。正常链路不增加数据库读请求，只有异常／空返回才回读；旧客户端响应兼容，无新 action、SQL 或迁移，不改变账号、审核、核销、余额、BLE 或照片。v97 源码包不代表已经部署，必须核对线上 health 与代码回下载。
@@ -69,7 +69,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。旧 Saga 的退役
 已由迁移 053 完成；该迁移会物理删除旧操作表与六个私有函数，不影响老师及
-业务历史。当前联动版本为 `staffAccount v99`／`faceRecognition v139`／
+业务历史。当前联动版本为 `staffAccount v100`／`faceRecognition v140`／
 `verificationPhoto v13`／`teacherCreate v9`。
 
 ## 保留能力
@@ -146,7 +146,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 ## 部署与验收
 
-上传包文件名必须为 `staffAccount-v99.zip`。ZIP 根目录直接包含：
+上传包文件名必须为 `staffAccount-v100.zip`。ZIP 根目录直接包含：
 
 ```text
 index.js
@@ -156,23 +156,23 @@ package.json
 README.md
 ```
 
-不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v99`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v99`。
+不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v100`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v100`。
 
 生产切换顺序：
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这只建立 Auth 身份，业务会话仍只认既有 UID 映射，未绑定身份必须拒绝。
-2. 核对既有迁移 060—090 已执行，不重复执行历史破坏性迁移。完整备份后执行并验收 [091 组长迁移](../../database/cloudbase-console/091-README.md)，再部署 v99。091 不删除或改写现有人员及业务记录，也不自动任命任何老师。既有培训私有桶 `training-materials` 保持原配置。打包上传 `staffAccount-v99.zip`，使用 Node.js 20，保留上述环境变量和已登录非匿名用户安全规则。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
-3. 保留已部署的 `customerRating v8`、`verificationPhoto v13`、`teacherCreate v9` 及其私有桶、密钥和定时任务；本轮不因组长只读能力重复部署这些函数。`staffAccount v99` 不签发或写入客户评价。
+2. 核对既有迁移 060—090 已执行，不重复执行历史破坏性迁移。完整备份后执行并验收 [091 组长迁移](../../database/cloudbase-console/091-README.md)，再部署 v100。091 不删除或改写现有人员及业务记录，也不自动任命任何老师。既有培训私有桶 `training-materials` 保持原配置。打包上传 `staffAccount-v100.zip`，使用 Node.js 20，保留上述环境变量和已登录非匿名用户安全规则。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
+3. 联动部署 `customerRating v9`，保留 `verificationPhoto v13`、`teacherCreate v9` 及其私有桶、密钥和定时任务；本轮客户运营补充包含组长本人，并新增组长专用评价只读接口；照片与老师创建函数无需重复部署。`staffAccount v100` 不签发或写入客户评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
-6. `staffAccount v99`、`faceRecognition v139`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布依赖新后端契约的小程序；不得先发布依赖培训资料、日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。v130 → v133 的高清读取兼容客户端放宽本地图片字节／尺寸校验，并明确用旧服务端已有 original=true 参数首屏读取原图；与旧服务端兼容，应先让实际使用者更新，再完整备份执行 089 并更新考勤函数。不会引入新 action，也不因矩阵变更重复部署本函数。
+6. `staffAccount v100`、`faceRecognition v140`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布依赖新后端契约的小程序；不得先发布依赖培训资料、日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。v130 → v133 的高清读取兼容客户端放宽本地图片字节／尺寸校验，并明确用旧服务端已有 original=true 参数首屏读取原图；与旧服务端兼容，应先让实际使用者更新，再完整备份执行 089 并更新考勤函数。不会引入新 action，也不因矩阵变更重复部署本函数。
 
 健康检查必须返回：
 
 ```json
 {
   "ok": true,
-  "version": "v99",
+  "version": "v100",
   "managerNodeInstalled": true,
   "teacherExperienceResetTimerTriggerName": "reset-teacher-experience-quotas-monthly",
   "teacherCreationService": "teacherCreate"

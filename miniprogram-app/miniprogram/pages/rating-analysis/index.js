@@ -1,3 +1,4 @@
+const { requireTeamAccess } = require("../../services/teacher-team");
 const { callRating } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const {
@@ -106,7 +107,7 @@ function normalizeOrders(rows = []) {
 
 Page({
   data: {
-    rulesExpanded: false,
+    teamScope: false, rulesExpanded: false,
     session: {}, loading: false, exporting: false, searched: false, message: "", error: false, tableScrollLeft: 0,
     stores: [], storeLabels: ["全部门店"], storeIndex: 0,
     products: [], productLabels: ["全部项目"], productIndex: 0,
@@ -119,12 +120,25 @@ Page({
 
   toggleRules() { this.setData({ rulesExpanded: !this.data.rulesExpanded }); },
 
-  async onLoad() {
-    const session = requireSession(["hq", "store"]);
+  async onLoad(options = {}) {
+    let session;
+    if (options.scope === "TEAM") {
+      this.setData({ teamScope: true });
+      try { session = await requireTeamAccess(); }
+      catch (error) { this.setData({ message: error.message, error: true }); return; }
+    } else session = requireSession(["hq", "store"]);
     if (!session) return;
     this.setData({ session });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     await this.loadOptions();
+    this._teamMounted = true;
+  },
+
+  async onShow() {
+    if (!this.data.teamScope || !this._teamMounted) return;
+    this.clearResults();
+    try { await requireTeamAccess(); await this.loadOptions(); }
+    catch (error) { this.setData({ message: error.message, error: true, stores: [], products: [], teachers: [] }); }
   },
 
   onPullDownRefresh() {
@@ -147,7 +161,7 @@ Page({
     const selectedProductId = this.data.productIndex > 0 ? this.data.products[this.data.productIndex - 1]?.id : "";
     const selectedTeacherId = this.data.teacherValues[this.data.teacherIndex] || "";
     try {
-      const result = await callRating("getRatingAnalysisOptions");
+      const result = await callRating(this.data.teamScope ? "getTeamRatingAnalysisOptions" : "getRatingAnalysisOptions");
       if (epoch !== this._optionEpoch) return;
       const stores = (result.stores || []).map((item) => ({
         id: String(item.id || ""), name: String(item.name || "未命名门店"),
@@ -171,7 +185,10 @@ Page({
         teacherIndex: Math.max(0, teacherValues.indexOf(selectedTeacherId))
       });
     } catch (error) {
-      if (epoch === this._optionEpoch) this.setData({ message: error.message || "评价查询选项读取失败", error: true });
+      if (epoch === this._optionEpoch) {
+        if (this.data.teamScope) this.clearResults({ stores: [], products: [], teachers: [], teacherLabels: ["全部老师", "未指定老师"], teacherValues: ["", "NONE"], productLabels: ["全部项目"], teacherIndex: 0, productIndex: 0 });
+        this.setData({ message: error.message || "评价查询选项读取失败", error: true });
+      }
     }
   },
 
@@ -248,7 +265,7 @@ Page({
     const targetPage = Math.max(1, Number(page) || 1);
     this.setData({ loading: true, message: "", error: false });
     try {
-      const result = await callRating("queryRatingAnalysis", this.payload(targetPage));
+      const result = await callRating(this.data.teamScope ? "queryTeamRatingAnalysis" : "queryRatingAnalysis", this.payload(targetPage));
       if (epoch !== this._requestEpoch) return;
       const summary = normalizeSummary(result.summary || EMPTY_SUMMARY);
       const actualPage = Math.max(1, Number(result.pageNumber || 1));
@@ -318,6 +335,7 @@ Page({
   },
 
   async collectAllOrders(expectedTotal, exportEpoch) {
+    if (this.data.teamScope) throw new Error("小组评价仅支持页面查看");
     const result = await callRating("queryRatingAnalysis", { ...this.payload(1, EXPORT_BATCH_SIZE), exportAll: true });
     if (exportEpoch !== this._exportEpoch) return [];
     if (Number(result.total || 0) !== expectedTotal) throw new Error("查询结果在导出前发生变化，请重新查询后再导出");
@@ -329,6 +347,7 @@ Page({
   },
 
   async exportAll(format = "excel") {
+    if (this.data.teamScope) return;
     const expectedTotal = Number(this.data.total || 0);
     if (!this.data.searched || this.data.loading || this.data.exporting || expectedTotal <= 0) return;
     const exportLimit = format === "pdf" ? PDF_EXPORT_MAX_ROWS : EXPORT_MAX_ROWS;
@@ -379,10 +398,12 @@ Page({
   exportPdf() { return this.exportAll("pdf"); },
 
   openCustomer(event) {
+    if (this.data.teamScope) return;
     const code = String(event.currentTarget.dataset.code || "");
     if (code) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(code)}` });
   },
   openOrder(event) {
+    if (this.data.teamScope) return;
     const id = String(event.currentTarget.dataset.id || "");
     const code = String(event.currentTarget.dataset.code || "");
     const category = String(event.currentTarget.dataset.category || "NORMAL").toUpperCase();

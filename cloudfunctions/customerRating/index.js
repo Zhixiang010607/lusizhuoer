@@ -5,7 +5,7 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
 
-const FUNCTION_VERSION = "v8";
+const FUNCTION_VERSION = "v9";
 const DURABLE_READ_DELAYS_MS = Object.freeze([0, 25, 75, 150, 300]);
 const RATING_ANALYSIS_EXPORT_MAX_ROWS = 1000;
 let cloudApp = null;
@@ -248,7 +248,7 @@ async function currentStaff() {
   if (staff.role_code === "teacher" && (!staff.teacher_id || staff.teacher_status !== "ACTIVE")) {
     fail("当前老师不可用。", "ARCHIVED_TEACHER");
   }
-  return staff;
+  return { ...staff, uid };
 }
 
 async function orderForVerification(verificationId) {
@@ -330,8 +330,56 @@ async function getForStaff(event) {
   };
 }
 
+function teacherBusinessAttributionSourceCondition(alias, recordFamily) {
+  const storeCategory = recordFamily === "RECHARGE"
+    ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
+    : `${alias}.verification_type IN ('NORMAL', 'SUPPLEMENT')`;
+  const teacherCategory = recordFamily === "RECHARGE"
+    ? `${alias}.recharge_type IN ('NEW', 'REFUND')`
+    : `${alias}.verification_type IN ('NORMAL', 'SUPPLEMENT', 'EXPERIENCE')`;
+  if (!["RECHARGE", "VERIFICATION"].includes(recordFamily)) {
+    throw new Error("Business teacher attribution requires a record family.");
+  }
+  return `EXISTS (
+    SELECT 1
+      FROM public.staff_accounts attribution_submitter
+ LEFT JOIN public.teachers attribution_submitter_teacher
+        ON attribution_submitter_teacher.staff_account_id = attribution_submitter.id
+     WHERE attribution_submitter.id = ${alias}.submitted_by_account_id
+       AND (
+         (
+           attribution_submitter.role_code = 'store'
+           AND ${storeCategory}
+         )
+         OR (
+           attribution_submitter.role_code = 'teacher'
+           AND attribution_submitter_teacher.id = ${alias}.teacher_id
+           AND ${teacherCategory}
+         )
+       )
+  )`;
+}
+
+
+let teamReads = null;
+function teamRatingReads() {
+  if (!teamReads) teamReads = require("./teacher-team").createTeacherTeamReads({
+    executeSql, sqlText, fail, positiveDatabaseId: sqlId, teacherBusinessAttributionSourceCondition,
+    activeTeacherCaller: async () => {
+      const staff = await currentStaff();
+      if (staff.role_code !== "teacher") fail("仅有效组长可查询小组评价。", "FORBIDDEN");
+      return { uid: staff.uid, staffId: staff.id, teacherId: String(staff.teacher_id) };
+    }
+  });
+  return teamReads;
+}
+async function teamRatingStaff() {
+  const context = await teamRatingReads().context();
+  return { ...context, role_code: "teacher" };
+}
+
 function requireRatingAnalysisStaff(staff) {
-  if (!staff || !["hq", "store"].includes(staff.role_code)) {
+  if (!staff || (!["hq", "store"].includes(staff.role_code) && !(staff.role_code === "teacher" && staff.teamCustomerScope))) {
     fail("仅总部或门店可以查询评价分析。", "FORBIDDEN");
   }
 }
@@ -342,6 +390,7 @@ function ratingAnalysisBaseConditions(staff, event) {
     "vr.record_status = 'APPROVED'",
     "vr.verification_type IN ('NORMAL', 'EXPERIENCE')"
   ];
+  if (staff.teamCustomerScope) conditions.push(staff.teamCustomerScope);
   if (staff.role_code === "store") {
     conditions.push(`vr.store_id = ${sqlId(staff.store_id, "门店")}`);
   } else if (event.storeId && String(event.storeId).toUpperCase() !== "ALL") {
@@ -389,16 +438,17 @@ function ratingAnalysisCte(conditions) {
   )`;
 }
 
-async function getRatingAnalysisOptions() {
-  const staff = await currentStaff();
+async function getRatingAnalysisOptions(teamStaff = null) {
+  const staff = teamStaff || await currentStaff();
   requireRatingAnalysisStaff(staff);
   const scope = staff.role_code === "store"
     ? `AND vr.store_id = ${sqlId(staff.store_id, "门店")}`
-    : "";
+    : staff.teamCustomerScope ? `AND ${staff.teamCustomerScope}` : "";
   const rows = await executeSql(
     `WITH accessible AS (
        SELECT vr.store_id, vr.product_id, vr.teacher_id
          FROM public.verification_records vr
+         JOIN public.customers c ON c.id = vr.customer_id
         WHERE vr.record_status = 'APPROVED'
           AND vr.verification_type IN ('NORMAL', 'EXPERIENCE')
           ${scope}
@@ -427,13 +477,14 @@ async function getRatingAnalysisOptions() {
   };
 }
 
-async function queryRatingAnalysis(event) {
-  const staff = await currentStaff();
+async function queryRatingAnalysis(event, teamStaff = null) {
+  const staff = teamStaff || await currentStaff();
+  if (teamStaff && event.exportAll === true) fail("小组评价仅支持页面查看。", "FORBIDDEN");
   const conditions = ratingAnalysisBaseConditions(staff, event);
   const scores = ratingScores(event.scores);
   const exportAll = event.exportAll === true;
   const requestedPage = exportAll ? 1 : pageNumber(event.pageNumber, 1);
-  const limit = exportAll ? RATING_ANALYSIS_EXPORT_MAX_ROWS + 1 : pageSize(event.pageSize, 20);
+  const limit = teamStaff ? 10 : exportAll ? RATING_ANALYSIS_EXPORT_MAX_ROWS + 1 : pageSize(event.pageSize, 20);
   const cte = ratingAnalysisCte(conditions);
   const scoreList = scores.join(", ");
   // Counts, chart totals and the visible page must come from one PostgreSQL
@@ -482,7 +533,7 @@ async function queryRatingAnalysis(event) {
   const totalPages = Math.max(1, Math.ceil(selectedTotal / limit));
   const actualPage = Math.min(requestedPage, totalPages);
   if (actualPage !== requestedPage && selectedTotal > 0) {
-    return queryRatingAnalysis({ ...event, pageNumber: actualPage });
+    return queryRatingAnalysis({ ...event, pageNumber: actualPage }, teamStaff ? await teamRatingStaff() : null);
   }
   return {
     pageNumber: actualPage,
@@ -709,6 +760,8 @@ exports.main = async (event = {}) => {
     switch (String(event.action || "")) {
       case "health": data = health(); break;
       case "getForStaff": data = await getForStaff(event); break;
+      case "getTeamRatingAnalysisOptions": data = await teamRatingReads().safeRead(async () => getRatingAnalysisOptions(await teamRatingStaff())); break;
+      case "queryTeamRatingAnalysis": data = await teamRatingReads().safeRead(async () => queryRatingAnalysis(event, await teamRatingStaff())); break;
       case "getRatingAnalysisOptions": data = await getRatingAnalysisOptions(); break;
       case "queryRatingAnalysis": data = await queryRatingAnalysis(event); break;
       case "issueForReceipt":

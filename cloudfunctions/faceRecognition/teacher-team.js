@@ -35,7 +35,13 @@ function createTeacherTeamReads({ executeSql, sqlText, fail, activeTeacherCaller
   function customerScope(caller, targetTeacherId = "", alias = "c") {
     if (!/^[a-z_][a-z0-9_]*$/i.test(alias)) throw new Error("Invalid internal customer alias");
     return `EXISTS (SELECT 1 FROM public.teachers team_member
-      WHERE ${scope(caller.uid, "team_member.id")}
+      WHERE public.is_teacher_team_leader_v91(${sqlText(caller.uid)})
+        AND (${scope(caller.uid, "team_member.id")}
+          OR EXISTS (SELECT 1 FROM public.staff_accounts team_self
+            WHERE team_self.id = team_member.staff_account_id
+              AND team_self.auth_uid = ${sqlText(caller.uid)}
+              AND team_self.role_code = 'teacher' AND team_self.account_status = 'ACTIVE'
+              AND team_member.teacher_status = 'ACTIVE'))
         ${targetTeacherId ? `AND team_member.id = ${positiveDatabaseId(targetTeacherId, "老师")}::bigint` : ""}
         AND (${alias}.created_by_account_id = team_member.staff_account_id
           OR EXISTS (SELECT 1 FROM public.verification_records team_verification
@@ -65,7 +71,9 @@ function createTeacherTeamReads({ executeSql, sqlText, fail, activeTeacherCaller
     const storeId = store && store.toUpperCase() !== "ALL" ? positiveDatabaseId(store, "门店") : null;
     return Object.freeze({ ...caller, role: "teacher", storeId, storeCode: "", storeName: "本组老师", scopeMode: "TEAM",
       teamCustomerScope: customerScope(caller, teacherId),
-      teamVerificationScope: `(${scope(caller.uid, "v.teacher_id")} AND ${teacherBusinessAttributionSourceCondition("v", "VERIFICATION")}${teacherId ? ` AND v.teacher_id = ${positiveDatabaseId(teacherId, "老师")}::bigint` : ""})` });
+      // The customer set is scoped; its actual latest service is not limited
+      // to one provider, otherwise a handover would produce false inactivity.
+      teamVerificationScope: "TRUE" });
   }
   async function safeRead(operation){
     try{return await operation();}catch(error){
