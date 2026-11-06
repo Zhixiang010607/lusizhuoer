@@ -61,3 +61,18 @@ test("both clients keep archived projects selectable with an explicit label", ()
       "archived projects must remain visible and clearly labelled");
   }
 });
+
+for (const [client, exporter] of [["web", webReport], ["mini-program", miniReport]]) {
+  test(`${client} PDF totals use freshly loaded project rows instead of stale homepage totals`, () => {
+    const current = reportInput();
+    const stale = { ...current, totals: { recharge: 999, verification: 888, experience: 777, refund: 666 } };
+    assert.deepEqual(Buffer.from(exporter.createReportPdf(stale).bytes), Buffer.from(exporter.createReportPdf(current).bytes));
+  });
+  test(`${client} PDF refuses inconsistent or duplicate ranking pages`, () => {
+    const current = reportInput();
+    assert.throws(() => exporter.createReportPdf({ ...current, rankingTotal: 52 }), /数据.*变化|不一致/);
+    const duplicate = current.rankingRows.map(row => ({ ...row, entityId: "1" }));
+    assert.throws(() => exporter.createReportPdf({ ...current, rankingRows: duplicate }), /重复|数据.*变化/);
+    assert.doesNotThrow(() => exporter.createReportPdf({ ...current, rankingRows: current.rankingRows.map((row, i) => ({ ...row, entityId: String(i) })) }));
+  });
+}

@@ -1,0 +1,103 @@
+{
+  "syntheticTransport": true,
+  "productionWrites": 0,
+  "sourceFilesMatched": 24,
+  "files": [
+    {
+      "file": "app.wxss",
+      "sha256": "3f4eab05db2ebbae1c3e46709729b6df7604d2e70c918aeebfbafdad9c3432d2"
+    },
+    {
+      "file": "styles/query-refinements.wxss",
+      "sha256": "7344afb62e7d0db3ed11dd696de0aaf22a8f69144e2577625a665b0034867b2a"
+    },
+    {
+      "file": "pages/customer-detail/index.js",
+      "sha256": "694e442111d91988083434c49f0f779752eb5863a51173806984eff741ac48cc"
+    },
+    {
+      "file": "pages/customer-detail/index.json",
+      "sha256": "eeac6d951b401081ff0c6dc5a45268c76fd5caaa217c4beaea7687e6f3e135c2"
+    },
+    {
+      "file": "pages/customer-detail/index.wxml",
+      "sha256": "7efa1f896b414249c66ed1a6af3bbb00ed78878205e3121c15780cf07774c44c"
+    },
+    {
+      "file": "pages/customer-detail/index.wxss",
+      "sha256": "24e0a3e4e90d70c97c1ee37d31cd0305c71e0c90179b431d16cc6a9974b2a69f"
+    },
+    {
+      "file": "services/attendance-map.js",
+      "sha256": "de65530ec8533d5a8e5e031f08d76951efd3e087e39129a2afd846d4bfd7e8e8"
+    },
+    {
+      "file": "services/ble-verification.js",
+      "sha256": "6548548e509dc47123170ff34e563a703b2c13412fa8b62dfdfd0122f8729873"
+    },
+    {
+      "file": "services/business-time.js",
+      "sha256": "b5209336704a7c862bcd36db867b9e3b1f7ac7e445d46877e64674c89f7689f7"
+    },
+    {
+      "file": "services/customer-age.js",
+      "sha256": "e0ee82e8b607cd24f46a7b570b52c079b33cb85d006d124e854029831e98dec4"
+    },
+    {
+      "file": "services/grouped-table-export.js",
+      "sha256": "161d0bbbfdaf385cac46859c382e061785428e7ddd390e0d4d521ae61bf0e33e"
+    },
+    {
+      "file": "services/grouped-table-pdf.js",
+      "sha256": "bf01e5f54711c2624d42e9ba72fdaecdcc7271a1d2a6c9ecaebd1745d8702194"
+    },
+    {
+      "file": "services/home-dashboard.js",
+      "sha256": "5aec56241ad9f0cc9d81344a3147f5170f4427531748bfdb12724d211a8cfc14"
+    },
+    {
+      "file": "services/hq-dashboard-report.js",
+      "sha256": "33b4f4cdefaa10b52d206ba400c534aede7b67372d1455d55d2df67a398f2300"
+    },
+    {
+      "file": "services/order-receipt.js",
+      "sha256": "bfff8cf0b554841a949058351c03a4cc27166ca077ed74422b3aab60582fb04a"
+    },
+    {
+      "file": "services/photo-album.js",
+      "sha256": "e1b481f8c1c11af8bd9f71129644d37391bd8874bdace4549bcdb733d17cf016"
+    },
+    {
+      "file": "services/query-tools.js",
+      "sha256": "2b42f5de4029b33f598087c62c56b035b66d92221e0ad08da4d413551fdad4b4"
+    },
+    {
+      "file": "services/submission.js",
+      "sha256": "e6cb6cb965e614049d9c979f9cd6d79175d3f7bb9cb29ef2ba8240d337c2100a"
+    },
+    {
+      "file": "services/teacher-experience-recharge.js",
+      "sha256": "43ced8156bf7fb33ab0646eeb77331249a865d15ea96475e95df18b11b5b7b70"
+    },
+    {
+      "file": "services/teacher-team.js",
+      "sha256": "703b095f6b03824a9ba87c45fbb532d7d7fd8414e7c32f0cc9ebe6464219bdd5"
+    },
+    {
+      "file": "services/training-material-cache.js",
+      "sha256": "24a59cd8c4c0168c5a2e5b9bcf678c6747caae80de574ff6f04bb1d5ffbef50e"
+    },
+    {
+      "file": "services/training-material-upload-queue.js",
+      "sha256": "0140a5f6d67f5448eafce6facf421ec06e1ccc018102175f304c4084274f51b1"
+    },
+    {
+      "file": "services/verification-photo-upload-queue.js",
+      "sha256": "c59b9be66e4597cf52e09fc4476949e126e86a64973960228421b6a38d1458db"
+    },
+    {
+      "file": "services/wechat-phone.js",
+      "sha256": "e41dc3f69f45a1cd8d91026b4f81ade6fce05c784db16384375e64938b68a0ad"
+    }
+  ]
+}

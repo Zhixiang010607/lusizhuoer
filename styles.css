@@ -3142,3 +3142,15 @@ body[data-staff-detail] .staff-admin-actions .secondary-button:not(#staffStatusA
   .customer-rating-score strong { font-size: 21px; text-align: center; }
   .customer-rating-score small { white-space: nowrap; }
 }
+
+/* Customer history follows the existing ten-row query list and shared pager. */
+body[data-customer-profile] .customer-history-panel .customer-record-scroll {
+  height: auto; min-height: 0; max-height: none; overflow-x: auto; overflow-y: hidden;
+}
+body[data-customer-profile] .customer-history-panel .customer-history-table {
+  width: max-content; min-width: 100%; table-layout: auto;
+}
+body[data-customer-profile] .customer-history-panel .customer-history-table th,
+body[data-customer-profile] .customer-history-panel .customer-history-table td {
+  height: 42px; padding: 8px 12px; white-space: nowrap; word-break: normal; overflow-wrap: normal;
+}

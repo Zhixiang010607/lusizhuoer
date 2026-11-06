@@ -29,11 +29,11 @@
   let customerMessagesLoading = false, customerMessageSubmitting = false;
   let customerServiceApp = null;
   const historyState = {
-    RECHARGE: { hasMore:false, nextCursor:null, loading:false },
-    REFUND: { hasMore:false, nextCursor:null, loading:false },
-    VERIFICATION: { hasMore:false, nextCursor:null, loading:false },
-    EXPERIENCE: { hasMore:false, nextCursor:null, loading:false },
-    PRODUCT_PURCHASE: { hasMore:false, nextCursor:null, loading:false }
+    RECHARGE: { page:1, total:0, totalPages:1, loading:false },
+    REFUND: { page:1, total:0, totalPages:1, loading:false },
+    VERIFICATION: { page:1, total:0, totalPages:1, loading:false },
+    EXPERIENCE: { page:1, total:0, totalPages:1, loading:false },
+    PRODUCT_PURCHASE: { page:1, total:0, totalPages:1, loading:false }
   };
   let activeHistoryType = "RECHARGE";
 
@@ -276,7 +276,7 @@
     $("customerStatusToggle")?.addEventListener("click", toggleCustomerStatus);
   }
   function renderBalances() {
-    $("customerProjectSummary").innerHTML = balances.length ? balances.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.totalRechargeCount || 0)}</td><td>${Number(row.totalVerificationCount || 0)}</td><td><strong>${Number(row.remainingCount || 0)}</strong></td></tr>`).join("") : emptyRow(4, "暂无已充值项目");
+    $("customerProjectSummary").innerHTML = balances.length ? balances.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.totalRechargeCount || 0)}</td><td>${Number(row.totalRefundCount || 0)}</td><td>${Number(row.totalVerificationCount || 0)}</td><td><strong>${Number(row.remainingCount || 0)}</strong></td></tr>`).join("") : emptyRow(5, "暂无已充值项目");
     $("customerRetailProductSummary").innerHTML = retailProductSummary.length
       ? retailProductSummary.map((row) => `<tr><td>${escapeHtml(row.productName)}</td><td>${Number(row.purchasedCount || 0)} 件</td><td>${Number(row.giftedCount || 0)} 件</td></tr>`).join("")
       : emptyRow(3, "暂无产品购买或赠送记录");
@@ -297,13 +297,13 @@
     const isProduct = type === "PRODUCT_PURCHASE";
     $("customerHistoryItemHeading").textContent = isProduct ? "产品" : "项目";
     $("customerHistoryUnitHeading").textContent = isProduct ? "数量" : "次数";
-    $("customerHistoryCount").textContent = `本页 ${rows.length} 条`;
+    $("customerHistoryCount").textContent = `共 ${historyState[type].total} 条`;
     document.querySelectorAll("[data-history-type]").forEach((button) => {
       const selected = button.dataset.historyType === type;
       button.classList.toggle("active", selected);
       button.setAttribute("aria-selected", selected ? "true" : "false");
     });
-    $("customerHistoryRows").innerHTML = rows.length ? rows.map((row) => {
+    $("customerHistoryRows").innerHTML = rows.length ? rows.map((row, index) => {
       const code = isProduct ? row.purchaseCode || row.id : ["VERIFICATION", "EXPERIENCE"].includes(type) ? row.verificationCode || row.id : row.rechargeCode || row.id;
       const detailPage = ["VERIFICATION", "EXPERIENCE"].includes(type) ? "verification-detail.html" : "recharge-detail.html";
       const detail = isProduct ? "" : detailHref(detailPage, row.id, code);
@@ -311,18 +311,25 @@
       const count = Math.abs(Number(row.unitCount || 0));
       const unitText = isProduct ? `${count} 件` : type === "REFUND" ? `−${count} 次` : type === "RECHARGE" ? `+${count} 次` : `${count || 1} 次`;
       const statusType = isProduct ? "PRODUCT_PURCHASE" : ["VERIFICATION", "EXPERIENCE"].includes(type) ? "VERIFICATION" : "RECHARGE";
-      return `<tr><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(businessTeacher(row) || "—")}</td><td>${escapeHtml(unitText)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, statusType))}</td></tr>`;
-    }).join("") : emptyRow(6, `暂无${historyLabel(type)}记录`);
+      return `<tr><td class="list-row-number">${index + 1}</td><td>${codeCell}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(businessTeacher(row) || "—")}</td><td>${escapeHtml(unitText)}</td><td>${escapeHtml(dateText(row.submittedAt))}</td><td>${escapeHtml(orderStatus(row, statusType))}</td></tr>`;
+    }).join("") : emptyRow(7, `暂无${historyLabel(type)}记录`);
     syncHistoryButton(type);
   }
-  function historyKey(row) { return String(row?.id || ""); }
+  function historyMetadata(page = {}) {
+    if (Number(page.pageSize) !== 10) throw new Error("客户业务记录服务需要更新，请更新云函数后重试。");
+    return { page:Number(page.pageNumber || 1), total:Number(page.total || 0), totalPages:Math.max(1, Number(page.totalPages || 1)) };
+  }
   function syncHistoryButton(type) {
-    const button = $("loadMoreCustomerHistory");
-    if (!button) return;
+    if (type !== activeHistoryType) return;
     const state = historyState[type];
-    button.hidden = !state.hasMore;
-    button.disabled = state.loading;
-    button.textContent = state.loading ? "正在加载…" : "加载更多";
+    $("customerHistoryPager").hidden = !state.total;
+    $("customerHistoryPageLabel").textContent = `第 ${state.page} / ${state.totalPages} 页`;
+    $("customerHistoryPrevious").disabled = state.loading || state.page <= 1;
+    $("customerHistoryNext").disabled = state.loading || state.page >= state.totalPages;
+    $("customerHistoryJump").disabled = state.loading;
+    $("customerHistoryPageInput").disabled = state.loading;
+    $("customerHistoryPageInput").value = String(state.page);
+    $("customerHistoryPageInput").max = String(state.totalPages);
   }
   function changeHistory(type) {
     if (!historyState[type] || type === activeHistoryType) return;
@@ -332,31 +339,36 @@
     if (scroll) scroll.scrollLeft = 0;
   }
   function profilePayload(extra = {}) { return { action:"getCustomerProfile", customerCode, ...extra }; }
-  async function loadMoreHistory(type) {
+  async function loadHistoryPage(type, targetPage) {
     const state = historyState[type];
-    if (!state?.hasMore || state.loading || !state.nextCursor) return;
+    const page = Number(targetPage);
+    if (!state || state.loading || !Number.isSafeInteger(page) || page < 1 || page > state.totalPages || page === state.page) return;
     state.loading = true; syncHistoryButton(type);
     try {
-      const data = await callCustomerService(profilePayload({
-        historyType:type,
-        historyLimit:50,
-        cursorSubmittedAt:state.nextCursor.submittedAt,
-        cursorId:state.nextCursor.id
-      }));
+      const data = await callCustomerService(profilePayload({ historyType:type, historyPage:page, historyPageSize:10 }));
       const field = { RECHARGE:"recharges", REFUND:"refunds", VERIFICATION:"verifications", EXPERIENCE:"experiences", PRODUCT_PURCHASE:"productPurchases" }[type];
-      const page = data.history?.[field] || {};
+      const metadata = historyMetadata(data.history?.[field]);
       const incoming = Array.isArray(data[field]) ? data[field] : [];
-      const target = { RECHARGE:recharges, REFUND:refunds, VERIFICATION:verifications, EXPERIENCE:experiences, PRODUCT_PURCHASE:productPurchases }[type];
-      const known = new Set(target.map(historyKey));
-      incoming.forEach((row) => { if (!known.has(historyKey(row))) target.push(row); });
-      state.hasMore = page.hasMore === true;
-      state.nextCursor = page.nextCursor || null;
+      if (type === "RECHARGE") recharges = incoming;
+      else if (type === "REFUND") refunds = incoming;
+      else if (type === "VERIFICATION") verifications = incoming;
+      else if (type === "EXPERIENCE") experiences = incoming;
+      else productPurchases = incoming;
+      Object.assign(state, metadata);
       renderRecords();
+      const scroll = document.querySelector(".customer-history-panel .customer-record-scroll");
+      if (scroll) scroll.scrollLeft = 0;
     } catch (error) {
-      window.alert(error?.message || "客户历史记录加载失败，请重试。");
-    } finally {
-      state.loading = false; syncHistoryButton(type);
+      window.alert(error?.message || "客户业务记录翻页失败，请重试。");
+    } finally { state.loading = false; syncHistoryButton(type); }
+  }
+  function jumpHistoryPage() {
+    const raw = String($("customerHistoryPageInput").value || "").trim(), page = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(page) || page < 1 || page > historyState[activeHistoryType].totalPages) {
+      window.alert(`请输入 1 至 ${historyState[activeHistoryType].totalPages} 的页码`);
+      return;
     }
+    void loadHistoryPage(activeHistoryType, page);
   }
   function renderPhoto(content, error = false) {
     const frame = $("customerProfilePhoto"); frame.classList.toggle("customer-photo-error", error); frame.innerHTML = content;
@@ -387,11 +399,11 @@
     $("customerBasicInfo").innerHTML = infoCard("读取失败", message);
     $("customerRecentInfo").innerHTML = ""; $("customerNotes").value = "";
     $("customerStatusMessage").textContent = message; $("customerStatusMessage").classList.add("error");
-    $("customerProjectSummary").innerHTML = emptyRow(4, "客户项目数据读取失败");
+    $("customerProjectSummary").innerHTML = emptyRow(5, "客户项目数据读取失败");
     $("customerRetailProductSummary").innerHTML = emptyRow(3, "客户产品数据读取失败");
-    $("customerHistoryRows").innerHTML = emptyRow(6, "业务记录读取失败");
+    $("customerHistoryRows").innerHTML = emptyRow(7, "业务记录读取失败");
     $("customerHistoryCount").textContent = "本页 0 条";
-    $("loadMoreCustomerHistory").hidden = true;
+    $("customerHistoryPager").hidden = true;
     if (canUseCustomerMessages) {
       $("customerMessageList").innerHTML = `<article class="customer-message-empty">${escapeHtml(message)}</article>`;
       $("loadMoreCustomerMessages").hidden = true;
@@ -405,20 +417,13 @@
     $("customerBasicInfo").innerHTML = infoCard("数据库状态", "正在读取客户主页…");
     void loadPhoto();
     try {
-      const data = await callCustomerService(profilePayload({ historyLimit:50 }));
+      const data = await callCustomerService(profilePayload({ historyPage:1, historyPageSize:10 }));
       profile = data.customer; balances = Array.isArray(data.balances) ? data.balances : [];
       retailProductSummary = Array.isArray(data.retailProductSummary) ? data.retailProductSummary : [];
       recharges = Array.isArray(data.recharges) ? data.recharges : []; refunds = Array.isArray(data.refunds) ? data.refunds : []; verifications = Array.isArray(data.verifications) ? data.verifications : []; experiences = Array.isArray(data.experiences) ? data.experiences : []; productPurchases = Array.isArray(data.productPurchases) ? data.productPurchases : [];
-      historyState.RECHARGE.hasMore = data.history?.recharges?.hasMore === true;
-      historyState.RECHARGE.nextCursor = data.history?.recharges?.nextCursor || null;
-      historyState.REFUND.hasMore = data.history?.refunds?.hasMore === true;
-      historyState.REFUND.nextCursor = data.history?.refunds?.nextCursor || null;
-      historyState.VERIFICATION.hasMore = data.history?.verifications?.hasMore === true;
-      historyState.VERIFICATION.nextCursor = data.history?.verifications?.nextCursor || null;
-      historyState.EXPERIENCE.hasMore = data.history?.experiences?.hasMore === true;
-      historyState.EXPERIENCE.nextCursor = data.history?.experiences?.nextCursor || null;
-      historyState.PRODUCT_PURCHASE.hasMore = data.history?.productPurchases?.hasMore === true;
-      historyState.PRODUCT_PURCHASE.nextCursor = data.history?.productPurchases?.nextCursor || null;
+      for (const [type, field] of Object.entries({ RECHARGE:"recharges", REFUND:"refunds", VERIFICATION:"verifications", EXPERIENCE:"experiences", PRODUCT_PURCHASE:"productPurchases" })) {
+        Object.assign(historyState[type], historyMetadata(data.history?.[field]));
+      }
       renderBasic(); renderRecent(); renderBalances(); renderRecords();
       void loadCustomerMessages({ reset:true });
     } catch (error) { renderLoadError(error.message || "客户主页数据库读取失败，请刷新重试。"); }
@@ -426,7 +431,10 @@
   configureBackLink();
   if (!canUseCustomerMessages) $("customerMessagesPanel").hidden = true;
   document.querySelectorAll("[data-history-type]").forEach((button) => button.addEventListener("click", () => changeHistory(button.dataset.historyType)));
-  $("loadMoreCustomerHistory")?.addEventListener("click", () => loadMoreHistory(activeHistoryType));
+  $("customerHistoryPrevious").addEventListener("click", () => loadHistoryPage(activeHistoryType, historyState[activeHistoryType].page - 1));
+  $("customerHistoryNext").addEventListener("click", () => loadHistoryPage(activeHistoryType, historyState[activeHistoryType].page + 1));
+  $("customerHistoryJump").addEventListener("click", jumpHistoryPage);
+  $("customerHistoryPageInput").addEventListener("keydown", event => { if (event.key === "Enter") jumpHistoryPage(); });
   $("loadMoreCustomerMessages")?.addEventListener("click", () => loadCustomerMessages());
   $("customerMessageForm")?.addEventListener("submit", submitCustomerMessage);
   $("customerMessageInput")?.addEventListener("input", syncCustomerMessageCounter);

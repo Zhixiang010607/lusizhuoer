@@ -1,0 +1,18 @@
+{
+  "version": "v141",
+  "archive": "faceRecognition-v141.zip",
+  "bytes": 113446,
+  "sha256": "9f790677321f9de2e3a539e4e96608a995c3024801e3478aac96bdb6cfb1e7a6",
+  "rootFiles": {
+    "index.js": "3cc271715106494da162afec4cf212041ac7d76f901e6985d5856b333b9fe903",
+    "teacher-team.js": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39",
+    "package.json": "bede4223c153df000df864f4224c076f2660cc0879255fc11b865271fb70e906",
+    "README.md": "540ca20e5295c8040107cfa89eb215ff5a47486bb9fe4c463fbb71a91250cb1d",
+    "attendance-photo.js": "82d6d2da5f381c293b46e966fad6b5adebb2cc7dea8e2b4428dd3eb3d6b76f3a",
+    "attendance-glyphs.json": "bb19ed8b183a935f45b03dd69a0a12dd6bc75e01d39e4fe5911755e48ca7a835",
+    "attendance-glyphs-LICENSE.txt": "148c524a428f4c84bcdce3717d549649d7248d382a6fefce252f38461f5470eb"
+  },
+  "zipIntegrity": "PASS",
+  "rootBytesMatch": true,
+  "deployed": false
+}

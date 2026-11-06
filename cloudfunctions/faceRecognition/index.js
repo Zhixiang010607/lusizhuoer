@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v140";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v141";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -1741,8 +1741,16 @@ async function addCustomerMessage(event) {
 }
 
 function customerHistoryOptions(event = {}) {
+  const numberedPage = event.historyPage !== undefined || event.historyPageSize !== undefined;
+  const pageNumber = Number(event.historyPage === undefined ? 1 : event.historyPage);
+  if (numberedPage && (!Number.isSafeInteger(pageNumber) || pageNumber < 1 || pageNumber > 100000)) {
+    fail("客户业务记录页码必须是 1 至 100000 的整数。", "BAD_REQUEST");
+  }
+  if (numberedPage && event.historyPageSize !== undefined && Number(event.historyPageSize) !== 10) {
+    fail("客户业务记录每页固定为 10 条。", "BAD_REQUEST");
+  }
   const requestedLimit = Number(event.historyLimit);
-  const limit = Number.isFinite(requestedLimit)
+  const limit = numberedPage ? 10 : Number.isFinite(requestedLimit)
     ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
     : 50;
   const type = String(event.historyType || "").trim().toUpperCase();
@@ -1751,15 +1759,49 @@ function customerHistoryOptions(event = {}) {
   const cursorId = String(event.cursorId || "").trim();
   if ((cursorSubmittedAt || cursorId) && !type) fail("客户历史游标必须指定记录类型。", "BAD_REQUEST");
   if (Boolean(cursorSubmittedAt) !== Boolean(cursorId)) fail("客户历史游标不完整。", "BAD_REQUEST");
+  if (numberedPage && cursorSubmittedAt) fail("客户业务记录页码不能同时提交游标。", "BAD_REQUEST");
   return {
     limit,
+    numberedPage,
+    pageNumber,
     type,
     cursorSubmittedAt,
     cursorId: cursorId ? businessQueryDatabaseId(cursorId, "客户历史游标编号") : ""
   };
 }
 
-function customerHistoryPage(rows, limit) {
+function customerHistorySql(sql, options, table, customerId, category) {
+  if (!options.numberedPage) return sql;
+  const select = sql.replace(/\n\s*LIMIT \d+\s*$/, "");
+  return `WITH history_count AS (
+    SELECT COUNT(*)::bigint AS history_total
+      FROM public.${table}
+     WHERE customer_id = ${sqlText(customerId)}::bigint AND ${category}
+  ), history_meta AS (
+    SELECT history_total,
+           GREATEST(1, CEIL(history_total::numeric / 10))::integer AS history_total_pages,
+           LEAST(${options.pageNumber}, GREATEST(1, CEIL(history_total::numeric / 10)))::integer AS history_page
+      FROM history_count
+  ), history_rows AS (
+    ${select}
+    LIMIT 10 OFFSET (SELECT (history_page - 1) * 10 FROM history_meta)
+  )
+  SELECT history_rows.*, history_meta.*
+    FROM history_meta LEFT JOIN history_rows ON TRUE
+   ORDER BY history_rows.submitted_at DESC, history_rows.id DESC`;
+}
+
+function customerHistoryPage(rows, limit, options = {}) {
+  if (options.numberedPage) {
+    const meta = rows[0] || {};
+    const pageNumber = Number(meta.history_page || 1);
+    const totalPages = Number(meta.history_total_pages || 1);
+    return {
+      rows: rows.filter((row) => row.id !== null && row.id !== undefined),
+      page: { pageNumber, pageSize: 10, total: Number(meta.history_total || 0), totalPages,
+        hasMore: pageNumber < totalPages, nextCursor: null }
+    };
+  }
   const hasMore = rows.length > limit;
   const visibleRows = rows.slice(0, limit);
   const last = visibleRows[visibleRows.length - 1];
@@ -1827,7 +1869,14 @@ async function getCustomerProfile(event) {
                  AND refund.recharge_type = 'REFUND'
                  AND refund.record_status = 'APPROVED'
             ), 0)::bigint AS total_refund_count,
-            c.total_verification_count, c.total_experience_count,
+            COALESCE((
+              SELECT SUM(verification.unit_count)
+                FROM public.verification_records verification
+               WHERE verification.customer_id = c.id
+                 AND verification.record_status = 'APPROVED'
+                 AND verification.verification_type IN ('NORMAL', 'SUPPLEMENT')
+            ), 0)::bigint AS normal_verification_count,
+            c.total_experience_count,
             c.latest_recharge_at, c.latest_verification_at, c.created_at, c.updated_at,
             c.created_store_id, s.store_code, s.store_name
       FROM public.customers c
@@ -1893,11 +1942,22 @@ async function getCustomerProfile(event) {
          ORDER BY purchase.submitted_at DESC, purchase.id DESC
          LIMIT ${historyOptions.limit + 1}`;
 
+  const historySql = (type) => {
+    const config = {
+      RECHARGE: [rechargeSql(false), "recharge_records", "recharge_type = 'NEW'"],
+      REFUND: [rechargeSql(true), "recharge_records", "recharge_type = 'REFUND'"],
+      VERIFICATION: [verificationSql(false), "verification_records", "verification_type <> 'EXPERIENCE'"],
+      EXPERIENCE: [verificationSql(true), "verification_records", "verification_type = 'EXPERIENCE'"],
+      PRODUCT_PURCHASE: [productPurchaseSql, "retail_product_purchase_records", "TRUE"]
+    }[type];
+    return customerHistorySql(config[0], historyOptions, config[1], customerId, config[2]);
+  };
+
   if (historyOptions.type) {
     if (historyOptions.type === "PRODUCT_PURCHASE") {
       await requireRetailProductPurchaseSchema();
-      const historyRows = await executeSql(productPurchaseSql);
-      const historyPage = customerHistoryPage(historyRows, historyOptions.limit);
+      const historyRows = await executeSql(historySql(historyOptions.type));
+      const historyPage = customerHistoryPage(historyRows, historyOptions.limit, historyOptions);
       return {
         ok: true,
         productPurchases: mapCustomerProductPurchases(historyPage.rows),
@@ -1905,10 +1965,8 @@ async function getCustomerProfile(event) {
       };
     }
     const rechargeHistory = ["RECHARGE", "REFUND"].includes(historyOptions.type);
-    const historyRows = await executeSql(rechargeHistory
-      ? rechargeSql(historyOptions.type === "REFUND")
-      : verificationSql(historyOptions.type === "EXPERIENCE"));
-    const historyPage = customerHistoryPage(historyRows, historyOptions.limit);
+    const historyRows = await executeSql(historySql(historyOptions.type));
+    const historyPage = customerHistoryPage(historyRows, historyOptions.limit, historyOptions);
     if (rechargeHistory) {
       const field = historyOptions.type === "REFUND" ? "refunds" : "recharges";
       return { ok: true, [field]: mapCustomerRecharges(historyPage.rows), history: { [field]: historyPage.page } };
@@ -1949,11 +2007,11 @@ async function getCustomerProfile(event) {
     LEFT JOIN recharge_history history ON history.product_id = ids.product_id
         ORDER BY p.product_name, p.product_code`
     ),
-    executeSql(rechargeSql(false)),
-    executeSql(rechargeSql(true)),
-    executeSql(verificationSql(false)),
-    executeSql(verificationSql(true)),
-    executeSql(productPurchaseSql),
+    executeSql(historySql("RECHARGE")),
+    executeSql(historySql("REFUND")),
+    executeSql(historySql("VERIFICATION")),
+    executeSql(historySql("EXPERIENCE")),
+    executeSql(historySql("PRODUCT_PURCHASE")),
     executeSql(
       `WITH purchased AS (
          SELECT retail_product_id, SUM(unit_count)::bigint AS purchased_count
@@ -1984,11 +2042,11 @@ async function getCustomerProfile(event) {
         ORDER BY product.product_name, product.product_code, product.id`
     )
   ]);
-  const rechargePage = customerHistoryPage(rechargeRows, historyOptions.limit);
-  const refundPage = customerHistoryPage(refundRows, historyOptions.limit);
-  const verificationPage = customerHistoryPage(verificationRows, historyOptions.limit);
-  const experiencePage = customerHistoryPage(experienceRows, historyOptions.limit);
-  const productPurchasePage = customerHistoryPage(productPurchaseRows, historyOptions.limit);
+  const rechargePage = customerHistoryPage(rechargeRows, historyOptions.limit, historyOptions);
+  const refundPage = customerHistoryPage(refundRows, historyOptions.limit, historyOptions);
+  const verificationPage = customerHistoryPage(verificationRows, historyOptions.limit, historyOptions);
+  const experiencePage = customerHistoryPage(experienceRows, historyOptions.limit, historyOptions);
+  const productPurchasePage = customerHistoryPage(productPurchaseRows, historyOptions.limit, historyOptions);
   return {
     ok: true,
     customer: {
@@ -1998,7 +2056,7 @@ async function getCustomerProfile(event) {
       customerProcessStatus: customer.customer_process_status,
       totalRechargeCount: Number(customer.gross_recharge_count || 0),
       totalRefundCount: Number(customer.total_refund_count || 0),
-      totalVerificationCount: Number(customer.total_verification_count || 0),
+      totalVerificationCount: Number(customer.normal_verification_count || 0),
       totalExperienceCount: Number(customer.total_experience_count || 0),
       latestRechargeAt: customer.latest_recharge_at,
       latestVerificationAt: customer.latest_verification_at,
@@ -2100,7 +2158,17 @@ async function getCustomerPhotoUrl(event, options = {}) {
   const rows = await executeSql(
     `SELECT c.customer_code, c.customer_name, c.birth_date, c.notes,
             c.customer_status, c.customer_process_status,
-            c.total_recharge_count, c.total_verification_count, c.total_experience_count,
+            (SELECT COALESCE(SUM(recharge.unit_count), 0)::bigint
+               FROM public.recharge_records recharge
+              WHERE recharge.customer_id = c.id
+                AND recharge.recharge_type = 'NEW'
+                AND recharge.record_status = 'APPROVED') AS total_recharge_count,
+            (SELECT COALESCE(SUM(verification.unit_count), 0)::bigint
+               FROM public.verification_records verification
+              WHERE verification.customer_id = c.id
+                AND verification.record_status = 'APPROVED'
+                AND verification.verification_type IN ('NORMAL', 'SUPPLEMENT')) AS total_verification_count,
+            c.total_experience_count,
             c.created_store_id, c.created_at, c.profile_photo_file_id
       FROM public.customers c
       WHERE c.customer_code = ${sqlText(customerCode)}
@@ -2395,7 +2463,12 @@ async function queryStoreCustomers(event = {}) {
                         FROM public.customers c
                        WHERE ${baseClauses.join(" AND ")}`;
   const listSql = `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.customer_status,
-            c.customer_process_status, c.total_recharge_count,
+            c.customer_process_status,
+            (SELECT COALESCE(SUM(recharge.unit_count), 0)::bigint
+               FROM public.recharge_records recharge
+              WHERE recharge.customer_id = c.id
+                AND recharge.recharge_type = 'NEW'
+                AND recharge.record_status = 'APPROVED') AS total_recharge_count,
             (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
                FROM public.verification_records v
               WHERE v.customer_id = c.id
@@ -3122,7 +3195,12 @@ async function getStoreDashboard(event = {}) {
   const archivedCustomerOffset = (archivedCustomerPage - 1) * customerPageSize;
   const dashboardCustomersSql = (status, offset) =>
     `SELECT c.id AS customer_id, c.customer_code, c.customer_name, c.birth_date,
-            c.customer_status, c.total_recharge_count,
+            c.customer_status,
+            (SELECT COALESCE(SUM(recharge.unit_count), 0)::bigint
+               FROM public.recharge_records recharge
+              WHERE recharge.customer_id = c.id
+                AND recharge.recharge_type = 'NEW'
+                AND recharge.record_status = 'APPROVED') AS total_recharge_count,
             (SELECT COALESCE(SUM(v.unit_count), 0)::bigint
                FROM public.verification_records v
               WHERE v.customer_id = c.id

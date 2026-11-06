@@ -23,7 +23,7 @@ test("customer messages prioritize display over a compact composer without neste
   assert.match(read("wxml"), /<scroll-view class="message-list \{\{messages.length \? 'has-messages' : ''\}\}" scroll-y/);
   assert.match(read("wxml"), /<textarea class="textarea message-input" maxlength="100"/);
   assert.match(read("js"), /const MESSAGE_LIMIT = 20;/);
-  assert.match(read("js"), /const HISTORY_LIMIT = 20;/);
+  assert.match(read("js"), /const HISTORY_LIMIT = 10;/);
 });
 
 test("customer recent information remains a two-by-two grid even on narrow phones", () => {

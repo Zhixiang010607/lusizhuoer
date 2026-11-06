@@ -225,7 +225,27 @@
 
   function createReportPdf(report = {}) {
     const productRows = Array.isArray(report.productRows) ? report.productRows : [];
-    const totals = report.totals || {};
+    const totals = { recharge: 0, verification: 0, experience: 0, refund: 0 };
+    const productIds = new Set();
+    const rankingIds = new Set();
+    const metrics = Object.keys(totals);
+    const unique = (row, ids, key) => {
+      const id = String(row[key] ?? row.entityId ?? "");
+      if (!id) return;
+      if (ids.has(id)) throw new Error("导出数据出现重复，请重新读取后导出。");
+      ids.add(id);
+    };
+    productRows.forEach((row) => {
+      unique(row, productIds, "productId");
+      metrics.forEach((key) => { totals[key] += number(row[key]); });
+    });
+    const sourceRanking = Array.isArray(report.rankingRows) ? report.rankingRows : [];
+    sourceRanking.forEach((row) => unique(row, rankingIds, "entityId"));
+    const metric = metrics.includes(report.metric) ? report.metric : "recharge";
+    const loadedRankingTotal = sourceRanking.reduce((sum, row) => sum + number(row[metric]), 0);
+    if (report.rankingTotal !== undefined && loadedRankingTotal !== number(report.rankingTotal)) {
+      throw new Error("导出数据已变化，排名明细与合计不一致，请重新读取后导出。");
+    }
     const summaryRows = productRows.map((row) => ({
       name: clean(row.name || row.productName),
       verification: String(number(row.verification)), recharge: String(number(row.recharge)),
@@ -247,9 +267,8 @@
       { key: "experience", label: "体验", width: 109, numeric: true },
       { key: "refund", label: "退费", width: 109, numeric: true }
     ];
-    const rankingTotal = Math.max(1, number(report.rankingTotal));
-    const metric = ["recharge", "verification", "experience", "refund"].includes(report.metric) ? report.metric : "recharge";
-    const rankingRows = (Array.isArray(report.rankingRows) ? report.rankingRows : []).map((row, index) => ({
+    const rankingTotal = Math.max(1, loadedRankingTotal);
+    const rankingRows = sourceRanking.map((row, index) => ({
       rank: String(index + 1), name: clean(row.name), dimension: clean(report.dimensionLabel),
       recharge: String(number(row.recharge)), verification: String(number(row.verification)),
       experience: String(number(row.experience)), refund: String(number(row.refund)),

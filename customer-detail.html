@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>客户主页</title>
-  <link rel="stylesheet" href="styles.css?v=0.15.45">
+  <link rel="stylesheet" href="styles.css?v=0.15.50">
+  <link rel="stylesheet" href="list-row-numbers.css?v=1.0.0">
+  <link rel="stylesheet" href="web-tablet-parity.css?v=1.0.14" data-web-tablet-parity="true">
 </head>
 <body data-customer-profile>
   <aside class="side-project-bar" aria-label="项目栏"><div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p><nav class="side-nav"><a href="index.html"><span class="nav-icon">全</span><span>全局视图</span></a></nav><details class="side-menu-group"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav><a href="project-management.html">项目管理</a><a href="retail-product-management.html">产品管理</a><a href="store-management.html">门店管理</a><a href="teacher-management.html">老师管理</a></nav></details><details class="side-menu-group" open><summary><span class="nav-icon">查</span><span>查询</span></summary><nav><a class="active" href="customer-query.html">客户查询</a><a href="recharge-query.html">充值查询</a><a href="verification-query.html">核销查询</a></nav></details><details class="side-menu-group" data-menu="review"><summary><span class="nav-icon">审</span><span>审核</span></summary><nav><a href="recharge-review.html">充值审核</a><a href="verification-review.html">核销审核</a></nav></details><div class="side-footer">静态原型</div></aside>
@@ -23,7 +25,7 @@
       <section id="customerMessagesPanel" class="panel customer-messages-panel"><div class="panel-heading"><div><h2>客户留言</h2></div><span id="customerMessageCount" class="badge">0 条</span></div><div id="customerMessageList" class="customer-message-list" tabindex="0" aria-label="客户留言记录"><article class="customer-message-empty">正在读取留言…</article></div><div id="customerMessageLoadRow" class="customer-message-load-row" hidden><button id="loadMoreCustomerMessages" type="button" class="secondary-button" hidden>加载更早留言</button></div><form id="customerMessageForm" class="customer-message-compose"><div class="customer-message-input"><textarea id="customerMessageInput" rows="2" maxlength="100" placeholder="输入客户留言，最多100字" aria-label="客户留言内容" aria-describedby="customerMessageCounter"></textarea><span id="customerMessageCounter">0/100</span></div><button id="submitCustomerMessage" type="submit">提交留言</button></form><p id="customerMessageStatus" class="customer-message-status" role="status" aria-live="polite"></p></section>
     </div>
 
-    <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>项目次数汇总</h2><p>按每个已充值项目汇总总充值次数、核销次数和剩余次数。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>项目</th><th>总充值次数</th><th>核销次数</th><th>剩余次数</th></tr></thead><tbody id="customerProjectSummary"></tbody></table></div></section>
+    <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>项目次数汇总</h2><p>按每个已充值项目汇总累计充值、累计退费、正常核销和剩余次数。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>项目</th><th>累计充值</th><th>累计退费</th><th>累计核销</th><th>剩余次数</th></tr></thead><tbody id="customerProjectSummary"></tbody></table></div></section>
 
     <section class="panel customer-project-panel"><div class="panel-heading"><div><h2>产品汇总</h2><p>只统计审核通过的购买数量和已通过充值单中的赠送数量。</p></div></div><div class="table-scroll customer-record-scroll"><table><thead><tr><th>产品名称</th><th>购买</th><th>赠送</th></tr></thead><tbody id="customerRetailProductSummary"></tbody></table></div></section>
 
@@ -36,8 +38,11 @@
         <button type="button" data-history-type="EXPERIENCE" role="tab" aria-selected="false">体验</button>
         <button type="button" data-history-type="PRODUCT_PURCHASE" role="tab" aria-selected="false">产品</button>
       </div>
-      <div class="table-scroll customer-record-scroll"><table class="customer-history-table"><thead><tr><th>单号</th><th id="customerHistoryItemHeading">项目</th><th>业务老师</th><th id="customerHistoryUnitHeading">次数</th><th>提交日期</th><th>状态</th></tr></thead><tbody id="customerHistoryRows"></tbody></table></div>
-      <div class="customer-history-load-row"><button id="loadMoreCustomerHistory" type="button" class="secondary-button" hidden>加载更多</button></div>
+      <div class="table-scroll customer-record-scroll numbered-list-scroll"><table class="customer-history-table numbered-result-table"><thead><tr><th class="list-row-number">序号</th><th>单号</th><th id="customerHistoryItemHeading">项目</th><th>业务老师</th><th id="customerHistoryUnitHeading">次数</th><th>提交日期</th><th>状态</th></tr></thead><tbody id="customerHistoryRows"></tbody></table></div>
+      <nav id="customerHistoryPager" class="table-pagination list-pagination" aria-label="客户业务记录分页" hidden>
+        <button id="customerHistoryPrevious" type="button">上一页</button><span id="customerHistoryPageLabel" aria-live="polite">第 1 / 1 页</span><button id="customerHistoryNext" type="button">下一页</button>
+        <label class="list-page-jump">跳至第 <input id="customerHistoryPageInput" type="number" min="1" step="1" inputmode="numeric" value="1" aria-label="业务记录跳转页码"> 页</label><button id="customerHistoryJump" type="button">跳转</button>
+      </nav>
     </section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
@@ -45,7 +50,7 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
   <script src="datetime.js?v=0.1.2"></script>
-  <script src="customer-profile.js?v=0.15.18"></script>
+  <script src="customer-profile.js?v=0.15.19"></script>
 <script src="auth-ui.js?v=0.21.5"></script>
 </body>
 </html>

@@ -109,6 +109,7 @@ for (const label of ["有效充值", "有效核销", "有效体验", "有效退�
 }
 assert.match(app, /HqDashboardReport\.downloadReport\(\{[\s\S]*productRows,[\s\S]*rankingRows,/,
   "vector PDF export must retain project summary and complete ranking data");
-assert.match(page, /业务总计占比/, "ranking must base its share on all reported business counts");
+assert.match(page, /id="rankingShareHeading"/, "ranking must label the selected metric denominator");
+assert.match(app, /rankingShareHeading[^\n]*rankingMetricLabels\[rankingMetric\]/);
 
 console.log("HQ four-metric statistics contract: PASS");

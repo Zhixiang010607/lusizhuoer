@@ -12,14 +12,11 @@ const js = fs.readFileSync(path.join(pageRoot, "index.js"), "utf8");
 const wxml = fs.readFileSync(path.join(pageRoot, "index.wxml"), "utf8");
 const wxss = fs.readFileSync(path.join(pageRoot, "index.wxss"), "utf8");
 
-test("mini customer profile paginates every business history at twenty rows", () => {
-  assert.match(js, /const HISTORY_LIMIT = 20;/);
-  for (const type of ["RECHARGE", "REFUND", "VERIFICATION", "EXPERIENCE", "PRODUCT_PURCHASE"]) {
-    assert.match(js, new RegExp(`${type}: \\{ page: 1, cursorStack: \\[null\\], hasMore: false, nextCursor: null, loading: false`));
-  }
-  for (const field of ["historyType: type", "historyLimit: HISTORY_LIMIT", "cursorSubmittedAt", "cursorId"]) {
-    assert.match(js, new RegExp(field));
-  }
+test("mini customer profile paginates every business history at ten rows", () => {
+  assert.match(js, /const HISTORY_LIMIT = 10;/);
+  assert.match(js, /Object\.keys\(HISTORY_FIELDS\)\.map/);
+  for (const field of ["historyType: type", "historyPage: nextPage", "historyPageSize: HISTORY_LIMIT"]) assert.ok(js.includes(field));
+  assert.doesNotMatch(js, /cursorStack|payload\.cursorSubmittedAt/);
   assert.match(js, /callFace\("listCustomerMessages", payload\)/);
   assert.match(js, /messageLimit: MESSAGE_LIMIT/);
   assert.match(js, /cursorCreatedAt/);
@@ -28,8 +25,8 @@ test("mini customer profile paginates every business history at twenty rows", ()
   assert.match(js, /Array\.from\(content\)\.length/);
   assert.match(wxml, /maxlength="100"/);
   assert.match(wxml, /bindtap="previousHistoryPage"[^>]*>上一页<\/button>/);
-  assert.match(wxml, /第 \{\{historyPage\}\} 页/);
-  assert.match(wxml, /bindtap="nextHistoryPage"[^>]*>下一页<\/button>/);
+  assert.match(wxml, /第 \{\{historyPage\}\} \/ \{\{historyTotalPages\}\} 页/);
+  assert.match(wxml, /bindtap="nextHistoryPage"[^\n]*>下一页<\/button>/);
   assert.doesNotMatch(wxml, /bindtap="loadMoreHistory"|>加载更多<\/button>|已载 \{\{visibleHistory\.length\}\} 条/);
   assert.match(wxml, /bindtap="loadMoreMessages"/);
   assert.match(wxml, /bindtap="submitMessage"[^>]*>发送留言<\/button>/);
@@ -99,7 +96,7 @@ test("balance and history tables have exact centered single-line column widths",
 });
 
 test("history tabs, paging, and full refresh reset the controlled horizontal position", () => {
-  assert.match(js, /historyType: "RECHARGE", visibleHistory: \[\], historyPage: 1, historyHasMore: false, historyScrollLeft: 0/);
+  assert.match(js, /historyType: "RECHARGE", visibleHistory: \[\], historyPage: 1,[^\n]*historyScrollLeft: 0/);
   assert.match(wxml, /class="table-scroll record-scroll"[^>]*scroll-left="\{\{historyScrollLeft\}\}"[^>]*bindscroll="rememberHistoryScroll"/);
   const loadSection = js.slice(js.indexOf("async load()"), js.indexOf("async loadPhoto()"));
   assert.match(loadSection, /historyScrollLeft: 0/);
@@ -179,7 +176,7 @@ test("history mapper preserves refund signs, teachers, dates, and server statuse
   );
 });
 
-test("profile body survives a photo failure and replaces each selected twenty-row history page", async () => {
+test("profile body survives a photo failure and replaces each selected ten-row history page", async () => {
   let pageDefinition;
   const calls = [];
   async function callFace(action, payload) {
@@ -188,21 +185,21 @@ test("profile body survives a photo failure and replaces each selected twenty-ro
     if (action === "listCustomerMessages") {
       return {
         messages: [{ id: "m1", authorName: "门店", authorRole: "store", createdAt: "2026-08-25T01:00:00Z", content: "已联系" }],
-        totalCount: 1, page: { hasMore: false, nextCursor: null }
+        totalCount: 1, page: { pageNumber:1, pageSize:10, total:0, totalPages:1, hasMore:false, nextCursor:null }
       };
     }
     if (action === "getCustomerProfile" && payload.historyType === "RECHARGE") {
-      if (!payload.cursorSubmittedAt) {
+      if (payload.historyPage === 1) {
         return {
           recharges: [{ id: "1", rechargeCode: "RC1", rechargeType: "NEW", unitCount: 5, recordStatus: "APPROVED" }],
-          history: { recharges: { hasMore: true, nextCursor: { submittedAt: "cursor-time", id: "1" } } }
+          history: { recharges: { pageNumber:1, pageSize:10, total:11, totalPages:2, hasMore:true, nextCursor:null } }
         };
       }
-      assert.equal(payload.cursorSubmittedAt, "cursor-time");
-      assert.equal(payload.cursorId, "1");
+      assert.equal(payload.historyPage, 2);
+      assert.equal(payload.historyPageSize, 10);
       return {
         recharges: [{ id: "2", rechargeCode: "RC2", rechargeType: "NEW", unitCount: 2, recordStatus: "APPROVED" }],
-        history: { recharges: { hasMore: false, nextCursor: null } }
+        history: { recharges: { pageNumber:2, pageSize:10, total:11, totalPages:2, hasMore:false, nextCursor:null } }
       };
     }
     if (action === "getCustomerProfile") {
@@ -218,11 +215,11 @@ test("profile body survives a photo failure and replaces each selected twenty-ro
         experiences: [],
         productPurchases: [],
         history: {
-          recharges: { hasMore: true, nextCursor: { submittedAt: "cursor-time", id: "1" } },
-          refunds: { hasMore: false, nextCursor: null },
-          verifications: { hasMore: false, nextCursor: null },
-          experiences: { hasMore: false, nextCursor: null },
-          productPurchases: { hasMore: false, nextCursor: null }
+          recharges: { pageNumber:1, pageSize:10, total:11, totalPages:2, hasMore:true, nextCursor:null },
+          refunds: { pageNumber:1, pageSize:10, total:0, totalPages:1, hasMore:false, nextCursor:null },
+          verifications: { pageNumber:1, pageSize:10, total:0, totalPages:1, hasMore:false, nextCursor:null },
+          experiences: { pageNumber:1, pageSize:10, total:0, totalPages:1, hasMore:false, nextCursor:null },
+          productPurchases: { pageNumber:1, pageSize:10, total:0, totalPages:1, hasMore:false, nextCursor:null }
         }
       };
     }
@@ -273,5 +270,5 @@ test("profile body survives a photo failure and replaces each selected twenty-ro
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(Array.from(page.data.recharges, (row) => row.unitLabel).join("|"), "+5 次");
   assert.equal(page.data.historyPage, 1);
-  assert.ok(calls.some(({ action, payload }) => action === "getCustomerProfile" && payload.historyLimit === 20));
+  assert.ok(calls.some(({ action, payload }) => action === "getCustomerProfile" && payload.historyPageSize === 10));
 });

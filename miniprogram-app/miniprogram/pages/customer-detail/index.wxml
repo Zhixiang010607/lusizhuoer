@@ -117,7 +117,7 @@
     </view>
 
     <view class="card history-card">
-      <view class="card-title"><text>业务记录</text><text class="badge">本页 {{visibleHistory.length}} 条</text></view>
+      <view class="card-title"><text>业务记录</text><text class="badge">共 {{historyTotal}} 条</text></view>
       <view class="segmented history-tabs">
         <button class="{{historyType === 'RECHARGE' ? 'active' : ''}}" data-type="RECHARGE" bindtap="changeHistory">充值</button>
         <button class="{{historyType === 'REFUND' ? 'active' : ''}}" data-type="REFUND" bindtap="changeHistory">退费</button>
@@ -125,11 +125,10 @@
         <button class="{{historyType === 'EXPERIENCE' ? 'active' : ''}}" data-type="EXPERIENCE" bindtap="changeHistory">体验</button>
         <button class="{{historyType === 'PRODUCT_PURCHASE' ? 'active' : ''}}" data-type="PRODUCT_PURCHASE" bindtap="changeHistory">产品</button>
       </view>
-      <text wx:if="{{visibleHistory.length > 5}}" class="table-scroll-hint">本页超过 5 条，可在表格内上下滑动</text>
-      <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x="true" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll" data-visible-rows="{{visibleHistory.length > 5 ? 5 : visibleHistory.length}}" scroll-y="{{visibleHistory.length > 5}}" enhanced show-scrollbar="{{visibleHistory.length > 5}}">
+      <scroll-view wx:if="{{visibleHistory.length}}" class="table-scroll record-scroll" scroll-x="true" scroll-left="{{historyScrollLeft}}" bindscroll="rememberHistoryScroll" data-visible-rows="{{visibleHistory.length}}" enhanced show-scrollbar="{{false}}">
         <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}} {{historyType === 'PRODUCT_PURCHASE' ? 'product-history' : ''}}">
-          <view class="record-row table-head"><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交时间</text><text>状态</text></view>
-          <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row">
+          <view class="record-row table-head"><text class="list-row-number">序号</text><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交时间</text><text>状态</text></view>
+          <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row"><text class="list-row-number">{{index + 1}}</text>
             <text class="{{historyType === 'PRODUCT_PURCHASE' && session.role !== 'hq' ? '' : 'record-link'}}" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>
             <text>{{item.productName}}</text>
             <text>{{item.teacherLabel}}</text>
@@ -140,10 +139,13 @@
         </view>
       </scroll-view>
       <view wx:elif="{{!historyLoading}}" class="empty">暂无相关记录</view>
-      <view wx:if="{{historyHasMore || historyPage > 1}}" class="history-pagination">
-        <button class="ghost" bindtap="previousHistoryPage" disabled="{{historyPage <= 1 || historyLoading}}">上一页</button>
-        <text>第 {{historyPage}} 页</text>
-        <button class="ghost" bindtap="nextHistoryPage" disabled="{{!historyHasMore || historyLoading}}">下一页</button>
+      <view wx:if="{{historyTotal > 0}}" class="table-pagination customer-pagination">
+        <view class="customer-page-controls">
+          <button class="ghost" bindtap="previousHistoryPage" disabled="{{historyPage <= 1 || historyLoading}}">上一页</button>
+          <text>第 {{historyPage}} / {{historyTotalPages}} 页</text>
+          <button class="ghost" bindtap="nextHistoryPage" disabled="{{historyPage >= historyTotalPages || historyLoading}}">下一页</button>
+        </view>
+        <view class="customer-page-jump"><text>跳至第</text><input type="number" value="{{historyPageInput}}" bindinput="inputHistoryPage" bindconfirm="jumpHistoryPage" confirm-type="done" disabled="{{historyLoading}}" aria-label="业务记录跳转页码" /><text>页</text><button bindtap="jumpHistoryPage" disabled="{{historyLoading}}">跳转</button></view>
       </view>
       <view wx:if="{{historyMessage}}" class="section-message {{historyError ? 'error' : ''}}">{{historyMessage}}</view>
     </view>

@@ -275,7 +275,8 @@ test("store and teacher customer/order details use compact adaptive tablet works
   assert.match(customerWxml, /class="customer-summary-grid"/);
   assert.match(customerWxml, /class="table-scroll balance-scroll"[^>]*data-visible-rows="\{\{balances\.length > 5 \? 5 : balances\.length\}\}"[^>]*scroll-y="\{\{balances\.length > 5\}\}"/);
   assert.match(customerWxml, /class="retail-summary-scroll" data-visible-rows="\{\{retailProductSummary\.length > 5 \? 5 : retailProductSummary\.length\}\}"/);
-  assert.match(customerWxml, /class="table-scroll record-scroll"[^>]*data-visible-rows="\{\{visibleHistory\.length > 5 \? 5 : visibleHistory\.length\}\}"[^>]*scroll-y="\{\{visibleHistory\.length > 5\}\}"/);
+  assert.match(customerWxml, /class="table-scroll record-scroll"[^\n]*data-visible-rows="\{\{visibleHistory\.length\}\}"/);
+  assert.doesNotMatch(customerWxml.match(/<scroll-view[^\n]*record-scroll[^\n]*/)?.[0] || "", /scroll-y=/);
   assert.match(customerWxss, /@media \(min-width: 700px\)[\s\S]*?\.customer-communication-grid, \.customer-summary-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s);
   assert.match(customerWxss, /\.customer-communication-grid > \.card, \.customer-summary-grid > \.card \{ min-width: 0; height: 100%; margin: 0; \}/,
     "paired customer cards must be allowed to shrink inside either tablet column");

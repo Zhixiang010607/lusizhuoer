@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.30";
+  const PROTOTYPE_VERSION = "0.15.31";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const RANKING_PAGE_SIZE = 10;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;
@@ -573,7 +573,8 @@
     const productName = state.rankingProductId
       ? state.rankingProducts.find((product) => product.id === state.rankingProductId)?.label || "指定项目"
       : "全部项目";
-    if ($("rankingRule")) $("rankingRule").textContent = `${productName} · 按${dimensionLabels[dimension]}的${rankingMetricLabels[rankingMetric]}次数降序；每页 100 条`;
+    if ($("rankingRule")) $("rankingRule").textContent = `${productName} · 按${dimensionLabels[dimension]}的${rankingMetricLabels[rankingMetric]}次数降序；每页 ${ranking.pageSize || RANKING_PAGE_SIZE} 条`;
+    if ($("rankingShareHeading")) $("rankingShareHeading").textContent = `${rankingMetricLabels[rankingMetric]}占比`;
     if (ranking.error) {
       $("rankingBody").innerHTML = `<tr class="dashboard-ranking-empty"><td colspan="8">${escapeHtml(ranking.error)}</td></tr>`;
       renderRankingPager();

@@ -2,7 +2,7 @@ const { callFace } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const query = require("../../services/query-tools");
 
-const HISTORY_LIMIT = 20;
+const HISTORY_LIMIT = 10;
 const MESSAGE_LIMIT = 20;
 const HISTORY_FIELDS = Object.freeze({
   RECHARGE: "recharges",
@@ -14,13 +14,14 @@ const HISTORY_FIELDS = Object.freeze({
 
 function clean(value) { return String(value ?? "").trim(); }
 function freshHistoryState() {
-  return {
-    RECHARGE: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    REFUND: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    VERIFICATION: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    EXPERIENCE: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false },
-    PRODUCT_PURCHASE: { page: 1, cursorStack: [null], hasMore: false, nextCursor: null, loading: false, message: "", error: false }
-  };
+  return Object.fromEntries(Object.keys(HISTORY_FIELDS).map(type => [type,
+    { page: 1, total: 0, totalPages: 1, hasMore: false, loading: false, message: "", error: false }
+  ]));
+}
+function historyMetadata(page = {}) {
+  if (Number(page.pageSize) !== HISTORY_LIMIT) throw new Error("客户业务记录服务需要更新，请更新云函数后重试");
+  return { page: Number(page.pageNumber || 1), total: Number(page.total || 0),
+    totalPages: Math.max(1, Number(page.totalPages || 1)), hasMore: page.hasMore === true };
 }
 function messageRole(value) {
   return ({ hq: "总部", store: "门店", teacher: "老师" })[clean(value).toLowerCase()] || "账号";
@@ -136,7 +137,7 @@ Page({
     customerCode: "", profile: null, balances: [], retailProductSummary: [],
     retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
     recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
-    historyType: "RECHARGE", visibleHistory: [], historyPage: 1, historyHasMore: false, historyScrollLeft: 0,
+    historyType: "RECHARGE", visibleHistory: [], historyPage: 1, historyTotal: 0, historyTotalPages: 1, historyPageInput: "1", historyHasMore: false, historyScrollLeft: 0,
     historyLoading: false, historyMessage: "", historyError: false,
     messages: [], messageTotal: 0, messageHasMore: false,
     messagesLoading: false, messageSubmitting: false, messageText: "", messageLength: 0,
@@ -183,7 +184,7 @@ Page({
       loading: true, message: "", error: false,
       profile: null, balances: [], retailProductSummary: [], retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
       recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
-      visibleHistory: [], historyPage: 1, historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
+      visibleHistory: [], historyPage: 1, historyTotal: 0, historyTotalPages: 1, historyPageInput: "1", historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
       historyMessage: "", historyError: false,
       notesEditing: false, notesChanged: false, notesMessage: "", notesError: false,
       statusMessage: "", statusError: false
@@ -192,7 +193,7 @@ Page({
     try {
       const result = await callFace("getCustomerProfile", {
         customerCode: this.data.customerCode,
-        historyLimit: HISTORY_LIMIT
+        historyPage: 1, historyPageSize: HISTORY_LIMIT
       });
       if (epoch !== this._profileEpoch) return;
       const profile = mapProfile(result.customer || {});
@@ -202,8 +203,7 @@ Page({
       const nextHistory = freshHistoryState();
       for (const [type, field] of Object.entries(HISTORY_FIELDS)) {
         const page = result.history?.[field] || {};
-        nextHistory[type].hasMore = page.hasMore === true;
-        nextHistory[type].nextCursor = page.nextCursor || null;
+        Object.assign(nextHistory[type], historyMetadata(page));
       }
       this._historyState = nextHistory;
       const notes = String(profile.notes || "");
@@ -318,6 +318,9 @@ Page({
     this.setData({
       visibleHistory: this.data[field] || [],
       historyPage: Number(state.page || 1),
+      historyTotal: Number(state.total || 0),
+      historyTotalPages: Math.max(1, Number(state.totalPages || 1)),
+      historyPageInput: String(state.page || 1),
       historyHasMore: state.hasMore === true,
       historyLoading: state.loading === true,
       historyMessage: state.message || "",
@@ -328,13 +331,9 @@ Page({
     const type = this.data.historyType;
     const field = HISTORY_FIELDS[type];
     const state = this._historyState?.[type];
-    const currentPage = Number(state?.page || 1);
     const nextPage = Number(targetPage);
-    if (!field || !state || state.loading || !Number.isInteger(nextPage) || Math.abs(nextPage - currentPage) !== 1) return;
-    if (nextPage < 1 || (nextPage > currentPage && (!state.hasMore || !state.nextCursor))) return;
-    const cursorStack = Array.isArray(state.cursorStack) && state.cursorStack.length ? state.cursorStack.slice() : [null];
-    if (nextPage > currentPage) cursorStack[nextPage - 1] = state.nextCursor;
-    const cursor = cursorStack[nextPage - 1] || null;
+    if (!field || !state || state.loading || !Number.isInteger(nextPage) || nextPage === state.page) return;
+    if (nextPage < 1 || nextPage > state.totalPages) return;
     const profileEpoch = this._profileEpoch;
     state.loading = true;
     state.message = `正在读取第 ${nextPage} 页…`;
@@ -342,22 +341,14 @@ Page({
     this.syncHistory();
     try {
       const payload = {
-        customerCode: this.data.customerCode,
-        historyType: type,
-        historyLimit: HISTORY_LIMIT
+        customerCode: this.data.customerCode, historyType: type,
+        historyPage: nextPage, historyPageSize: HISTORY_LIMIT
       };
-      if (cursor) {
-        payload.cursorSubmittedAt = cursor.submittedAt;
-        payload.cursorId = cursor.id;
-      }
       const result = await callFace("getCustomerProfile", payload);
       if (profileEpoch !== this._profileEpoch) return;
       const incoming = mapHistory(result[field], type);
       const page = result.history?.[field] || {};
-      state.page = nextPage;
-      state.cursorStack = cursorStack;
-      state.hasMore = page.hasMore === true;
-      state.nextCursor = page.nextCursor || null;
+      Object.assign(state, historyMetadata(page));
       state.message = "";
       state.error = false;
       this.setData({ [field]: incoming, historyScrollLeft: 0 });
@@ -371,6 +362,16 @@ Page({
   },
   previousHistoryPage() { void this.loadHistoryPage(Number(this.data.historyPage || 1) - 1); },
   nextHistoryPage() { void this.loadHistoryPage(Number(this.data.historyPage || 1) + 1); },
+  inputHistoryPage(event) { this.setData({ historyPageInput: String(event.detail.value || "") }); },
+  jumpHistoryPage() {
+    const value = clean(this.data.historyPageInput);
+    const page = Number(value);
+    if (!/^\d+$/.test(value) || !Number.isSafeInteger(page) || page < 1 || page > this.data.historyTotalPages) {
+      this.setData({ historyMessage: `请输入 1 至 ${this.data.historyTotalPages} 的页码`, historyError: true });
+      return;
+    }
+    void this.loadHistoryPage(page);
+  },
   openOrder(event) {
     const id = clean(event.currentTarget.dataset.id);
     if (!id) return;

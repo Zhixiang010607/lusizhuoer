@@ -561,9 +561,9 @@ body[data-customer-profile] .customer-history-tabs > button[aria-selected="true"
 }
 body[data-customer-profile] .customer-history-panel .customer-record-scroll {
   height: auto !important;
-  max-height: 308px !important;
+  max-height: none !important;
   overflow-x: auto !important;
-  overflow-y: auto !important;
+  overflow-y: hidden !important;
 }
 body[data-customer-profile] .customer-history-panel .customer-record-scroll table {
   width: max-content !important;
