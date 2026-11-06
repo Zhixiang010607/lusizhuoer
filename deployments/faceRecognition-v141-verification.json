@@ -14,5 +14,9 @@
   },
   "zipIntegrity": "PASS",
   "rootBytesMatch": true,
-  "deployed": false
+  "deployed": true,
+  "runtimeVersionVerified": "v141",
+  "downloadedRootFilesMatch": true,
+  "attendancePhotoReady": true,
+  "releaseEvidence": "docs/reviews/2026-11-06-business-statistics-deployment.md"
 }
