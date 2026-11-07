@@ -6,7 +6,8 @@
     const params = new URLSearchParams(location.search);
     const requested = location.hash.slice(1) || (params.has("reason") || params.get("mode") === "reset" ? "login" : "overview");
     const selected = sections.some((section) => section.dataset.companySection === requested) ? requested : "overview";
-    const phonePresentation = typeof window.matchMedia === "function"
+    const phonePresentation = document.body?.classList.contains("company-phone-enabled")
+      && typeof window.matchMedia === "function"
       && window.matchMedia("(max-width: 650px)").matches && selected !== "login";
     sections.forEach((section) => {
       section.hidden = phonePresentation
