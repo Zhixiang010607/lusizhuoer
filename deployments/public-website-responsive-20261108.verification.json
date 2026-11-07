@@ -1,0 +1,74 @@
+{
+  "sourceCommit": "b6a41574332fd258ed23ebd3dfff9c55952151e4",
+  "environment": "rusizhuoer-d9gbcsgym07651694",
+  "deploymentType": "static-web",
+  "safe": true,
+  "prune": false,
+  "entryFiles": [
+    "login.html",
+    "public-project.html"
+  ],
+  "files": [
+    {
+      "path": "company-portal.js",
+      "sha256": "0251088ffdb0d37a21206fbda228a2f2aa137574cbbf12de2317f81b443d18c4",
+      "bytes": 1294
+    },
+    {
+      "path": "company-mobile.css",
+      "sha256": "28d55211ae7ed017104bc3bc802af32d23f499f5f231b08a5338ba771d943642",
+      "bytes": 12683
+    },
+    {
+      "path": "company-mobile.js",
+      "sha256": "d8ecbfb0976bb113343cb190841cf0ded1a5d87198447e27bcc15d31c6fe758c",
+      "bytes": 4165
+    },
+    {
+      "path": "public-project.js",
+      "sha256": "8bc4c81eebf31ee50d8f5bd8443c94aa06cc58822e0565e1a9e059b79979583f",
+      "bytes": 10666
+    },
+    {
+      "path": "public-project-mobile.css",
+      "sha256": "701b44a4b971dfc98d9dbc8814ccb15bf0560d87520434a251f8d1ef77fd12a6",
+      "bytes": 12577
+    },
+    {
+      "path": "public-project-mobile.js",
+      "sha256": "b3912e9d14448d769101835df8f095c5dbd7aca3dcfaa817617e6097cbb1695c",
+      "bytes": 1540
+    },
+    {
+      "path": "login.html",
+      "sha256": "6a01bc623970751e6d0c28ee767a9f62223fd6e9b49a9fe5c20054fe01c3ff96",
+      "bytes": 10280
+    },
+    {
+      "path": "public-project.html",
+      "sha256": "eb4ce3236e54f430e2fb4ff3afe9592d3beb2bcff1280a5bdeb3e9e99cb60c3e",
+      "bytes": 1367
+    }
+  ],
+  "publicReadbackMatched": 8,
+  "productionSqlExecuted": false,
+  "cloudFunctionsChanged": false,
+  "miniProgramUploaded": false,
+  "customDomainLive": false,
+  "domainPreparation": {
+    "dnsOwnershipVerified": true,
+    "certificateIssued": true,
+    "certificateCoversRootAndWww": true,
+    "filingStatus": "regulator-review-pending",
+    "rootAndWwwCnameAdded": false
+  },
+  "attempts": 1,
+  "transportOverrideApplied": false,
+  "officialCliResult": {
+    "message": "上传完成",
+    "totalFiles": 8,
+    "successCount": 8,
+    "failedCount": 0,
+    "verified": true
+  }
+}
