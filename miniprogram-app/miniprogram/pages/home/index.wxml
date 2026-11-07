@@ -9,7 +9,7 @@
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{queryMenuOpen ? 'active' : ''}}" bindtap="toggleQueryMenu" role="button" aria-label="业务查询" aria-expanded="{{queryMenuOpen}}">查询</view>
       <view wx:if="{{session.role !== 'teacher'}}" class="rail-link {{coreMetricsMenuOpen ? 'active' : ''}}" bindtap="toggleCoreMetricsMenu" role="button" aria-label="运营核心指标查询" aria-expanded="{{coreMetricsMenuOpen}}">运营</view>
       <view wx:if="{{session.role === 'hq'}}" class="rail-link {{managementMenuOpen ? 'active' : ''}}" bindtap="toggleManagementMenu" role="button" aria-label="管理" aria-expanded="{{managementMenuOpen}}">管理</view>
-      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{reviewMenuOpen ? 'active' : ''}}" bindtap="toggleReviewMenu" role="button" aria-label="审核" aria-expanded="{{reviewMenuOpen}}">审核</view>
+      <view wx:if="{{session.role === 'hq'}}" class="rail-link {{reviewMenuOpen ? 'active' : ''}}" bindtap="toggleReviewMenu" role="button" aria-label="审核" aria-expanded="{{reviewMenuOpen}}"><view class="review-trigger-label"><text>审核</text><text wx:if="{{reviewNoticeReady && reviewNoticeTotal > 0}}" class="review-nav-dot" aria-label="{{reviewNoticeTotal}}条待审核"></text></view></view>
       <view class="rail-link rail-logout" bindtap="logout" role="button" aria-label="退出登录">退出</view>
     </view>
   </scroll-view>
@@ -68,9 +68,10 @@
   </view>
   <view wx:if="{{reviewMenuOpen && session.role === 'hq'}}" class="business-popover review-popover" catchtap="noop">
     <view class="popover-grid">
-      <view data-type="recharge" bindtap="openReview">充值审核</view>
-      <view data-type="verification" bindtap="openReview">核销审核</view>
-      <view data-type="product-purchase" bindtap="openReview">产品购买审核</view>
+      <view data-type="recharge" bindtap="openReview"><text>充值审核</text><text wx:if="{{reviewNoticeReady && reviewNoticeCounts.recharge > 0}}" class="review-menu-count">{{reviewNoticeCounts.recharge > 99 ? '99+' : reviewNoticeCounts.recharge}}</text></view>
+      <view data-type="refund" bindtap="openReview"><text>退费审核</text><text wx:if="{{reviewNoticeReady && reviewNoticeCounts.refund > 0}}" class="review-menu-count">{{reviewNoticeCounts.refund > 99 ? '99+' : reviewNoticeCounts.refund}}</text></view>
+      <view data-type="verification" bindtap="openReview"><text>核销审核</text><text wx:if="{{reviewNoticeReady && reviewNoticeCounts.verification > 0}}" class="review-menu-count">{{reviewNoticeCounts.verification > 99 ? '99+' : reviewNoticeCounts.verification}}</text></view>
+      <view data-type="product-purchase" bindtap="openReview"><text>产品审核</text><text wx:if="{{reviewNoticeReady && reviewNoticeCounts.purchase > 0}}" class="review-menu-count">{{reviewNoticeCounts.purchase > 99 ? '99+' : reviewNoticeCounts.purchase}}</text></view>
     </view>
   </view>
 

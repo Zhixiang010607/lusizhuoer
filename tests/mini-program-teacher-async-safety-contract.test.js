@@ -46,6 +46,7 @@ function loadCustomerPicker(callFace) {
   vm.runInNewContext(read("components", "customer-picker", "index.js"), {
     Component(value) { definition = value; },
     require(id) {
+      if (id === "../../services/review-notifications") return { subscribe: () => () => {} };
       if (id === "../../services/api") return { callFace };
       if (id === "../../services/query-tools") return { businessToday: () => "2099-12-31" };
       throw new Error(`unexpected customer-picker dependency ${id}`);
@@ -70,6 +71,7 @@ function loadBusinessPage(file, callFace, wxOverrides = {}) {
   vm.runInNewContext(read("pages", file, "index.js"), {
     Page(value) { definition = value; },
     require(id) {
+      if (id === "../../services/review-notifications") return { subscribe: () => () => {} };
       if (id === "../../services/api") return { callFace };
       if (id === "../../services/session") return { requireSession: () => null, getSelectedStore: () => null };
       if (id === "../../services/submission") return submissionStub();
@@ -118,6 +120,7 @@ function loadHome(signOut = async () => {}, callFace = async () => ({}), callSta
   vm.runInNewContext(read("pages", "home", "index.js"), {
     Page(value) { definition = value; },
     require(id) {
+      if (id === "../../services/review-notifications") return { subscribe: () => () => {} };
       if (id === "../../services/api") return { callFace, callStaff };
       if (id === "../../services/session") {
         return { requireSession: () => null, getSelectedStore: () => ({ id: "stale" }), setSelectedStore() {}, signOut };

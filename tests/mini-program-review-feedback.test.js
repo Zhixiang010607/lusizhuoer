@@ -11,6 +11,7 @@ function reviewPage(callStaff) {
   vm.runInNewContext(fs.readFileSync(pagePath, "utf8"), {
     Page(value) { definition = value; },
     require(name) {
+      if (name.endsWith("review-notifications")) return { invalidate: async () => {} };
       if (name.endsWith("api")) return { callStaff };
       if (name.endsWith("session")) return {};
       if (name.endsWith("query-tools")) return {};
@@ -64,4 +65,24 @@ test("successful product review closes the dialog and refreshes the current serv
   assert.equal(page.data.pending, null);
   assert.equal(page.data.decisionError, "");
   assert.equal(refreshedPage, 3);
+});
+
+test("review count changes refresh the current page without clearing filters, and defer while deciding", async () => {
+  const page=reviewPage(async()=>({}));let pages=[];page.load=async number=>pages.push(number);page.data.page=3;page.data.storeIndex=2;page.data.statusIndex=1;
+  page.onReviewNotificationUpdate({detail:{ready:true,revision:'before'}});
+  page.onReviewNotificationUpdate({detail:{ready:true,revision:'after'}});
+  assert.deepEqual(pages,[3]);assert.equal(page.data.storeIndex,2);assert.equal(page.data.statusIndex,1);
+  page.data.pendingOpen=true;page.onReviewNotificationUpdate({detail:{ready:true,revision:'newer'}});assert.deepEqual(pages,[3]);page.closeDecision();assert.deepEqual(pages,[3,3]);
+  page.onReviewNotificationUpdate({detail:{ready:false,revision:'failure'}});assert.deepEqual(pages,[3,3]);
+});
+
+test("four review types preserve exact original order and customer hyperlinks", () => {
+  let definition;const urls=[];
+  vm.runInNewContext(fs.readFileSync(pagePath,'utf8'),{Page(v){definition=v},require(id){if(id.endsWith('review-notifications'))return{};return{}},wx:{navigateTo({url}){urls.push(url)}}});
+  const page={...definition,data:{...definition.data,rows:[]}};
+  for(const [recordType,category]of[['RECHARGE','RECHARGE'],['RECHARGE','REFUND'],['VERIFICATION','SUPPLEMENT'],['PRODUCT_PURCHASE','PRODUCT_PURCHASE']]){
+    page.data.recordType=recordType;page.data.rows=[{id:'qa-1',recordCode:'QA+001',category}];page.openOrder({currentTarget:{dataset:{id:'qa-1',code:'QA+001'}}});
+    assert.equal(urls.pop(),category==='PRODUCT_PURCHASE'?'/pages/product-purchase-detail/index?recordId=qa-1&recordCode=QA%2B001':`/pages/order-detail/index?type=${recordType.toLowerCase()}&category=${category}&recordId=qa-1&recordCode=QA%2B001`);
+  }
+  page.openCustomer({currentTarget:{dataset:{code:'QA+C'}}});assert.equal(urls.pop(),'/pages/customer-detail/index?customerCode=QA%2BC');page.openOrder({currentTarget:{dataset:{id:'wrong',code:'QA+001'}}});assert.equal(urls.length,0);
 });

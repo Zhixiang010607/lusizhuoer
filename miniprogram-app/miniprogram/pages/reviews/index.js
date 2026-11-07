@@ -2,6 +2,8 @@ const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const { displayDateTimeAny } = require("../../services/query-tools");
 
+const reviewNotifications = require("../../services/review-notifications");
+
 const PAGE_SIZE = 10;
 const STATUS = Object.freeze([
   { value: "", label: "全部状态" },
@@ -98,14 +100,37 @@ Page({
     if (!session) return;
     const requested = String(options.type || "recharge").toLowerCase();
     const type = ["recharge", "refund", "verification", "product-purchase"].includes(requested) ? requested : "recharge";
-    const noun = type === "refund" ? "退费" : type === "verification" ? "核销" : type === "product-purchase" ? "产品购买" : "充值";
+    const noun = type === "refund" ? "退费" : type === "verification" ? "核销" : type === "product-purchase" ? "产品" : "充值";
     const recordType = type === "product-purchase" ? "PRODUCT_PURCHASE" : type === "verification" ? "VERIFICATION" : "RECHARGE";
     this.setData({ session, type, noun, recordType });
     wx.setNavigationBarTitle({ title: "露思卓儿" });
     await this.load(1, true);
+    this._loaded = true;
   },
-  onPullDownRefresh() { this.load(1, true).finally(() => wx.stopPullDownRefresh()); },
-  onUnload() { this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
+  onShow() {
+    if (this.data.session.role === "hq" && !this._reviewUnsubscribe)
+      this._reviewUnsubscribe = reviewNotifications.subscribe(state => this.onReviewNotificationUpdate({ detail: state }));
+    if (this._loaded) this.refreshFromNotification();
+  },
+  onHide() { if (this._reviewUnsubscribe) { this._reviewUnsubscribe(); this._reviewUnsubscribe = null; } this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
+  onPullDownRefresh() {
+    Promise.all([this.load(1, true), reviewNotifications.invalidate()]).finally(() => wx.stopPullDownRefresh());
+  },
+  onReviewNotificationUpdate(event) {
+    if (!event.detail.ready) return;
+    const revision = String(event.detail.revision || "");
+    const previous = this._reviewRevision;
+    this._reviewRevision = revision;
+    if (previous && revision !== previous) {
+      if (this.data.deciding || this.data.pendingOpen) this._refreshAfterDecision = true;
+      else this.refreshFromNotification();
+    }
+  },
+  refreshFromNotification() {
+    if (this.data.deciding || this.data.pendingOpen) { this._refreshAfterDecision = true; return; }
+    return this.load(this.data.page);
+  },
+  onUnload() { if (this._reviewUnsubscribe) { this._reviewUnsubscribe(); this._reviewUnsubscribe = null; } this._requestEpoch = Number(this._requestEpoch || 0) + 1; },
   openReviewType(event) {
     const type = String(event.currentTarget.dataset.type || "recharge");
     if (!["recharge", "refund"].includes(type) || type === this.data.type) return;
@@ -209,21 +234,32 @@ Page({
     if (!item || item.status !== "PENDING" || !["APPROVED", "REJECTED"].includes(decision)) return;
     this.setData({ pendingOpen: true, pending: item, decision, reviewNote: "", decisionError: "" });
   },
-  closeDecision() { if (!this.data.deciding) this.setData({ pendingOpen: false, pending: null, reviewNote: "", decisionError: "" }); },
+  closeDecision() {
+    if (this.data.deciding) return;
+    this.setData({ pendingOpen: false, pending: null, reviewNote: "", decisionError: "" });
+    if (this._refreshAfterDecision) { this._refreshAfterDecision = false; void this.load(this.data.page); }
+  },
   inputReviewNote(event) { this.setData({ reviewNote: event.detail.value }); },
   noop() {},
   async confirmDecision() {
     if (this.data.deciding || !this.data.pending) return;
     this.setData({ deciding: true, decisionError: "" });
+    let saved = false;
     try {
       const payload = { recordId: this.data.pending.id, decision: this.data.decision, note: text(this.data.reviewNote) };
       if (this.data.type === "product-purchase") await callStaff("reviewRetailProductPurchase", payload);
       else await callStaff("reviewOrder", { ...payload, recordType: this.data.recordType });
+      saved = true;
       const code = this.data.pending.recordCode;
       this.setData({ pendingOpen: false, pending: null, reviewNote: "", message: `${code} 审核结果已保存`, error: false });
-      await this.load(this.data.page);
+      await Promise.all([this.load(this.data.page), reviewNotifications.invalidate()]);
+      this._refreshAfterDecision = false;
     } catch (error) {
       this.setData({ decisionError: error.message || "工单审核失败，请稍后重试" });
-    } finally { this.setData({ deciding: false }); }
+    } finally {
+      this.setData({ deciding: false });
+      // Also reconcile an uncertain/failed response; never decrement locally.
+      if (!saved) void reviewNotifications.invalidate();
+    }
   }
 });

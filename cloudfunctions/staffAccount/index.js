@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v101";
+const FUNCTION_VERSION = "v102";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -3460,6 +3460,43 @@ async function hasRechargeProductGiftSchema() {
   return rechargeProductGiftSchemaReady;
 }
 
+async function getPendingReviewCounts(caller) {
+  requireHq(caller);
+  // One read-only statement gives all badges the same database snapshot.
+  // Match the existing review queues: gifts and historical voids are not
+  // independent purchases/recharges, and only supplements await review.
+  const rows = await executeSql(`WITH pending AS (
+    SELECT 'purchase'::text AS kind, COUNT(*)::bigint AS amount,
+           MAX(id)::text AS last_id, MAX(updated_at)::text AS last_change
+      FROM public.retail_product_purchase_records WHERE record_status='PENDING'
+    UNION ALL
+    SELECT 'recharge', COUNT(*)::bigint, MAX(id)::text, MAX(updated_at)::text
+      FROM public.recharge_records WHERE record_status='PENDING' AND recharge_type='NEW'
+    UNION ALL
+    SELECT 'refund', COUNT(*)::bigint, MAX(id)::text, MAX(updated_at)::text
+      FROM public.recharge_records WHERE record_status='PENDING' AND recharge_type='REFUND'
+    UNION ALL
+    SELECT 'verification', COUNT(*)::bigint, MAX(id)::text, MAX(updated_at)::text
+      FROM public.verification_records
+     WHERE record_status='PENDING' AND verification_type='SUPPLEMENT' AND void_request_status='NONE'
+  ) SELECT JSONB_OBJECT_AGG(kind,amount) AS counts, SUM(amount)::bigint AS total,
+           MD5(STRING_AGG(kind||':'||amount||':'||COALESCE(last_id,'')||':'||COALESCE(last_change,''),',' ORDER BY kind)) AS revision
+      FROM pending`);
+  const row = rows?.[0];
+  const values = typeof row?.counts === "string" ? JSON.parse(row.counts) : row?.counts;
+  const counts = {};
+  for (const key of ["purchase", "recharge", "refund", "verification"]) {
+    const value = Number(values?.[key]);
+    if (!Number.isSafeInteger(value) || value < 0) fail("待审核数量读取失败，请重试", "DATABASE_ERROR");
+    counts[key] = value;
+  }
+  const total = Object.values(counts).reduce((sum,value) => sum + value, 0);
+  if (!Number.isSafeInteger(total) || Number(row?.total) !== total || !row?.revision) {
+    fail("待审核数量读取失败，请重试", "DATABASE_ERROR");
+  }
+  return { counts, total, revision: String(row.revision) };
+}
+
 async function listReviewOrders(caller, event) {
   const exactLookup = Boolean(String(event.recordId || "").trim() || String(event.recordCode || "").trim());
   const storeReader = caller.profile?.role === "store";
@@ -5723,6 +5760,9 @@ async function main(event = {}, context = {}) {
   if (action === "removeProductReceiptLogo") {
     requireHq(caller);
     return { ok: true, template: await removeProductReceiptLogo(caller, event) };
+  }
+  if (action === "getPendingReviewCounts") {
+    return { ok: true, ...(await getPendingReviewCounts(caller)) };
   }
   if (action === "listReviewOrders") {
     const result = await listReviewOrders(caller, event);

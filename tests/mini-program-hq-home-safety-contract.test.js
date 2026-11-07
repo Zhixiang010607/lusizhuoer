@@ -25,6 +25,7 @@ function loadHome(callStaff, navigateTo = () => {}) {
   vm.runInNewContext(read("pages", "home", "index.js"), {
     Page(value) { definition = value; },
     require(id) {
+      if (id === "../../services/review-notifications") return { subscribe: () => () => {} };
       if (id === "../../services/api") return { callFace: async () => ({}), callStaff };
       if (id === "../../services/session") {
         return { requireSession: () => null, getSelectedStore: () => null, setSelectedStore() {}, signOut: async () => {} };

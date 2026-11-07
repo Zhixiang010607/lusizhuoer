@@ -34,6 +34,7 @@ test("app exposes one startup promise and marks validation ready even when a sta
   vm.runInNewContext(read("app.js"), {
     App(value) { definition = value; },
     require(id) {
+      if (id === "./services/review-notifications") return { resume() {}, pause() {} };
       if (id === "./services/session") return { restoreAndValidateSession: () => validation.promise };
       if (id === "./services/verification-photo-upload-queue") return { resume: async () => true };
       if (id === "./services/training-material-upload-queue") return { resume: async () => true };
@@ -66,7 +67,8 @@ test("a cold app launch discards an unfinished BLE attempt but preserves a confi
     vm.runInNewContext(read("app.js"), {
       App(value) { definition = value; },
       require(id) {
-        if (id === "./services/session") return { restoreAndValidateSession: async () => ({ uid: "u1", role: "store" }) };
+        if (id === "./services/review-notifications") return { resume() {}, pause() {} };
+      if (id === "./services/session") return { restoreAndValidateSession: async () => ({ uid: "u1", role: "store" }) };
         if (id === "./services/verification-photo-upload-queue") return { resume: async () => true };
         if (id === "./services/training-material-upload-queue") return { resume: async () => true };
         if (id === "./services/submission") return {
@@ -172,6 +174,7 @@ function loadHome(waitForStartupSession, requireSession) {
   vm.runInNewContext(read("pages", "home", "index.js"), {
     Page(value) { definition = value; },
     require(id) {
+      if (id === "../../services/review-notifications") return { subscribe: () => () => {} };
       if (id === "../../services/api") return { callFace: async () => ({}), callStaff: async () => ({}) };
       if (id === "../../services/session") return {
         waitForStartupSession, requireSession, getSelectedStore: () => null,

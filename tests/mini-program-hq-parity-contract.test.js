@@ -16,7 +16,7 @@ test("HQ home exposes the complete web mobile rail and isolated ranking interact
   const wxss = read("pages", "home", "index.wxss");
   const webIndex = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
-  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核", "产品购买审核"]) {
+  for (const label of ["客户查询", "充值查询", "核销查询", "产品查询", "项目管理", "产品管理", "门店管理", "老师管理", "充值审核", "核销审核", "产品审核"]) {
     assert.match(wxml, new RegExp(label), `HQ mobile rail is missing ${label}`);
   }
   for (const route of ["pages/product-management/index", "pages/retail-product-management/index", "pages/hq-directory/index", "pages/reviews/index"]) assert.match(js, new RegExp(route));

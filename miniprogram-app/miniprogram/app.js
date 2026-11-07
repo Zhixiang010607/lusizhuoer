@@ -1,5 +1,6 @@
 const { restoreAndValidateSession } = require("./services/session");
 const verificationPhotoUploadQueue = require("./services/verification-photo-upload-queue");
+const reviewNotifications = require("./services/review-notifications");
 const trainingMaterialUploadQueue = require("./services/training-material-upload-queue");
 
 function clearColdStartBleAttempt() {
@@ -50,12 +51,15 @@ App({
     return this.globalData.startupPromise;
   },
   onShow() {
+    this._reviewForeground = true;
     keepScreenAwake();
     const startup = this.globalData.startupPromise || Promise.resolve(this.globalData.session);
     void startup.then((session) => {
+      if (this._reviewForeground) reviewNotifications.resume();
       if (!session) return;
       void verificationPhotoUploadQueue.resume({ retryFailed: true });
       if (session.role === "hq") void trainingMaterialUploadQueue.resume({ ownerStaffId: session.staffId });
     });
-  }
+  },
+  onHide() { this._reviewForeground = false; reviewNotifications.pause(); }
 });

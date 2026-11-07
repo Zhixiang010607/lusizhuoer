@@ -20,6 +20,7 @@ const staffSource = read("cloudfunctions/staffAccount/index.js");
 const staffReadme = read("cloudfunctions/staffAccount/README.md");
 const staffVersion = /const FUNCTION_VERSION = "(v\d+)"/.exec(staffSource)?.[1];
 assert.ok(staffVersion, "staffAccount must expose a runtime version");
+assert.equal(`v${JSON.parse(read("cloudfunctions/staffAccount/package.json")).version.split(".")[0]}`, staffVersion);
 assert.match(staffReadme, new RegExp(`当前版本：\`${staffVersion}\``),
   "staffAccount README must match its runtime version");
 

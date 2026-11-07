@@ -2,6 +2,7 @@ const { callFace, callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession, getSelectedStore, signOut } = require("../../services/session");
 const dashboard = require("../../services/home-dashboard");
 const hqReport = require("../../services/hq-dashboard-report");
+const reviewNotifications = require("../../services/review-notifications");
 
 const ROLE_META = Object.freeze({
   hq: { title: "总部数据看板", subtitle: "真实数据库统计 · 默认显示今天" },
@@ -139,6 +140,7 @@ function hqRangePayload(period, range) {
 
 Page({
   data: {
+    reviewNoticeReady: false, reviewNoticeTotal: 0, reviewNoticeCounts: { purchase: 0, recharge: 0, refund: 0, verification: 0 },
     session: {}, roleTitle: "", roleSubtitle: "", loading: true, message: "", error: false, isTeamLeader:false,
     overviewMenuOpen: false, businessMenuOpen: false, learningMenuOpen: false, learningPopoverStyle: "", queryMenuOpen: false, coreMetricsMenuOpen: false, managementMenuOpen: false, reviewMenuOpen: false,
     rangePreset: "TODAY", rangeOptions: readyRangeOptions("TODAY"),
@@ -163,6 +165,12 @@ Page({
     hqRankingLoading: false, hqRankingError: "", hqExporting: false, hqLoadedAt: "—"
   },
 
+  onReviewNotificationUpdate(event) {
+    const ready = event.detail.ready === true && this.data.session.role === "hq";
+    this.setData({ reviewNoticeReady: ready, reviewNoticeTotal: ready ? event.detail.total : 0,
+      reviewNoticeCounts: ready ? event.detail.counts : { purchase: 0, recharge: 0, refund: 0, verification: 0 } });
+  },
+
   async onShow() {
     const startupEpoch = Number(this._startupEpoch || 0) + 1;
     this._startupEpoch = startupEpoch;
@@ -172,12 +180,16 @@ Page({
     if (!session) return;
     const meta = ROLE_META[session.role] || { title: "工作台", subtitle: "" };
     this.setData({ session, roleTitle: meta.title, roleSubtitle: meta.subtitle, message: "", error: false });
+    if (this._reviewUnsubscribe) this._reviewUnsubscribe();
+    this._reviewUnsubscribe = session.role === "hq"
+      ? reviewNotifications.subscribe(state => this.onReviewNotificationUpdate({ detail: state })) : null;
     if (session.role === "teacher") { this.loadTeamAccess(startupEpoch); this.loadTeacherHome(); }
     else if (session.role === "store") this.loadStoreHome();
     else this.loadHqHome();
   },
 
   onUnload() {
+    if (this._reviewUnsubscribe) { this._reviewUnsubscribe(); this._reviewUnsubscribe = null; }
     this._menuPlacementEpoch = Number(this._menuPlacementEpoch || 0) + 1;
     this._startupEpoch = Number(this._startupEpoch || 0) + 1;
     for (const key of [
@@ -624,7 +636,8 @@ Page({
       });
   },
   onResize() { this.closeMenus(); },
-  onHide() { this.closeMenus(); },
+  onHide() {
+    if (this._reviewUnsubscribe) { this._reviewUnsubscribe(); this._reviewUnsubscribe = null; } this.closeMenus(); },
   toggleQueryMenu() { this.closeMenus({ queryMenuOpen: !this.data.queryMenuOpen }); },
   toggleCoreMetricsMenu() { this.closeMenus({ coreMetricsMenuOpen: !this.data.coreMetricsMenuOpen }); },
   toggleManagementMenu() { this.closeMenus({ managementMenuOpen: !this.data.managementMenuOpen }); },
@@ -977,7 +990,7 @@ Page({
   },
   openReview(event) {
     const type = String(event.currentTarget.dataset.type || "recharge");
-    if (!["recharge", "verification", "product-purchase"].includes(type)) return;
+    if (!["recharge", "refund", "verification", "product-purchase"].includes(type)) return;
     this.closeMenus();
     wx.navigateTo({ url: `/pages/reviews/index?type=${encodeURIComponent(type)}` });
   },

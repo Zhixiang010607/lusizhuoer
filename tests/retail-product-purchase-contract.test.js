@@ -52,7 +52,7 @@ assert.match(face, /historyOptions\.type === "PRODUCT_PURCHASE"/);
 assert.match(face, /record_status = 'APPROVED'/, "customer purchase totals must include approved purchases only");
 assert.match(face, /recharge\.record_status = 'APPROVED'/, "customer gift totals must include approved recharge gifts only");
 
-assert.match(staff, /const FUNCTION_VERSION = "v101"/);
+assert.match(staff, /const FUNCTION_VERSION = "v102"/);
 assert.match(staff, /async function listRetailProductPurchaseReviews/);
 assert.match(staff, /async function reviewRetailProductPurchase/);
 assert.match(staff, /requireReviewer\(caller\)/);
@@ -95,7 +95,7 @@ assert.match(authUi, /\["product-purchase-create\.html", "产品购买"\]/);
 assert.match(authUi, /product-purchase-review\.html/);
 assert.match(miniApp, /"root": "pages\/product-purchase", "pages": \["index"\]/);
 assert.match(miniHome, /bindtap="openProductPurchase">产品购买/);
-assert.match(miniHome, /data-type="product-purchase" bindtap="openReview">产品购买审核/);
+assert.match(miniHome, /data-type="product-purchase" bindtap="openReview"><text>产品审核<\/text>/);
 assert.match(miniCreate, /<customer-picker(?: wx:if="\{\{store\.id\}\}")? store-id="\{\{store\.id\}\}"/,
   "mini-program purchase must reuse the established store-scoped customer picker");
 assert.match(miniCreate, /第二步：填写购买信息/);

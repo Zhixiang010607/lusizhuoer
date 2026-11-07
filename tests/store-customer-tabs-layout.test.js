@@ -13,6 +13,7 @@ function pageHarness(name) {
   vm.runInNewContext(read(`miniprogram-app/miniprogram/pages/${name}/index.js`), {
     Page(value) { definition = value; }, wx: {},
     require(id) {
+      if (id === "../../services/review-notifications") return { subscribe: () => () => {} };
       if (id.endsWith("/home-dashboard")) return dashboard;
       if (id.endsWith("/session")) return {};
       if (id.endsWith("/api")) return { callFace() { throw Error("tab switch must not call the server"); }, callStaff() { throw Error("tab switch must not write accounts"); } };

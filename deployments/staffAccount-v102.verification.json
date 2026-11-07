@@ -1,0 +1,28 @@
+{
+  "function": "staffAccount",
+  "version": "v102",
+  "files": [
+    {
+      "name": "index.js",
+      "sha256": "dba9f5338087db4ba17ec2b713ac92f89a5f378db86053eaa33a6e590a16194e"
+    },
+    {
+      "name": "teacher-team.js",
+      "sha256": "48c875f9f60d1087ad7d688024835f96e2efbfe1e672c364fbe76ed3540603e1"
+    },
+    {
+      "name": "teacher-team-dashboard.js",
+      "sha256": "410969045b88fe732db9c1d604db1f232431e967e1b9a453248134efa27c416b"
+    },
+    {
+      "name": "package.json",
+      "sha256": "516e860d19edc421285a0db27c66d0c832a368765d2bb454d5161d10d8c53acd"
+    },
+    {
+      "name": "README.md",
+      "sha256": "cc80d4e4f948fb56cf13384aaede3269832b51a7b32d7d6ea69a21a3875a5ee3"
+    }
+  ],
+  "archiveSha256": "87cd79fe37ad134ad8ae82acb0caf5afe776f13bea344973e96d71d9a6a89dfe",
+  "verified": true
+}

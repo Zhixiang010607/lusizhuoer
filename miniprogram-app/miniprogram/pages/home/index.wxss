@@ -431,3 +431,9 @@
 .teacher-leader-line > text:first-child { flex: none; white-space: nowrap; }
 .teacher-leader-line > text:last-child { min-width: 0; color: #4a3825; overflow-wrap: anywhere; white-space: normal; }
 @media (min-width: 700px) { .teacher-leader-line { gap: 10px; margin-top: 12px; font-size: 14px; } }
+
+/* Pending orders stay visible when entering the HQ home. */
+.review-trigger-label { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.review-nav-dot { position: absolute; top: -3px; right: -9px; width: 8px; height: 8px; border-radius: 50%; background: #c83d38; }
+.review-popover .popover-grid > view { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.review-menu-count { flex: none; min-width: 22px; height: 22px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 12px; background: #c83d38; color: #fff; font-size: 14px; line-height: 1; }
