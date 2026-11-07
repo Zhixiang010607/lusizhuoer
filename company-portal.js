@@ -6,7 +6,13 @@
     const params = new URLSearchParams(location.search);
     const requested = location.hash.slice(1) || (params.has("reason") || params.get("mode") === "reset" ? "login" : "overview");
     const selected = sections.some((section) => section.dataset.companySection === requested) ? requested : "overview";
-    sections.forEach((section) => { section.hidden = section.dataset.companySection !== selected; });
+    const phonePresentation = typeof window.matchMedia === "function"
+      && window.matchMedia("(max-width: 650px)").matches && selected !== "login";
+    sections.forEach((section) => {
+      section.hidden = phonePresentation
+        ? section.dataset.companySection === "login"
+        : section.dataset.companySection !== selected;
+    });
     links.forEach((link) => {
       if (link.dataset.companyNav === selected) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");

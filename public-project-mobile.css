@@ -1,0 +1,96 @@
+.project-phone-toolbar, .project-phone-device, .project-phone-hero-bottom, .project-phone-eyebrow, .project-phone-story-heading, .project-phone-diagram, .project-phone-tab-number, .project-phone-step-word, .project-phone-detail-number, .project-phone-brand-prefix { display: none; }
+.public-project-hero-art { justify-self: end; }
+.project-phone-footer-label { display: inline; font: inherit; }
+@media (max-width: 650px) {
+  body.login-page.public-project-page { display: block; height: auto; overflow: visible; background: #fffaf3 !important; }
+  .public-project-page .company-sidebar { display: none; }
+  body.public-project-page > main.company-content { display: block; padding: 0 !important; background: #fffaf3; }
+  .public-project-page .company-content::before, .public-project-page .company-content::after { display: none; }
+  .public-project-page .company-section { max-width: none; color: #2f2921; font-size: 14px; line-height: 1.65; }
+  .public-project-page .project-phone-toolbar { position: sticky; z-index: 12; top: 0; height: calc(52px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 8px; padding: env(safe-area-inset-top) 20px 0; background: #fffaf3; }
+  .project-phone-toolbar > a { flex: none; display: flex; align-items: center; min-height: 44px; text-decoration: none; font-size: 12px; color: #70532b; }
+  .project-phone-toolbar > span { flex: 1; min-width: 0; text-align: center; white-space: nowrap; font-size: 12px; }
+  .public-project-page .project-phone-toolbar button { flex: none; min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0 !important; background: transparent !important; color: #7c7062 !important; font-size: 11px; }
+  .project-phone-track { position: absolute; bottom: 0; left: 0; width: 100%; height: 1px; background: #dfcfb4; }
+  .project-phone-track span { display: block; width: 0; height: 100%; background: #a98243; }
+  .public-project-page .public-project-hero { position: relative; display: block; min-height: 540px; height: calc(100dvh - 52px - env(safe-area-inset-top)); max-height: 830px; padding: 0; overflow: hidden; }
+  .project-phone-brand-prefix { display: inline; }
+  .project-desktop-only { display: none; }
+  .public-project-hero-copy { position: relative; z-index: 2; padding: 46px 24px 0; text-align: center; }
+  .public-project-page .public-project-hero-copy p:first-child { margin: 0; color: #8c785c; font-size: 10px; font-weight: 500; letter-spacing: 2px; }
+  .public-project-page .public-project-hero h1 { margin: 22px 0 0; color: #70532b; font-family: "Songti SC", "STSong", serif; font-size: 38px; font-weight: 500; letter-spacing: 4px; line-height: 1.3; }
+  .public-project-page .public-project-hero h2 { margin: 14px 0 0; font-size: 19px; font-weight: 400; letter-spacing: 1px; }
+  .public-project-page .project-phone-device { display: block; margin: 8px 0 0; color: #8c785c; font-size: 11px; letter-spacing: 2px; }
+  .public-project-page .public-project-hero-art { position: absolute; width: 100%; height: 65%; left: 0; bottom: 40px; }
+  .public-project-page .public-project-hero-art img { width: 100%; height: 100%; max-width: none; border-radius: 0; object-fit: cover; }
+  .public-project-hero-art::before, .public-project-hero-art::after { content: ""; position: absolute; z-index: 1; left: 0; right: 0; pointer-events: none; }
+  .public-project-hero-art::before { top: 0; height: 24%; background: linear-gradient(#fffaf3, #fffaf300); }
+  .public-project-hero-art::after { bottom: 0; height: 18%; background: linear-gradient(#fffaf300, #fffaf3); }
+  .public-project-page .project-phone-hero-bottom { position: absolute; z-index: 3; left: 26px; right: 26px; bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #8c785c; font-size: 10px; letter-spacing: 2px; }
+  .project-phone-hero-bottom a { display: flex; align-items: center; min-height: 44px; font-size: 11px; text-decoration: none; white-space: nowrap; }
+  .public-project-page .public-project-introduction, .public-project-page .public-project-details { padding: 76px 30px 72px; border: 0; scroll-margin-top: 52px; }
+  .public-project-page .public-project-introduction { background: linear-gradient(#fffaf3, #f4eddf); }
+  .public-project-page .project-phone-eyebrow { display: block; color: #8c785c; font-size: 10px; letter-spacing: 2px; }
+  .public-project-page :is(.public-project-introduction, .public-project-details) h2 { margin: 22px 0 0; font: 500 29px/1.55 "Songti SC", "STSong", serif; text-wrap: balance; }
+  .public-project-page :is(.public-project-introduction, .public-project-details) > p { margin: 24px 0 0; color: #7c7062; font-size: 14px; line-height: 1.95; }
+  .public-project-story { display: flex; flex-direction: column; padding: 28px 28px 22px; background: radial-gradient(ellipse at 50% 34%, #fffaf3, #f4eddf 75%); }
+  .public-project-page .project-phone-story-heading { display: flex; justify-content: space-between; gap: 12px; color: #8c785c; font-size: 10px; letter-spacing: 2px; }
+  .public-project-page .project-phone-diagram { position: relative; display: block; width: 100%; height: 225px; margin: 10px auto 0; }
+  .public-project-page .public-project-chapters { position: static; order: 3; display: grid; gap: 10px; padding: 16px 0 0; margin-top: 24px; border-top: 1px solid #d9c9ac; background: transparent; }
+  .public-project-page .public-project-chapters button { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 0 6px; border: 0 !important; border-radius: 7px !important; background: transparent !important; color: #8c785c !important; font-size: 15px; }
+  .public-project-page .public-project-chapters button[aria-selected="true"] { color: #70532b !important; background: #fffaf3 !important; }
+  .public-project-page .project-phone-tab-number { display: inline; font-size: 10px; opacity: .7; }
+  .public-project-page .public-project-chapter { padding: 0; margin-top: 24px; border: 0; }
+  .public-project-page .public-project-chapter > span { display: none; }
+  .public-project-page .public-project-chapter h2 { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font-size: 18px; font-weight: 500; }
+  .public-project-page .project-phone-step-word { display: inline; flex: none; color: #a98243; font: 500 34px/1.2 "Songti SC", "STSong", serif; }
+  .public-project-page .public-project-chapter p { margin: 0; color: #7c7062; font-size: 13px; line-height: 1.95; }
+  .web-contours, .web-energy-orbits { position: absolute; inset: 0; transition: transform .6s; }
+  .web-contours i { position: absolute; top: 50%; left: 50%; width: 180px; height: 210px; transform: translate(-50%,-50%); border: 2px solid #bfa06b; border-top-color: #fff5df; border-radius: 48% 52% 42% 58%; background: linear-gradient(130deg, #fffaf300 40%, #dec59555); box-shadow: inset 4px 0 0 #fffaf388, 3px 3px 0 #c5a56d44; }
+  .web-contours i:nth-child(2) { width: 134px; height: 164px; transform: translate(-50%,-50%) rotate(14deg); }
+  .web-contours i:nth-child(3) { width: 88px; height: 116px; }
+  .web-contours span, .web-energy-pearl { position: absolute; top: 50%; left: 50%; width: 42px; height: 42px; transform: translate(-50%,-50%); border-radius: 50%; background: radial-gradient(circle at 28% 23%, #fffdf8, #f0e1c5 48%, #c7a66b 85%, #896838); box-shadow: 0 18px 28px #70532b18; }
+  .web-care-layers i { position: absolute; top: 50%; left: 50%; width: 60%; height: 60%; max-width: 210px; max-height: 158px; border: 1px solid #bc995e; border-radius: 25px; background: linear-gradient(120deg, #fffcf8ee, #f3e8d5bb 60%, #d6b47a80); box-shadow: 5px 7px 0 #c7a87360; transform: translate(-50%,calc(-50% - 42px)) rotate(-28deg) skew(24deg,7deg) scaleY(.65); transition: transform .6s; }
+  .web-care-layers i:nth-child(2) { transform: translate(-50%,-50%) rotate(-28deg) skew(24deg,7deg) scaleY(.65); background: linear-gradient(120deg, #fffaf3e6, #e1cda8b3 45%, #ba914fa6); }
+  .web-care-layers i:nth-child(3) { transform: translate(-50%,calc(-50% + 42px)) rotate(-28deg) skew(24deg,7deg) scaleY(.65); background: linear-gradient(120deg, #e9d9bbcc, #bb975fcc); }
+  .web-energy-glow { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(ellipse, #d9aa54aa, #ecd9b366 45%, #f4eddf00 70%); opacity: .55; transition: opacity .6s; }
+  .web-energy-orbits i { position: absolute; top: 50%; left: 50%; width: 86%; height: 48%; border: 1px solid #aa8348; border-top-color: #fbf3e6; border-radius: 50%; transform: translate(-50%,-50%) rotate(-25deg); }
+  .web-energy-orbits i:nth-child(2) { width: 68%; height: 43%; transform: translate(-50%,-50%) rotate(42deg); }
+  .web-energy-orbits i:nth-child(3) { width: 52%; height: 92%; transform: translate(-50%,-50%) rotate(30deg); }
+  .web-energy-pearl { width: 96px; height: 96px; }
+  .web-energy-pulse { position: absolute; top: 50%; left: 9%; right: 9%; display: flex; align-items: center; height: 42px; margin-top: -21px; }
+  .web-energy-pulse i { width: 16.666%; height: 32px; border-top: 1.5px solid #8b6530; border-radius: 50% 50% 0 0; }
+  .web-energy-pulse i:nth-child(even) { margin-top: 30px; transform: rotate(180deg); }
+  [data-active-chapter="1"] .web-contours, [data-active-chapter="1"] .web-energy-orbits { transform: rotate(14deg); }
+  [data-active-chapter="2"] .web-contours, [data-active-chapter="2"] .web-energy-orbits { transform: rotate(-12deg) scale(.92); }
+  [data-active-chapter="2"] .web-energy-glow { opacity: 1; }
+  [data-active-chapter="1"] .web-care-layers { opacity: .8; }
+  .public-project-page .public-project-details { padding-bottom: 30px; background: #fffaf3; }
+  .public-project-page .company-facts { margin: 34px 0 0; }
+  .public-project-page .company-facts > div { display: block; padding: 22px 0; border-bottom: 0; }
+  .public-project-page .company-facts dt { color: #2f2921; font-size: 17px; font-weight: 500; }
+  .public-project-page .project-phone-detail-number { display: inline-block; width: 28px; color: #aa926d; font-size: 11px; }
+  .public-project-page .company-facts dd { margin-top: 4px; padding-left: 28px; color: #8c7e6b; font-size: 12px; }
+  .public-project-page .project-six-details { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 24px; }
+  .public-project-page .project-six-details .project-phone-detail-number { display: block; margin-bottom: 10px; }
+  .public-project-page .project-six-details dd { margin-top: 8px; padding: 0; }
+  .public-project-page .public-project-footer { display: grid; grid-template-columns: minmax(0,1fr) 118px; gap: 0; margin: 18px 30px calc(16px + env(safe-area-inset-bottom)); padding: 0; }
+  .public-project-page .public-project-footer a { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 76px; margin: 0; padding: 12px 0; text-decoration: none; font: 500 22px/1.5 "Songti SC", "STSong", serif; }
+  .public-project-page .public-project-footer a:first-child { grid-column: 2; grid-row: 1; padding-left: 18px; border-left: 1px solid #dfcfb4; font-size: 17px; }
+  .public-project-page .public-project-footer a:last-child { grid-column: 1; grid-row: 1; }
+  .public-project-page .project-phone-footer-label { display: block; color: #8c785c; font: 10px/1.5 system-ui, sans-serif; letter-spacing: 2px; }
+  .project-motion-off :is(.web-contours, .web-energy-orbits) { transform: none; }
+  .project-motion-off *, .project-motion-off *::before, .project-motion-off *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  @media (max-width: 360px) {
+    .public-project-page .project-phone-toolbar { padding-inline: 16px; }
+    .public-project-page .public-project-hero h1 { font-size: 34px; }
+    .public-project-page .public-project-hero h2 { font-size: 17px; }
+    .public-project-page .public-project-introduction, .public-project-page .public-project-details { padding-inline: 24px; }
+    .public-project-page :is(.public-project-introduction, .public-project-details) h2 { font-size: 26px; }
+    .public-project-story { padding-inline: 22px; }
+    .public-project-page .public-project-chapter h2 { gap: 10px; font-size: 16px; }
+    .public-project-page .project-phone-step-word { font-size: 29px; }
+    .public-project-page .public-project-footer { grid-template-columns: minmax(0,1fr) 104px; margin-inline: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+}

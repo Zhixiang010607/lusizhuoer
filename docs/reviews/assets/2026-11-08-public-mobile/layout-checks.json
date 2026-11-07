@@ -1,0 +1,727 @@
+{
+  "company": [
+    {
+      "active": "projects",
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 568,
+      "phone": true,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "overview"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "about"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "values"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "services"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "partners"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "projects"
+        }
+      ],
+      "width": 320
+    },
+    {
+      "active": "projects",
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 844,
+      "phone": true,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "overview"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "about"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "values"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "services"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "partners"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "projects"
+        }
+      ],
+      "width": 390
+    },
+    {
+      "active": "projects",
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 932,
+      "phone": true,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "overview"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "about"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "values"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "services"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "partners"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "projects"
+        }
+      ],
+      "width": 430
+    },
+    {
+      "active": "projects",
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 900,
+      "phone": true,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "overview"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "about"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "values"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": null,
+          "key": "services"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "partners"
+        },
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "none",
+          "key": "projects"
+        }
+      ],
+      "width": 650
+    },
+    {
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 1024,
+      "phone": false,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "inline",
+          "key": "projects"
+        }
+      ],
+      "width": 768
+    },
+    {
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 768,
+      "phone": false,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "inline",
+          "key": "projects"
+        }
+      ],
+      "width": 1024
+    },
+    {
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 900,
+      "phone": false,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "inline",
+          "key": "projects"
+        }
+      ],
+      "width": 1440
+    },
+    {
+      "badText": [],
+      "bodyOverflow": false,
+      "height": 1080,
+      "phone": false,
+      "slides": [
+        {
+          "copyOverflow": false,
+          "hiddenCopy": "inline",
+          "key": "projects"
+        }
+      ],
+      "width": 1920
+    }
+  ],
+  "desktop": [
+    {
+      "height": 1024,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#overview",
+      "sidebar": "block",
+      "visibleCompany": [
+        "overview"
+      ],
+      "width": 768
+    },
+    {
+      "height": 1024,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#projects",
+      "sidebar": "block",
+      "visibleCompany": [
+        "projects"
+      ],
+      "width": 768
+    },
+    {
+      "height": 1024,
+      "heroImage": 180,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=ocean",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 768
+    },
+    {
+      "height": 1024,
+      "heroImage": 180,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=skin",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 768
+    },
+    {
+      "height": 1024,
+      "heroImage": 180,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=warmth",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 768
+    },
+    {
+      "height": 768,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#overview",
+      "sidebar": "block",
+      "visibleCompany": [
+        "overview"
+      ],
+      "width": 1024
+    },
+    {
+      "height": 768,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#projects",
+      "sidebar": "block",
+      "visibleCompany": [
+        "projects"
+      ],
+      "width": 1024
+    },
+    {
+      "height": 768,
+      "heroImage": 232.4296875,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=ocean",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1024
+    },
+    {
+      "height": 768,
+      "heroImage": 232.4296875,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=skin",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1024
+    },
+    {
+      "height": 768,
+      "heroImage": 232.4296875,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=warmth",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1024
+    },
+    {
+      "height": 800,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#overview",
+      "sidebar": "block",
+      "visibleCompany": [
+        "overview"
+      ],
+      "width": 1280
+    },
+    {
+      "height": 800,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#projects",
+      "sidebar": "block",
+      "visibleCompany": [
+        "projects"
+      ],
+      "width": 1280
+    },
+    {
+      "height": 800,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=ocean",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1280
+    },
+    {
+      "height": 800,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=skin",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1280
+    },
+    {
+      "height": 800,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=warmth",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1280
+    },
+    {
+      "height": 900,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#overview",
+      "sidebar": "block",
+      "visibleCompany": [
+        "overview"
+      ],
+      "width": 1440
+    },
+    {
+      "height": 900,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#projects",
+      "sidebar": "block",
+      "visibleCompany": [
+        "projects"
+      ],
+      "width": 1440
+    },
+    {
+      "height": 900,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=ocean",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1440
+    },
+    {
+      "height": 900,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=skin",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1440
+    },
+    {
+      "height": 900,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=warmth",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1440
+    },
+    {
+      "height": 1080,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#overview",
+      "sidebar": "block",
+      "visibleCompany": [
+        "overview"
+      ],
+      "width": 1920
+    },
+    {
+      "height": 1080,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/login.html#projects",
+      "sidebar": "block",
+      "visibleCompany": [
+        "projects"
+      ],
+      "width": 1920
+    },
+    {
+      "height": 1080,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=ocean",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1920
+    },
+    {
+      "height": 1080,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=skin",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1920
+    },
+    {
+      "height": 1080,
+      "heroImage": 260,
+      "overflow": [],
+      "pageOverflow": false,
+      "path": "/public-project.html?project=warmth",
+      "sidebar": "block",
+      "visibleCompany": [],
+      "width": 1920
+    }
+  ],
+  "projects": [
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 320
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 390
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "ocean",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "skin",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "0",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "1",
+      "width": 430
+    },
+    {
+      "badText": [],
+      "key": "warmth",
+      "overflow": false,
+      "panels": 1,
+      "selected": "2",
+      "width": 430
+    }
+  ],
+  "navigation": [
+    {
+      "active": "about",
+      "hash": "#about",
+      "scroll": 844
+    },
+    {
+      "active": "values",
+      "hash": "#values",
+      "scroll": 1688
+    },
+    {
+      "active": "services",
+      "hash": "#services",
+      "scroll": 2532
+    },
+    {
+      "active": "partners",
+      "hash": "#partners",
+      "scroll": 3376
+    },
+    {
+      "active": "projects",
+      "hash": "#projects",
+      "scroll": 4220
+    }
+  ]
+}

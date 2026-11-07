@@ -39,13 +39,39 @@
       details: [["舒适感", "以温热感与放松感作为日常身体护理的体验重点。"], ["贴合度", "手柄与护理部位的贴合，是细致接触的基础。"], ["速度", "手法的快慢形成节奏，让各个环节自然衔接。"], ["力度", "轻重有度的手法，照顾不同部位的接触感受。"], ["连贯度", "连续而有序的手法，将局部护理串成完整体验。"], ["温度管理", "可调温手柄配合不同部位与个人感受安排温热体验。"]], next: "ocean"
     }
   };
+  const presentation = {
+    ocean: { device: "精雕仪", keywords: "轮廓 · 线条 · 肤龄观感", story: "分层护理" },
+    skin: { device: "柔肤仪", keywords: "肤质 · 肤色 · 水润光泽", story: "护理理念" },
+    warmth: { device: "温热身体护理", keywords: "温度 · 贴合 · 舒适体验", story: "温度与体验" }
+  };
+  function diagram(kind) {
+    if (kind === "skin") return '<div class="web-care-layers"><i></i><i></i><i></i></div>';
+    if (kind === "warmth") return '<div class="web-energy-glow"></div><div class="web-energy-orbits"><i></i><i></i><i></i></div><div class="web-energy-pearl"></div><div class="web-energy-pulse"><i></i><i></i><i></i><i></i><i></i><i></i></div>';
+    return '<div class="web-contours"><i></i><i></i><i></i><span></span></div>';
+  }
   const requested = new URLSearchParams(location.search).get("project");
   const key = Object.hasOwn(projects, requested) ? requested : "ocean";
   const p = projects[key];
   document.title = `${p.name} · 露思卓儿`;
   document.querySelector(`[data-project-nav="${key}"]`).setAttribute("aria-current", "page");
   // Only static whitelisted copy is interpolated; never URL text or business data.
-  document.getElementById("publicProject").innerHTML = `<header class="public-project-hero"><div><p>${p.category}</p><h1>${p.name}</h1><h2>${p.headline}</h2></div><img src="${p.image}" alt="${p.name}护理概念图"></header><section class="public-project-introduction"><h2>${p.title}</h2><p>${p.intro}</p></section><nav class="public-project-chapters" role="tablist" aria-label="护理章节">${p.chapters.map((c,i)=>`<button id="chapter-tab-${i+1}" type="button" role="tab" data-chapter="${i}" aria-controls="chapter-${i+1}" aria-selected="${i===0}" tabindex="${i===0?0:-1}">${c[0]}</button>`).join("")}</nav>${p.chapters.map((c,i)=>`<section id="chapter-${i+1}" class="public-project-chapter" role="tabpanel" aria-labelledby="chapter-tab-${i+1}" ${i===0?"":"hidden"}><span>${String(i+1).padStart(2,"0")} / ${c[0]}</span><h2>${c[1]}</h2><p>${c[2]}</p></section>`).join("")}<section><h2>${p.detailTitle}</h2><p>${p.detailText}</p><dl class="company-facts">${p.details.map(d=>`<div><dt>${d[0]}</dt><dd>${d[1]}</dd></div>`).join("")}</dl></section><footer class="public-project-footer"><a href="login.html#projects">返回公司主页</a><a href="public-project.html?project=${p.next}">下一个项目 · ${projects[p.next].name} →</a></footer>`;
+  const art = presentation[key];
+  document.getElementById("publicProject").innerHTML = `
+    <div class="project-phone-toolbar"><a href="login.html#projects">‹ 返回公司主页</a><span>${p.name}</span><button type="button" id="projectMotion">关闭动效</button><div class="project-phone-track"><span></span></div></div>
+    <header class="public-project-hero">
+      <div class="public-project-hero-copy"><p><span class="project-phone-brand-prefix">露思卓儿 · </span>${p.category}</p><h1>${p.name}</h1><h2>${p.headline}</h2><p class="project-phone-device">${art.device}</p></div>
+      <div class="public-project-hero-art"><img src="${p.image}" alt="${p.name}护理概念图"></div>
+      <div class="project-phone-hero-bottom"><span>${art.keywords}</span><a href="#projectConcept">向下探索 ↓</a></div>
+    </header>
+    <section id="projectConcept" class="public-project-introduction"><span class="project-phone-eyebrow">01 / 核心定位</span><h2>${p.title}</h2><p>${p.intro}</p></section>
+    <section class="public-project-story" data-project-kind="${key}" data-active-chapter="0">
+      <div class="project-phone-story-heading"><span>${art.story}</span><span id="projectChapterNumber">01 / 03</span></div>
+      <div class="project-phone-diagram" aria-hidden="true">${diagram(key)}</div>
+      <nav class="public-project-chapters" role="tablist" aria-label="护理章节">${p.chapters.map((c,i)=>`<button id="chapter-tab-${i+1}" type="button" role="tab" data-chapter="${i}" aria-controls="chapter-${i+1}" aria-selected="${i===0}" tabindex="${i===0?0:-1}"><span class="project-phone-tab-number">0${i+1}</span>${c[0]}</button>`).join("")}</nav>
+      ${p.chapters.map((c,i)=>`<section id="chapter-${i+1}" class="public-project-chapter" role="tabpanel" aria-labelledby="chapter-tab-${i+1}" ${i===0?"":"hidden"}><span>${String(i+1).padStart(2,"0")} / ${c[0]}</span><h2><b class="project-phone-step-word">${c[0]}</b>${c[1]}</h2><p>${c[2]}</p></section>`).join("")}
+    </section>
+    <section class="public-project-details"><span class="project-phone-eyebrow">02 / 核心优势</span><h2>${p.detailTitle}</h2><p>${p.detailText}</p><dl class="company-facts ${key === "warmth" ? "project-six-details" : ""}">${p.details.map((d,i)=>`<div><dt><span class="project-phone-detail-number">0${i+1}</span>${d[0]}</dt><dd>${d[1]}</dd></div>`).join("")}</dl></section>
+    <footer class="public-project-footer"><a href="login.html#projects"><small class="project-phone-footer-label">返回</small>公司主页</a><a href="public-project.html?project=${p.next}"><small class="project-phone-footer-label">下一个项目</small><span class="project-desktop-only"> · </span>${projects[p.next].name} →</a></footer>`;
   const tabs = [...document.querySelectorAll("[data-chapter]")];
   const panels = [...document.querySelectorAll(".public-project-chapter")];
   function showChapter(index) {

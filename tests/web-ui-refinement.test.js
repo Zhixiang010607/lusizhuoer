@@ -44,6 +44,14 @@ test('public company navigation changes presentation only and handles hashes/bac
   const html=read('login.html');for(const id of ids)assert.ok(html.includes(`data-company-nav="${id}"`));
   assert.match(html,/10000\+/);assert.match(html,/300000\+/);
   assert.doesNotMatch(read('company-portal.js'),/CloudBase|fetch\(|localStorage|sessionStorage/);
+  // Phone presentation keeps the six public slides mounted; login remains isolated.
+  vm.runInNewContext(read('company-portal.js'),{location,document,URLSearchParams,window:{matchMedia:()=>({matches:true}),addEventListener:(name,f)=>{assert.equal(name,'hashchange');handler=f;}}});
+  for (const id of ids.slice(0,6)) {
+    location.search='';location.hash='#'+id;handler();
+    assert.deepEqual(sections.filter(s=>!s.hidden).map(s=>s.dataset.companySection),ids.slice(0,6));
+  }
+  location.hash='#login';handler();
+  assert.deepEqual(sections.filter(s=>!s.hidden).map(s=>s.dataset.companySection),['login']);
 });
 
 test('each public project has complete whitelisted chapters, real navigation and no business SDK',()=>{
