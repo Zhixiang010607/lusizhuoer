@@ -27,7 +27,7 @@ test('ordinary client payload cannot forge the trusted timer',async()=>{
 test('all four categories use approved fixed templates and bound phone only',async()=>{
  for(const [category,id] of Object.entries(TEMPLATES)){
   const f=fixture({category});assert.equal((await f.sender.handle(event)).accepted,1);
-  assert.equal(f.sends.length,1);assert.equal(f.sends[0].TemplateId,id);assert.equal(f.sends[0].SignName,'露思卓儿');assert.deepEqual(f.sends[0].TemplateParamSet,[]);
+  assert.equal(f.sends.length,1);assert.equal(f.sends[0].TemplateId,id);assert.equal(f.sends[0].SignName,'广州露思卓儿科技');assert.deepEqual(f.sends[0].TemplateParamSet,[]);
   assert.deepEqual(f.sends[0].PhoneNumberSet,['+8613800000001']);assert.match(f.calls.find(x=>x.includes('finish_')),/'ACCEPTED','Ok'/);
  }
 });

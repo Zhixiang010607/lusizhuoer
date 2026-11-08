@@ -2,7 +2,7 @@
 const crypto = require("node:crypto");
 const TRIGGER_NAME = "send-hq-review-sms";
 const TEMPLATES = Object.freeze({purchase:"2769941",recharge:"2769944",refund:"2769946",verification:"2769949"});
-const SIGN_NAME = "露思卓儿";
+const SIGN_NAME = "广州露思卓儿科技";
 const field = rows => {
   const value=rows?.[0]?.result;
   return typeof value === "string" ? JSON.parse(value) : value;
