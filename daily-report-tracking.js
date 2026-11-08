@@ -1,10 +1,11 @@
 (() => {
   "use strict";
-  const VERSION = "0.2.1";
+  const VERSION = "0.3.0";
   const $ = (id) => document.getElementById(id);
   const shanghaiDateTime = window.WebWorkCommon?.shanghaiDateTime || (() => "—");
   const state = { serverToday: "", selectedDate: "", visibleMonth: "", loading: false };
   let app = null;
+  let datePicker;
 
   function parsedObject(value) {
     if (value && typeof value === "object") return value;
@@ -54,45 +55,13 @@
   }
   function setBusy(busy) {
     state.loading = busy;
-    $("trackingPreviousMonth").disabled = busy;
-    $("trackingNextMonth").disabled = busy || Boolean(state.serverToday && monthShift(state.visibleMonth, 1) > state.serverToday.slice(0, 7));
-    $("trackingYear").disabled = busy;
-    $("trackingMonth").disabled = busy;
-  }
-  function populateSelectors() {
-    const todayYear = Number((state.serverToday || shanghaiToday()).slice(0, 4));
-    const selectedYear = Number(state.visibleMonth.slice(0, 4));
-    $("trackingYear").innerHTML = Array.from({ length: Math.max(1, todayYear - 2019) }, (_, index) => 2020 + index).map((year) => `<option value="${year}">${year}年</option>`).join("");
-    $("trackingMonth").innerHTML = Array.from({ length: 12 }, (_, index) => `<option value="${String(index + 1).padStart(2, "0")}">${index + 1}月</option>`).join("");
-    $("trackingYear").value = String(Math.max(2020, selectedYear));
-    $("trackingMonth").value = state.visibleMonth.slice(5, 7);
-  }
-  function renderCalendar() {
-    const [year, month] = state.visibleMonth.split("-").map(Number);
-    const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    const blanks = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
-    const cells = Array.from({ length: blanks }, () => '<span class="daily-calendar-blank" aria-hidden="true"></span>');
-    for (let day = 1; day <= days; day += 1) {
-      const current = `${state.visibleMonth}-${String(day).padStart(2, "0")}`;
-      const future = current > state.serverToday;
-      const classes = ["daily-calendar-day", current === state.selectedDate ? "selected" : "", current === state.serverToday ? "today" : ""].filter(Boolean).join(" ");
-      cells.push(`<button type="button" role="gridcell" class="${classes}" data-tracking-date="${current}" aria-label="${formatDate(current)}" ${future ? "disabled" : ""}>${day}</button>`);
-    }
-    $("trackingCalendar").innerHTML = cells.join("");
-    $("trackingCalendar").querySelectorAll("[data-tracking-date]").forEach((button) => button.addEventListener("click", () => selectDate(button.dataset.trackingDate)));
-    populateSelectors();
-    $("trackingNextMonth").disabled = state.loading || monthShift(state.visibleMonth, 1) > state.serverToday.slice(0, 7);
+    datePicker?.busy(busy);
+    $("trackingDateConfirm").disabled = busy;
+    $("trackingToday").disabled = busy;
   }
   function card(teacher) {
     const teacherLink = `staff-detail.html?role=teacher&id=${encodeURIComponent(teacher.teacherId)}`;
-    const detailLink = teacher.completed ? `daily-report-tracking.html?date=${encodeURIComponent(state.selectedDate)}&reportId=${encodeURIComponent(teacher.reportId)}` : "";
-    return `<article class="daily-tracking-card">
-      <a class="record-link" href="${teacherLink}"><span class="daily-tracking-card-label">老师姓名</span>${escapeHtml(teacher.teacherName || teacher.teacherCode || "未命名老师")}</a>
-      <span><span class="daily-tracking-card-label">老师电话</span>${escapeHtml(teacher.phone || "未登记")}</span>
-      ${teacher.completed ? `<a class="record-link" href="${detailLink}"><span class="daily-tracking-card-label">日报内容</span>查看日报</a>` : '<span><span class="daily-tracking-card-label">日报内容</span>—</span>'}
-      <span><span class="daily-tracking-card-label">提交时间</span>${escapeHtml(submittedTime(teacher))}</span>
-      <span class="daily-tracking-status ${teacher.completed ? "complete" : "incomplete"}"><span class="daily-tracking-card-label">日报完成</span>${teacher.completed ? "是" : "否"}</span>
-    </article>`;
+    return `<td><a class="record-link" href="${teacherLink}">${escapeHtml(teacher.teacherName || "未命名老师")}</a></td><td>${escapeHtml(teacher.phone || "未登记")}</td><td>${teacher.completed ? `<button class="tracking-text-link" data-report-id="${escapeHtml(teacher.reportId)}" type="button">查看日报</button>` : "—"}</td><td>${escapeHtml(submittedTime(teacher))}</td><td><span class="daily-tracking-status ${teacher.completed ? "complete" : "incomplete"}">${teacher.completed ? "是" : "否"}</span></td>`;
   }
   function renderLists(result) {
     const completed = result.completed || [];
@@ -101,10 +70,12 @@
     $("trackingIncompleteCount").textContent = `${incomplete.length} 人`;
     $("trackingCompletedSummary").textContent = `已填写 ${completed.length}`;
     $("trackingIncompleteSummary").textContent = `未填写 ${incomplete.length}`;
-    $("trackingCompleted").innerHTML = completed.length ? completed.map(card).join("") : '<p class="daily-tracking-empty">所选日期暂无老师填写日报</p>';
-    $("trackingIncomplete").innerHTML = incomplete.length ? incomplete.map(card).join("") : '<p class="daily-tracking-empty">全部在职老师均已填写</p>';
+    const head = ["老师姓名", "老师电话", "日报内容", "提交时间（北京）", "是否完成"];
+    window.WebTrackingUI.table($("trackingCompleted"), { rows: completed, head, row: card, empty: "所选日期暂无老师填写日报" });
+    window.WebTrackingUI.table($("trackingIncomplete"), { rows: incomplete, head, row: card, empty: "全部在职老师均已填写" });
   }
   async function loadDay(date) {
+    if (state.loading) return;
     setBusy(true);
     $("trackingDateTitle").textContent = `${formatDate(date)} · 正在读取…`;
     $("trackingMessage").textContent = "";
@@ -113,7 +84,7 @@
       state.serverToday = result.serverToday;
       state.selectedDate = result.reportDate;
       state.visibleMonth = state.selectedDate.slice(0, 7);
-      renderCalendar();
+      datePicker.set(state.selectedDate, state.serverToday);
       renderLists(result);
       $("trackingDateTitle").textContent = `${formatDate(state.selectedDate)} · 在职老师日报`;
       history.replaceState(null, "", `daily-report-tracking.html?date=${encodeURIComponent(state.selectedDate)}`);
@@ -121,14 +92,6 @@
       $("trackingMessage").textContent = error?.message || "日报追踪读取失败。";
       renderLists({ completed: [], incomplete: [] });
     } finally { setBusy(false); }
-  }
-  async function selectDate(date) { if (date > state.serverToday) return; await loadDay(date); }
-  function selectedMonth() { return `${$("trackingYear").value}-${$("trackingMonth").value}`; }
-  async function loadMonth(month) {
-    const candidate = month === state.serverToday.slice(0, 7) ? state.serverToday : `${month}-01`;
-    state.visibleMonth = month;
-    renderCalendar();
-    await loadDay(candidate);
   }
   async function openDetail(reportId) {
     if (!reportId) return;
@@ -138,18 +101,19 @@
       const report = result.report || {};
       $("dailyReportDetailTitle").textContent = `${teacher.teacherName || teacher.teacherCode || "老师"}的日报`;
       const submittedAt = shanghaiDateTime(report.updatedAt || report.updated_at);
-      $("dailyReportDetailMeta").textContent = `${formatDate(report.reportDate)} · 提交时间 ${submittedAt}（上海时间） · 电话 ${teacher.phone || "未登记"} · 只读`;
+      $("dailyReportDetailMeta").textContent = `${formatDate(report.reportDate)} · 提交时间 ${submittedAt}（北京时间） · 电话 ${teacher.phone || "未登记"} · 只读`;
       const sections = [["今日完成事项", report.completedWork]];
       $("dailyReportDetailBody").innerHTML = sections.map(([title, value]) => `<section class="daily-report-detail-item"><h3>${title}</h3><p>${escapeHtml(value || "")}</p></section>`).join("");
       $("dailyReportDetailDialog").showModal();
     } catch (error) { $("trackingMessage").textContent = error?.message || "日报详情读取失败。"; }
   }
 
-  $("trackingPreviousMonth").addEventListener("click", () => loadMonth(monthShift(state.visibleMonth, -1)));
-  $("trackingNextMonth").addEventListener("click", () => loadMonth(monthShift(state.visibleMonth, 1)));
-  $("trackingYear").addEventListener("change", () => loadMonth(selectedMonth()));
-  $("trackingMonth").addEventListener("change", () => loadMonth(selectedMonth()));
+  $("trackingDateConfirm").addEventListener("click", () => loadDay(datePicker.value()));
   $("trackingToday").addEventListener("click", () => loadDay(state.serverToday));
+  $("trackingCompleted").addEventListener("click", (event) => {
+    const target = event.target.closest("[data-report-id]");
+    if (target) void openDetail(target.dataset.reportId);
+  });
   $("dailyReportDetailDialog").addEventListener("close", () => history.replaceState(null, "", `daily-report-tracking.html?date=${encodeURIComponent(state.selectedDate)}`));
 
   const query = new URLSearchParams(location.search);
@@ -157,7 +121,7 @@
   const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(query.get("date") || "") && query.get("date") <= state.serverToday ? query.get("date") : state.serverToday;
   state.selectedDate = requestedDate;
   state.visibleMonth = requestedDate.slice(0, 7);
-  renderCalendar();
+  datePicker = window.WebTrackingUI.dateSelector($("dailyTrackingDateParts"), requestedDate, state.serverToday);
   loadDay(requestedDate).then(() => openDetail(query.get("reportId") || ""));
   window.DailyReportTrackingVersion = VERSION;
 })();

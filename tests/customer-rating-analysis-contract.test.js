@@ -12,8 +12,8 @@ const cloud = read("cloudfunctions/customerRating/index.js");
 const appJson = read("miniprogram-app/miniprogram/app.json");
 const homeJs = read("miniprogram-app/miniprogram/pages/home/index.js");
 const homeWxml = read("miniprogram-app/miniprogram/pages/home/index.wxml");
-const pageJs = read("miniprogram-app/miniprogram/pages/rating-analysis/index.js");
-const pageWxml = read("miniprogram-app/miniprogram/pages/rating-analysis/index.wxml");
+const pageJs = read("miniprogram-app/miniprogram/pages/rating-analysis/rating-page.js");
+const pageWxml = read("miniprogram-app/miniprogram/pages/rating-analysis/index.wxml") + read("miniprogram-app/miniprogram/pages/rating-analysis/charts.wxml");
 const pageWxss = read("miniprogram-app/miniprogram/pages/rating-analysis/index.wxss");
 
 test("rating analysis classifies each eligible order by its lowest score and reserves zero for unrated", () => {
@@ -113,7 +113,7 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
   assert.match(pageJs, /requireSession\(\["hq", "store"\]\)/);
   assert.match(pageJs, /callRating\(this\.data\.teamScope \? "getTeamRatingAnalysisOptions" : "getRatingAnalysisOptions"\)/);
   assert.match(pageJs, /callRating\(this\.data\.teamScope \? "queryTeamRatingAnalysis" : "queryRatingAnalysis", this\.payload\(targetPage\)\)/);
-  assert.match(pageJs, /selectedScores: \[0, 1, 2, 3, 4, 5\]/);
+  assert.match(pageJs, /selectedScores: \[\]/);
   assert.match(pageJs, /toggleScore\(event\)[\s\S]*selected\.delete\(score\)[\s\S]*selected\.add\(score\)/);
   for (const label of ["门店", "项目", "老师", "时间范围", "最低评分（可任意多选）", "1–5 分分布", "评价覆盖率"]) {
     assert.ok(pageWxml.includes(label), `rating analysis page missing ${label}`);
@@ -122,7 +122,7 @@ test("mini-program exposes a two-pie rating analysis with arbitrary 0-5 multi-se
   assert.match(pageWxml, /例如 5、5、4 归为 4 分/);
   assert.match(pageWxml, /wx:for="\{\{summary\.scoreSlices\}\}"[^>]*class="pie-slice"/);
   assert.match(pageWxml, /wx:for="\{\{summary\.coverageSlices\}\}"[^>]*class="pie-slice"/);
-  assert.match(pageWxml, /分数多选不会改变图表分母/);
+  assert.match(pageWxml, /按当前门店、项目、老师和时间范围/);
   assert.match(pageWxml, /0 分未评价不进入本图/);
   assert.match(pageJs, /const ratedCounts = counts\.slice\(1\)/,
     "the score distribution excludes the zero-score unrated bucket");

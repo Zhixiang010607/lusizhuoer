@@ -86,7 +86,7 @@ assert.doesNotMatch(webCreate, /人脸照片|faceCapture|faceConsent/, "product 
 assert.match(storeBusiness, /function setupProductPurchase\(\)/);
 assert.match(storeBusiness, /setupLookup\(\)/, "web product purchase must reuse the established recharge customer lookup");
 assert.match(storeBusiness, /createRetailProductPurchaseApplication/);
-assert.match(webReview, /产品购买审核记录/);
+assert.match(webReview, /产品审核记录/);
 assert.match(webCustomer, /产品名称<\/th><th>购买<\/th><th>赠送/);
 assert.match(webCustomer, /data-history-type="PRODUCT_PURCHASE"[^>]*[\s\S]{0,80}>产品<\/button>/,
   "Web customer history must expose product purchases through the shared iPad-style business tabs");

@@ -7,6 +7,7 @@
     "customer-query.html": ["customerQueryBody"],
     "recharge-query.html": ["recordQueryBody"],
     "verification-query.html": ["recordQueryBody"],
+    "product-query.html": ["productQueryBody"],
     "store-detail.html": ["storeBusinessDetailBody", "storeActiveCustomerBody", "storeArchivedCustomerBody"],
     "teacher-work-orders.html": ["teacherOrdersBody", "teacherActiveCustomerBody", "teacherArchivedCustomerBody"],
     "recharge-review.html": ["reviewBody"],

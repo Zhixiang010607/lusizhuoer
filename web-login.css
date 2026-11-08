@@ -1,0 +1,138 @@
+/* Web-native presentation; account authentication remains in login.js. */
+body.company-portal.company-login-view {
+  display: block;
+  min-height: 100dvh;
+  padding: 0 !important;
+  background: #f7eddd !important;
+}
+.company-login-view .company-sidebar,
+.company-login-view .company-phone-top,
+.company-login-view .company-phone-footer { display: none !important; }
+.company-login-view .company-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 100dvh;
+  padding: 48px max(6vw, 32px) !important;
+  background: linear-gradient(90deg, transparent 32%, #f7eddd 55%), url("assets/company-brand-bg-v4.jpg") left center / auto 100% no-repeat;
+}
+body.company-login-view .login-shell {
+  position: static;
+  display: flex !important;
+  flex-direction: column;
+  gap: 24px;
+  width: min(440px, 46vw) !important;
+  max-width: 440px !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+body.company-login-view .login-shell[hidden] { display: none !important; }
+.company-login-view .web-login-back {
+  position: absolute;
+  top: max(22px, env(safe-area-inset-top));
+  left: max(24px, env(safe-area-inset-left));
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #79592d;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.web-login-brand { display: grid; justify-items: center; gap: 10px; }
+.web-login-brand strong { color: #79592d; font-size: 32px; letter-spacing: .16em; font-family: "Songti SC", "STSong", serif; }
+.web-login-emblem { display: block; width: 64px; height: 64px; overflow: hidden; }
+.web-login-emblem img { display: block; width: 270px; max-width: none; height: auto; transform: translate(-103px, -26px); }
+body.company-login-view .login-form-panel {
+  display: block;
+  padding: 28px 30px !important;
+  border: 1px solid #e3cfaf;
+  border-radius: 20px;
+  background: #fffaf3f5;
+  box-shadow: 0 12px 36px #79592d0b;
+}
+.company-login-view .login-form-wrap { width: 100%; }
+.web-login-heading { margin-bottom: 24px; }
+.web-login-heading h2 { margin: 0 0 8px; color: #302a22; font-size: 22px; line-height: 1.4; }
+.web-login-heading p { margin: 0; color: #8c7d68; font-size: 13px; }
+.company-login-view .login-form { gap: 16px; }
+.company-login-view .login-form > label { display: grid; gap: 8px; color: #6f604c; font-size: 14px; font-weight: 700; }
+body.company-login-view .login-form input:not([type="checkbox"]) {
+  width: 100%; min-width: 0; height: 50px !important; min-height: 50px !important;
+  padding: 0 14px !important; border: 1px solid #ddc8a5 !important; border-radius: 10px !important;
+  color: #302a22; background: #fff !important; font-size: 16px !important; font-weight: 400;
+}
+body.company-login-view #loginPassword { padding-right: 64px !important; }
+body.company-login-view #resetSmsCode { padding-right: 110px !important; }
+body.company-login-view .password-field button {
+  right: 7px !important; height: 36px !important; min-height: 36px !important;
+  color: #79592d !important; background: transparent !important; border: 0 !important;
+  font-size: 13px !important; font-weight: 700; line-height: 1 !important;
+}
+.company-login-view .login-options { gap: 12px; margin: 0; font-size: 13px; }
+.company-login-view .login-options label { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; }
+.company-login-view .login-options input { margin: 0; accent-color: #79592d; }
+.company-login-view .login-options a { color: #79592d; }
+.company-login-view .login-error { min-height: 0; margin: 0; font-size: 13px; line-height: 1.5; }
+.company-login-view .login-error:empty { display: none; }
+body.company-login-view .login-submit { height: 50px !important; margin-top: 4px; font-size: 16px !important; }
+.company-login-view .login-heading { margin: 0 0 4px; }
+.company-login-view .login-heading h2 { font-size: 22px; }
+.company-login-view :focus-visible { outline: 2px solid #a98243; outline-offset: 3px; }
+@media (max-width: 900px) and (orientation: portrait), (max-width: 650px) {
+  .company-login-view .company-content {
+    align-items: center; justify-content: center;
+    padding: 92px 24px 40px !important;
+    background: linear-gradient(#f7eddd77, #f7edddaa), url("assets/company-brand-bg-v4.jpg") center / cover no-repeat;
+  }
+  body.company-login-view .login-shell { width: min(440px, 100%) !important; }
+}
+@media (max-width: 650px) {
+  .company-login-view .company-content { align-items: flex-start; padding: 92px 20px 32px !important; }
+  body.company-login-view .login-shell { gap: 22px; }
+  .web-login-brand strong { font-size: 28px; }
+  .web-login-emblem { width: 52px; height: 52px; }
+  .web-login-emblem img { width: 220px; transform: translate(-84px, -21px); }
+  body.company-login-view .login-form-panel { padding: 22px 20px !important; border-radius: 16px; }
+  .web-login-heading h2 { font-size: 20px; }
+  .web-login-heading { margin-bottom: 22px; }
+}
+@media (max-height: 650px) and (min-width: 651px) {
+  .company-login-view .company-content { padding-block: 84px 28px !important; }
+  .web-login-brand { display: none; }
+}
+/* Browser autofill is a component state and uses the same warm input surface. */
+body.company-login-view input:-webkit-autofill,
+body.company-login-view input:-webkit-autofill:hover,
+body.company-login-view input:-webkit-autofill:focus,
+body.company-login-view input:autofill {
+  -webkit-box-shadow: 0 0 0 1000px #fffdf8 inset !important;
+  box-shadow: 0 0 0 1000px #fffdf8 inset !important;
+  -webkit-text-fill-color: #302a22 !important;
+  caret-color: #302a22;
+  border-color: #ddc8a5 !important;
+}
+.web-login-brand { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.web-login-emblem { flex: none; border-radius: 12px; }
+.web-login-emblem img { width: 105px; transform: translate(-22px, -13px); }
+@media (max-width: 650px) { .web-login-emblem img { width: 85px; transform: translate(-18px, -11px); } }
+/* Fade the artwork itself, including its image edge, into one continuous base. */
+body.company-login-view .company-content { position: relative; isolation: isolate; background: #f7eddd; }
+.company-login-view .company-content::before {
+  content: ""; position: absolute; z-index: -1; inset: 0 auto 0 0;
+  width: min(55vw, calc(100dvh * 852 / 1846));
+  height: 100%; aspect-ratio: auto;
+  background: url("assets/company-brand-bg-v4.jpg") left center / cover no-repeat;
+  opacity: .75;
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 35%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 35%, transparent 100%);
+  pointer-events: none;
+}
+@media (max-width: 900px) and (orientation: portrait), (max-width: 650px) {
+  body.company-login-view .company-content { background: linear-gradient(#f7eddd77, #f7edddaa), url("assets/company-brand-bg-v4.jpg") center / cover no-repeat; }
+  .company-login-view .company-content::before { display: none; }
+}

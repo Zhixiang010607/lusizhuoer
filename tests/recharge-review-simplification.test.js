@@ -67,10 +67,10 @@ assert.match(reviewUi, /button\.disabled = true; button\.textContent = "正在�
 assert.match(reviewUi, /CloudBasePhoneAuth\.reviewOrder\(\{ recordType, recordId: pendingAction\.item\.id, decision: pendingAction\.action, note \}\)/, "the confirmed decision and note still use the guarded backend action");
 assert.doesNotMatch(reviewUi, /\b(?:window\.)?confirm\s*\(/, "confirming the review dialog must not open a second browser confirmation");
 assert.match(authUi, /"recharge-review\.html", "refund-review\.html"/);
-assert.match(authUi, /href="recharge-review\.html">充值审核/);
-assert.match(authUi, /href="verification-review\.html">核销审核/);
-assert.match(authUi, /href="product-purchase-review\.html">产品购买审核/);
-assert.doesNotMatch(authUi, /href="refund-review\.html">退费审核/);
+assert.match(authUi, /"recharge-review\.html", "充值审核", "recharge"/);
+assert.match(authUi, /"verification-review\.html", "核销审核", "verification"/);
+assert.match(authUi, /"product-purchase-review\.html", "产品审核", "purchase"/);
+assert.match(authUi, /"refund-review\.html", "退费审核", "refund"/);
 
 assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED"\]/);
 assert.doesNotMatch(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);

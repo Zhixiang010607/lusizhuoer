@@ -138,7 +138,7 @@ body[data-staff-detail] :is(.teacher-experience-empty, .staff-profile-shell, .st
   flex-direction: row !important;
   align-items: center;
   gap: 8px;
-  padding: 10px max(20px, calc((100vw - 1120px) / 2)) !important;
+  padding: 10px 24px !important;
   overflow: visible !important;
   color: #fffaf3 !important;
   background: #2f2921 !important;
@@ -180,14 +180,14 @@ body[data-staff-detail] :is(.teacher-experience-empty, .staff-profile-shell, .st
   cursor: pointer;
 }
 .side-nav > a.active,
-.side-nav > a:hover,
-.side-menu-group > summary:hover,
 .side-menu-group:has(> nav a.active) > summary { color: #fff !important; background: #a98243 !important; }
+.side-nav > a:not(.active):hover,
+.side-menu-group:not(:has(> nav a.active)) > summary:hover { color: #fffaf3 !important; background: #ffffff12 !important; }
 .side-nav .nav-icon,
 .side-menu-group > summary .nav-icon,
 .mobile-account-menu .nav-icon { display: none !important; }
 .side-menu-group { position: relative; flex: 0 0 auto; margin: 0 !important; padding: 0 !important; border: 0 !important; }
-.side-menu-group > summary::after { content: "⌄"; margin-left: 6px; font-size: 11px; }
+.side-menu-group > summary::after { content: "⌄"; margin-left: 6px; font-size: 11px; color: currentColor; transform: none !important; }
 .side-menu-group > nav {
   position: absolute;
   top: calc(100% + 8px);
@@ -241,7 +241,7 @@ body[data-staff-detail] :is(.teacher-experience-empty, .staff-profile-shell, .st
 .mobile-account-menu { display: none !important; }
 
 .topbar {
-  width: min(1120px, calc(100% - 48px));
+  width: calc(100% - 48px);
   min-height: 0 !important;
   margin: 0 auto;
   padding: 24px 0 14px !important;
@@ -287,8 +287,8 @@ body[data-teacher-workspace] .teacher-workspace-main,
 .teacher-business-main,
 .daily-report-main,
 .daily-tracking-main {
-  width: min(1120px, calc(100% - 48px)) !important;
-  max-width: 1120px !important;
+  width: calc(100% - 48px) !important;
+  max-width: none !important;
   height: auto !important;
   min-height: 0 !important;
   margin: 0 auto 40px !important;
@@ -1113,3 +1113,120 @@ body.login-page .login-shell {
     max-width: none !important;
   }
 }
+
+/* Business canvases follow the window; bounded forms and public reading copy
+   retain their own component widths. */
+.product-query-main { display: grid; gap: 16px; }
+.product-query-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: end; }
+.product-query-filters label { display: grid; min-width: 0; gap: 6px; }
+.product-query-filters input, .product-query-filters select { width: 100%; min-width: 0; }
+.product-query-dates { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.product-query-dates[hidden] { display: none; }
+.product-date-selectors { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
+.product-query-actions { display: flex; gap: 12px; }
+.product-query-actions button { flex: 1; white-space: nowrap; }
+.product-order-link { min-height: 0 !important; padding: 0 !important; border: 0 !important; color: #79592d !important; background: transparent !important; text-decoration: underline; white-space: nowrap; }
+.product-query-detail { display: grid; gap: 12px; }
+.product-query-detail > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; }
+.product-query-detail dt, .product-query-detail dd { margin: 0; overflow-wrap: anywhere; }
+.product-query-detail dt { color: #7c7062; }
+body[data-retail-product-management] .project-management-toolbar { display: flex; align-items: center !important; justify-content: space-between; gap: 20px; }
+body[data-retail-product-management] .project-management-toolbar > div:first-child { display: grid; gap: 6px; }
+body[data-retail-product-management] .project-management-toolbar strong { line-height: 1.4; }
+body[data-retail-product-management] .project-management-toolbar span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+body[data-retail-product-management] .retail-product-message:empty { display: none; }
+body[data-retail-product-management] .retail-product-table th,
+body[data-retail-product-management] .retail-product-table td { text-align: center !important; vertical-align: middle !important; }
+body[data-retail-product-management] .retail-product-page { display: grid; gap: 16px; }
+body[data-retail-product-management] .retail-product-table-wrap { overflow-x: auto; }
+body[data-retail-product-management] .list-pagination { margin: 16px 0 0 !important; padding-bottom: 4px; }
+@media (max-width: 1000px) { .product-query-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .product-query-filters { grid-template-columns: minmax(0, 1fr); }
+  .product-query-dates { grid-template-columns: minmax(0, 1fr); }
+  body[data-retail-product-management] .project-management-toolbar { align-items: flex-start !important; flex-wrap: wrap; }
+}
+
+/* Headquarters tracking: direct date selection and paired status cards. */
+body[data-daily-report-tracking] .daily-tracking-main { display: grid; grid-template-columns: minmax(0, 1fr) !important; gap: 16px; }
+body[data-daily-report-tracking] .tracking-date-card,
+body[data-attendance-tracking] .attendance-date-picker { display: grid; grid-template-columns: minmax(0, 1fr) 100px auto; align-items: center; gap: 12px; }
+body[data-attendance-tracking] .attendance-date-picker { grid-template-columns: minmax(0, 1fr) 100px; }
+.tracking-date-parts { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; min-width: 0; }
+.tracking-date-parts select { width: 100%; min-width: 0; height: 44px; text-align: center; }
+body[data-daily-report-tracking] .daily-tracking-columns,
+body[data-attendance-tracking] #attendanceTrackingGroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px; align-items: start; }
+body[data-daily-report-tracking] .daily-tracking-summary { align-items: center; }
+body[data-daily-report-tracking] .daily-tracking-cards { display: block; min-width: 0; }
+.tracking-data-table { min-width: 100%; }
+.tracking-data-table th, .tracking-data-table td { white-space: nowrap !important; text-align: center !important; vertical-align: middle; }
+.tracking-empty { padding: 20px 0; color: #8a7b67; }
+.tracking-list-pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; margin-top: 16px; }
+.tracking-list-pager > span, .tracking-list-pager label { white-space: nowrap; }
+.tracking-list-pager label { display: inline-flex; align-items: center; gap: 6px; }
+.tracking-list-pager input { width: 64px; min-width: 0; height: 44px; text-align: center; }
+.tracking-list-pager button { padding: 0 14px !important; }
+.tracking-page-error:empty { display: none; }
+.tracking-page-error { flex-basis: 100%; color: #b42318; text-align: center; }
+.tracking-text-link { padding: 0 !important; border: 0 !important; background: transparent !important; color: #79592d !important; text-decoration: underline; }
+/* The same centering applies throughout all management pages. */
+.management-toolbar .toolbar-actions,
+.management-toolbar .toolbar-actions > *,
+.list-pagination, .table-pagination { align-items: center !important; }
+.management-toolbar .button-link,
+.management-toolbar button,
+.list-pagination button, .table-pagination button,
+.list-page-jump, .list-page-jump input { display: inline-flex !important; align-items: center !important; justify-content: center !important; text-align: center !important; }
+@media (max-width: 760px) {
+  body[data-daily-report-tracking] .daily-tracking-columns,
+  body[data-attendance-tracking] #attendanceTrackingGroups { grid-template-columns: minmax(0, 1fr) !important; }
+  body[data-daily-report-tracking] .tracking-date-card { grid-template-columns: minmax(0, 1fr) auto; }
+  .tracking-date-card #trackingToday { grid-column: 1 / -1; justify-self: end; }
+  .tracking-date-parts { gap: 8px; }
+  body[data-attendance-tracking] .attendance-date-picker { grid-template-columns: minmax(0, 1fr) 70px; gap: 8px; }
+  .tracking-date-parts select { padding-left: 5px !important; padding-right: 22px !important; font-size: 13px !important; }
+}
+.rating-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.rating-charts[hidden] { display: none; }
+.rating-chart-card h2 { margin: 0 0 18px; font-size: 20px; }
+.rating-chart-card > p { margin: 16px 0 0; color: #8a7b67; font-size: 13px; line-height: 1.6; }
+.rating-chart-body { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 24px; }
+.rating-donut { display: grid; place-items: center; width: min(100%, 190px); aspect-ratio: 1; border-radius: 50%; justify-self: center; }
+.rating-donut > div { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 70%; height: 70%; border-radius: 50%; background: #fffaf3; }
+.rating-donut strong { font-size: clamp(16px, 1.7vw, 28px); }
+.rating-donut span { margin-top: 6px; color: #8a7b67; font-size: 13px; }
+.rating-chart-legend { display: grid; gap: 12px; }
+.rating-chart-legend > div { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: center; gap: 10px; text-align: right; white-space: nowrap; font-size: 14px; }
+.rating-chart-legend > div > :first-child { text-align: left; }
+.rating-chart-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
+.rating-legend-head { color: #8a7b67; }
+@media (max-width: 1100px) { .rating-charts { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 430px) { .rating-chart-body { grid-template-columns: minmax(0, 1fr); gap: 18px; } .rating-donut { width: 160px; } .rating-donut strong { font-size: 24px; } }
+.side-footer { background: transparent !important; }
+body[data-attendance-tracking] .table-scroll,
+body[data-daily-report-tracking] .table-scroll { height: auto !important; max-height: none !important; overflow-x: auto !important; overflow-y: hidden !important; }
+body[data-retail-product-management] .retail-product-table { width: max-content !important; min-width: 100% !important; table-layout: auto !important; }
+body[data-retail-product-management] .retail-product-status-button { display: inline-flex !important; justify-content: center !important; align-items: center !important; min-width: 96px !important; width: auto !important; padding: 0 14px !important; white-space: nowrap; }
+@media (max-width: 700px) {
+  .side-nav > a span:last-child,
+  .side-menu-group > summary span:last-of-type,
+  .mobile-account-menu > summary span:last-child { display: inline !important; }
+  .side-nav > a, .side-menu-group > summary, .mobile-account-menu > summary { padding: 0 8px !important; font-size: 12px !important; }
+  .mobile-account-menu > summary { background: transparent !important; color: #e9dfd0 !important; }
+}
+.mobile-account-menu { background: #2f2921 !important; box-shadow: none !important; }
+.rating-page-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 6px; background: #eee1cd; border-radius: 14px; }
+.rating-page-tabs a { display: flex; justify-content: center; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 9px; color: #79592d; background: #fffaf3; text-decoration: none; font-weight: 700; }
+.rating-page-tabs a.active { color: #fffaf3; background: #86652f; }
+
+/* Queue sizes are confined to the top review menu and its four entries. */
+.side-project-bar .web-review-badge, #compactNavigationPopover .web-review-badge {
+  flex: none; display: inline-flex !important; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px;
+  border: 2px solid #fffaf3; border-radius: 12px; background: #ce3b32 !important; color: #fff !important;
+  font: 700 11px/1 system-ui, sans-serif; white-space: nowrap; vertical-align: middle;
+}
+.side-project-bar .web-review-badge[hidden], #compactNavigationPopover .web-review-badge[hidden] { display: none !important; }
+[data-menu="review"] > nav a, #compactNavigationPopover[data-source-menu="review"] a { display: flex !important; align-items: center; justify-content: space-between; }
+.side-project-bar .web-review-badge[data-review-badge="total"] { min-width: 8px; width: 8px; height: 8px; padding: 0; margin-left: 3px; border: 0; font-size: 0; }
+.side-project-bar .web-review-badge[data-review-badge="total"][data-retry="true"] { width: 14px; height: 14px; font-size: 10px; }

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>产品查询</title><link rel="stylesheet" href="styles.css?v=0.15.44"><link rel="stylesheet" href="list-row-numbers.css?v=1.0.0"></head>
+<body data-product-query>
+<aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
+<header class="topbar"><h1>产品查询</h1><div class="status"><span></span>总部权限</div></header>
+<main class="product-query-main">
+<section class="panel"><div class="panel-heading"><h2>查询条件</h2></div>
+<form id="productQueryForm" class="product-query-filters">
+<label>门店<select id="productQueryStore"><option value="">全部门店</option></select></label>
+<label>产品<select id="productQueryProduct"><option value="">全部产品</option></select></label>
+<label>来源<select id="productQuerySource"><option value="">全部来源</option><option value="PURCHASE">产品购买</option><option value="GIFT">充值赠送</option></select></label>
+<label>审核状态<select id="productQueryStatus"><option value="">全部状态</option><option value="PENDING">待审核</option><option value="APPROVED">审核通过</option><option value="REJECTED">已驳回</option></select></label>
+<label>客户姓名<input id="productQueryCustomer" placeholder="输入姓名，支持模糊查询" maxlength="100"></label>
+<label>工单号<input id="productQueryCode" placeholder="产品购买单号或充值单号"></label>
+<label>时间范围<select id="productQueryTime"><option value="TODAY">今天</option><option value="ALL">全部时间</option><option value="CUSTOM">自定义日期</option></select></label>
+<div id="productQueryDates" class="product-query-dates" hidden></div>
+<div class="product-query-actions"><button id="productQuerySearch" type="submit">查询产品</button><button id="productQueryReset" class="secondary-button" type="button">重置查询</button></div>
+</form></section>
+<section class="panel table-card"><div class="panel-heading"><h2>产品结果</h2><span id="productQueryCount" class="badge">共 0 条</span></div><p id="productQueryMessage" role="status" aria-live="polite"></p>
+<div class="table-scroll"><table><thead><tr><th>工单号</th><th>来源</th><th>客户</th><th>年龄</th><th>门店</th><th>产品</th><th>数量</th><th>老师</th><th>提交时间（北京）</th><th>审核状态</th></tr></thead><tbody id="productQueryBody"></tbody></table></div>
+<div class="record-query-pager" aria-label="产品结果分页"><button id="productQueryPrev" type="button">上一页</button><span id="productQueryPage" aria-live="polite">第 1 / 1 页</span><button id="productQueryNext" type="button">下一页</button><label class="record-page-jump">跳至第 <input id="productQueryJump" type="number" min="1" step="1" inputmode="numeric" value="1" aria-label="跳转到第几页"> 页</label><button id="productQueryGo" type="button">跳转</button></div></section>
+</main>
+<dialog id="productQueryDetail"><div class="panel-heading"><h2>产品工单</h2><button id="productQueryClose" class="secondary-button" type="button">关闭</button></div><dl id="productQueryDetailContent" class="product-query-detail"></dl></dialog>
+<script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.10"></script><script src="datetime.js?v=0.1.2"></script><script src="customer-age.js?v=1.0.0"></script><script src="auth-ui.js?v=0.21.8"></script><script src="product-query.js?v=1.0.0"></script><script src="list-row-numbers.js?v=1.0.1"></script>
+</body></html>

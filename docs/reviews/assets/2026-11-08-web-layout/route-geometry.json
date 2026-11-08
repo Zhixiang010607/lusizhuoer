@@ -1,0 +1,2402 @@
+[
+  {
+    "route": "index.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 1024
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 9,
+    "width": 1024
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 1024
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 1024
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 10,
+    "width": 1024
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 1,
+    "width": 1024
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 14,
+    "width": 1024
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 2,
+    "width": 1024
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 2,
+    "width": 1024
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 2,
+    "width": 1024
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 2,
+    "width": 1024
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1024
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1024
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1024
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 1024
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 29,
+    "width": 1024
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 18,
+    "width": 1024
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 11,
+    "width": 1024
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 1024
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 1024,
+      "height": 768
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 1024
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 7,
+    "width": 1440
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 10,
+    "width": 1440
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 1440
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 1440
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 11,
+    "width": 1440
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 2,
+    "width": 1440
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 15,
+    "width": 1440
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1440
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1440
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1440
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 1440
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 4,
+    "width": 1440
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 4,
+    "width": 1440
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 4,
+    "width": 1440
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 1440
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 30,
+    "width": 1440
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 19,
+    "width": 1440
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 12,
+    "width": 1440
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 1440
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 1440
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 7,
+    "width": 2874
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 10,
+    "width": 2874
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 2874
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 2874
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 11,
+    "width": 2874
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 2,
+    "width": 2874
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 15,
+    "width": 2874
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 2874
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 2874
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 2874
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 3,
+    "width": 2874
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 4,
+    "width": 2874
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 4,
+    "width": 2874
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 4,
+    "width": 2874
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 5,
+    "width": 2874
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 30,
+    "width": 2874
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 19,
+    "width": 2874
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 12,
+    "width": 2874
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 2874
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 2874,
+      "height": 1644
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "visibleButtons": 6,
+    "width": 2874
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 320,
+      "height": 740
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 320
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 390
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 430,
+      "height": 932
+    },
+    "gutters": [
+      12,
+      12
+    ],
+    "overflow": 0,
+    "width": 430
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 768,
+      "height": 1024
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 768
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 834,
+      "height": 1194
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 834
+  },
+  {
+    "route": "index.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "customer-query.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "recharge-query.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "verification-query.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "product-query.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "project-management.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "retail-product-management.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "store-management.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "teacher-management.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "hq-management.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "training-materials.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "recharge-review.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "refund-review.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "verification-review.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "product-purchase-review.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "attendance-tracking.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "daily-report-tracking.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "rating-analysis.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "inactive-customers.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  },
+  {
+    "route": "low-balance-customers.html",
+    "size": {
+      "width": 1280,
+      "height": 800
+    },
+    "gutters": [
+      24,
+      24
+    ],
+    "overflow": 0,
+    "width": 1280
+  }
+]

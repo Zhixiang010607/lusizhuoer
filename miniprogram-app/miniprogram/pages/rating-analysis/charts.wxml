@@ -1,0 +1,52 @@
+<view class="page refined-query">
+  <view class="page-heading"><text class="eyebrow">RATING ANALYSIS</text><text class="title">评价图表</text><text class="subtitle">查看全部评分分布与评价覆盖率</text></view>
+
+  <view class="rating-page-tabs"><button class="{{chartsOnly ? '' : 'selected'}}" data-view="query" bindtap="openRatingPage">评价查询</button><button class="{{chartsOnly ? 'selected' : ''}}" data-view="charts" bindtap="openRatingPage">评价图表</button></view>
+  <view class="card search-card">
+    <view class="card-title"><text>查询条件</text><button class="rules-toggle" bindtap="toggleRules" aria-expanded="{{rulesExpanded}}"><text>规则说明</text><text>{{rulesExpanded ? '−' : '＋'}}</text></button></view>
+    <view class="query-grid">
+      <label wx:if="{{session.role === 'hq'}}" class="field"><text class="field-label">门店</text><picker range="{{storeLabels}}" value="{{storeIndex}}" bindchange="chooseStore" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{storeLabels[storeIndex]}}</text></view></picker></label>
+      <label class="field"><text class="field-label">项目</text><picker range="{{productLabels}}" value="{{productIndex}}" bindchange="chooseProduct" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{productLabels[productIndex]}}</text></view></picker></label>
+      <label class="field"><text class="field-label">老师</text><picker range="{{teacherLabels}}" value="{{teacherIndex}}" bindchange="chooseTeacher" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{teacherLabels[teacherIndex]}}</text></view></picker></label>
+      <label class="field"><text class="field-label">时间范围</text><picker range="{{timeLabels}}" value="{{timeIndex}}" bindchange="chooseTime" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{timeLabels[timeIndex]}}</text></view></picker></label>
+      <label wx:if="{{customRange}}" class="field"><text class="field-label">开始日期</text><picker mode="date" value="{{startDate}}" end="{{today}}" bindchange="changeStart" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{startDate || '请选择'}}</text></view></picker></label>
+      <label wx:if="{{customRange}}" class="field"><text class="field-label">结束日期</text><picker mode="date" value="{{endDate}}" end="{{today}}" bindchange="changeEnd" disabled="{{loading || exporting}}"><view class="picker"><text class="picker-value">{{endDate || '请选择'}}</text></view></picker></label>
+    </view>
+    <view class="button-row rating-search-actions"><button class="primary" bindtap="search" loading="{{loading}}" disabled="{{loading || exporting}}">查看图表</button></view>
+  </view>
+
+  <view wx:if="{{searched}}" class="chart-grid">
+    <view class="card chart-card {{summary.total >= 1000000 ? 'large-counts' : ''}}">
+      <view class="card-title"><text>1–5 分分布</text><text class="badge">共 {{summary.rated}} 单</text></view>
+      <view class="chart-body">
+        <view class="pie-chart">
+          <view wx:for="{{summary.scoreSlices}}" wx:key="key" class="pie-slice" style="{{item.sliceStyle}}"><view class="pie-slice-fill" style="{{item.fillStyle}}"></view></view>
+          <view class="pie-center"><text class="pie-total">{{summary.rated}}</text><text class="pie-label">已评价</text></view>
+        </view>
+        <view class="chart-legend">
+          <view class="legend-head"><text>评分</text><text>数量</text><text>占比</text></view>
+          <view wx:for="{{summary.scoreLegend}}" wx:key="score" class="legend-row"><view class="legend-key"><view class="legend-key-content"><text class="legend-dot" style="background: {{item.color}}"></text><text class="legend-label">{{item.label}}</text></view></view><text class="legend-count">{{item.count}}</text><text class="legend-value">{{item.percentage}}</text></view>
+        </view>
+      </view>
+      <text class="chart-note">仅统计当前条件下已评价工单；0 分未评价不进入本图。</text>
+    </view>
+    <view class="card chart-card {{summary.total >= 1000000 ? 'large-counts' : ''}}">
+      <view class="card-title"><text>评价覆盖率</text><text class="badge">{{summary.rated}} / {{summary.total}}</text></view>
+      <view class="chart-body coverage-body">
+        <view class="pie-chart">
+          <view wx:for="{{summary.coverageSlices}}" wx:key="key" class="pie-slice" style="{{item.sliceStyle}}"><view class="pie-slice-fill" style="{{item.fillStyle}}"></view></view>
+          <view class="pie-center"><text class="pie-total">{{summary.coveragePercent}}</text><text class="pie-label">评价覆盖率</text></view>
+        </view>
+        <view class="chart-legend">
+          <view class="legend-head"><text>状态</text><text>数量</text><text>占比</text></view>
+          <view wx:for="{{summary.coverageLegend}}" wx:key="label" class="legend-row"><view class="legend-key"><view class="legend-key-content"><text class="legend-dot" style="background: {{item.color}}"></text><text class="legend-label">{{item.label}}</text></view></view><text class="legend-count">{{item.count}}</text><text class="legend-value">{{item.percentage}}</text></view>
+        </view>
+      </view>
+      <text class="chart-note">按当前门店、项目、老师和时间范围统计全部可评价工单。</text>
+    </view>
+  </view>
+
+  <view wx:if="{{!searched}}" class="empty">选择条件后查看全部评分图表</view>
+  <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+  <view class="safe-bottom"></view>
+</view>

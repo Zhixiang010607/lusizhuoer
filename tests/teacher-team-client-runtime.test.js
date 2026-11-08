@@ -10,8 +10,8 @@ function harness(role="teacher",enabled=true){
     if(action==="getTeamTeacherEntitlements")return{entitlements:[]};if(action==="getTeamTeacherWorkMonth")return{serverToday:"2026-11-06",teacher:{employmentStartDate:"2026-01-01"},attendance:[],reports:[]};throw new Error("Unexpected actor route "+action);},async callFace(action,payload){calls.push({action,payload});assert.equal(action,"getTeamTeacherWorkspace");return{profile:{teacherId:"7"},page:{records:[],page:1,total:0,totalPages:1},summary:{products:[],totals:{}}};}};
   api.callRating=async(action,payload)=>{calls.push({action,payload});if(!enabled)throw Object.assign(new Error("组长已取消"),{code:"FORBIDDEN"});if(action==='getTeamRatingAnalysisOptions')return{stores:[],products:[{id:'1',name:'样例项目'}],teachers:[{id:'7',name:'成员'}]};if(action==='queryTeamRatingAnalysis')return{orders:[{id:'1',customerCode:'QA-C',customerName:'组内客户',effectiveScore:4}],summary:{total:1,rated:1,scoreCounts:[0,0,0,0,1,0]},total:1,totalPages:1,pageNumber:1};throw Error('Unexpected rating action '+action);};
   const helperContext={module:{exports:{}},require:id=>id==="./api"?api:session};vm.runInNewContext(read("services/teacher-team.js"),helperContext);
-  const wx={navigateTo:value=>navigation.push(value.url),setNavigationBarTitle(){},getStorageSync(){},stopPullDownRefresh(){},showToast(){},nextTick(){},showModal(o){o.success({confirm:true});}};
-  function dependencies(id){if(id.endsWith("/api"))return api;if(id.endsWith("/session"))return session;if(id.endsWith("/teacher-team"))return helperContext.module.exports;if(id.endsWith("/teacher-experience-recharge"))return{};return require(path.join(mini,"services",path.basename(id)));}
+  const wx={navigateTo:value=>navigation.push(value.url),redirectTo:value=>navigation.push(value.url),setNavigationBarTitle(){},getStorageSync(){},stopPullDownRefresh(){},showToast(){},nextTick(){},showModal(o){o.success({confirm:true});}};
+  function dependencies(id){if(id==="./rating-page"){const module={exports:{}};vm.runInNewContext(read("pages/rating-analysis/rating-page.js"),{module,require:dependencies,wx,console,Date,Math,Map,Set,setTimeout,clearTimeout,decodeURIComponent,encodeURIComponent});return module.exports;}if(id.endsWith("/api"))return api;if(id.endsWith("/session"))return session;if(id.endsWith("/teacher-team"))return helperContext.module.exports;if(id.endsWith("/teacher-experience-recharge"))return{};return require(path.join(mini,"services",path.basename(id)));}
   return {calls,navigation,helper:helperContext.module.exports,setEnabled:value=>{enabled=value;},page(file){vm.runInNewContext(read(file),{Page:v=>{definition=v;},require:dependencies,wx,console,Date,Math,Map,Set,setTimeout,clearTimeout,decodeURIComponent,encodeURIComponent});const page={...definition,data:JSON.parse(JSON.stringify(definition.data)),setData(patch,done){Object.assign(this.data,patch);done?.();}};return page;},component(){vm.runInNewContext(read("components/teacher-workspace/index.js"),{Component:v=>{definition=v;},require:dependencies,wx,console});return{...definition.methods,data:{...JSON.parse(JSON.stringify(definition.data)),teacherId:"7",viewerMode:"TEAM"},_ready:true,setData(patch,done){Object.assign(this.data,patch);done?.();}};}};
 }
 test("group capability requires both teacher session and current server permission",async()=>{
@@ -46,7 +46,7 @@ test("member directory rejects invalid page input and preserves the scoped searc
 });
 
 test("leader rating page uses dedicated read routes and never opens customer, order or exports",async()=>{
-  const h=harness(),p=h.page("pages/rating-analysis/index.js");await p.onLoad({scope:"TEAM"});await p.load();assert.equal(p.data.orders.length,1);
+  const h=harness(),p=h.page("pages/rating-analysis/index.js");await p.onLoad({scope:"TEAM"});p.setData({selectedScores:[4]});await p.load();assert.equal(p.data.orders.length,1);
   p.openCustomer({currentTarget:{dataset:{code:"QA-C"}}});p.openOrder({currentTarget:{dataset:{id:"1"}}});await p.exportAll();
   assert.equal(h.navigation.length,0);assert.ok(h.calls.every(c=>["getTeamAccess","getTeamRatingAnalysisOptions","queryTeamRatingAnalysis"].includes(c.action)));
   h.setEnabled(false);await p.load();assert.equal(p.data.orders.length,0);assert.equal(p.data.summary.total,0);assert.equal(p.data.error,true);
@@ -57,4 +57,11 @@ test("ordinary teacher cannot enter rating analysis via a forged group URL",asyn
 test("activity, balance and rating share exactly the same UID-derived customer scope module",()=>{
   const a=fs.readFileSync(path.resolve(__dirname,'../cloudfunctions/faceRecognition/teacher-team.js'),'utf8');
   const b=fs.readFileSync(path.resolve(__dirname,'../cloudfunctions/customerRating/teacher-team.js'),'utf8');assert.equal(a,b);
+});
+
+test("rating query starts unselected while charts use all scores and preserve the team scope",async()=>{
+ const h=harness(),query=h.page("pages/rating-analysis/index.js");await query.onLoad({scope:"TEAM"});assert.equal(query.data.selectedScores.length,0);const before=h.calls.length;query.search();assert.equal(h.calls.length,before);assert.match(query.data.message,/请至少选择一个评分/);
+ query.toggleScore({currentTarget:{dataset:{score:4}}});query.toggleScore({currentTarget:{dataset:{score:4}}});assert.equal(query.data.selectedScores.length,0);
+ query.openRatingPage({currentTarget:{dataset:{view:"charts"}}});assert.equal(h.navigation.at(-1),"/pages/rating-analysis/charts?scope=TEAM");
+ const charts=h.page("pages/rating-analysis/charts.js");await charts.onLoad({scope:"TEAM"});await charts.load();assert.equal(charts.data.chartsOnly,true);assert.deepEqual(Array.from(h.calls.at(-1).payload.scores),[0,1,2,3,4,5]);assert.equal(charts.data.summary.coveragePercent,"100.0%");
 });

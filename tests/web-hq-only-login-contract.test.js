@@ -18,7 +18,7 @@ test("production Web login accepts HQ accounts only", () => {
   assert.match(login, /await closeUnauthorizedWebSession\(\)/);
   assert.match(login, /CloudBasePhoneAuth\?\.signOut/);
   assert.match(login, /clearWorkspaceSession\(\)/);
-  assert.match(html, /login\.js\?v=0\.17\.6/);
+  assert.match(html, /login\.js\?v=0\.17\.7/);
   assert.doesNotMatch(html, /验证码登录|id="smsLoginMode"|id="loginSmsCode"|id="sendSmsCode"/);
   assert.doesNotMatch(login, /loginMode|refreshSmsButton|\$\("sendSmsCode"\)/);
   assert.match(login, /signInWithPassword\(phone, password\)/);

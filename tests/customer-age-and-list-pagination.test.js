@@ -67,7 +67,7 @@ test("Mini result lists show a page-local sequence, ten full rows and only horiz
     assert.match(wxml, /上一页/); assert.match(wxml, /下一页/); assert.match(wxml, /跳转/);
   }
   for (const page of ["customers", "records", "reviews", "home", "store-detail", "inactive-customers", "low-balance-customers", "rating-analysis"]) {
-    assert.match(read(`miniprogram-app/miniprogram/pages/${page}/index.js`), /const PAGE_SIZE = 10;/, page);
+    assert.match(read(`miniprogram-app/miniprogram/pages/${page}/${page === "rating-analysis" ? "rating-page" : "index"}.js`), /const PAGE_SIZE = 10;/, page);
   }
 });
 

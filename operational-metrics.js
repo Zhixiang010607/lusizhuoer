@@ -13,9 +13,10 @@
     { value: "CUSTOM", label: "自定义日期" }
   ]);
   const type = document.body.dataset.operationMetric;
+  const chartsOnly = type === "rating" && document.body.dataset.ratingView === "charts";
   const $ = (id) => document.getElementById(id);
   const state = {
-    stores: [], products: [], teachers: [], scores: new Set([0, 1, 2, 3, 4, 5]),
+    stores: [], products: [], teachers: [], scores: new Set(),
     loading: false, searched: false, total: 0, summary: {}, ratingPage: 1, ratingPages: 1,
     ratingRows: [], categories: {
       ZERO: { page: 1, pages: 1, total: 0, rows: [], cursors: [null] },
@@ -183,14 +184,14 @@
       const today = businessToday();
       const teacherOptions = `<option value="">全部老师</option><option value="NONE">未指定老师</option>${state.teachers.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.label || row.name)}</option>`).join("")}`;
       const periodOptions = RATING_TIME_OPTIONS.map((item) => `<option value="${item.value}" ${item.value === "TODAY" ? "selected" : ""}>${item.label}</option>`).join("");
-      $("operationsFilters").innerHTML = `<label>门店范围<select id="operationsStore">${optionMarkup(state.stores, "全部门店")}</select></label><label>项目范围<select id="operationsProduct">${optionMarkup(state.products, "全部项目")}</select></label><label>老师范围<select id="operationsTeacher">${teacherOptions}</select></label><label>时间范围<select id="operationsPeriod">${periodOptions}</select></label><div data-rating-custom-date hidden>${chineseDateMarkup("operationsStart", "开始日期", today)}</div><div data-rating-custom-date hidden>${chineseDateMarkup("operationsEnd", "结束日期", today)}</div>${standardActions()}<div class="operations-score-filter" aria-label="最低评分">${[0, 1, 2, 3, 4, 5].map((score) => `<button class="active" type="button" data-score="${score}">${score === 0 ? "0 未评价" : `${score} 分`}</button>`).join("")}</div>`;
+      $("operationsFilters").innerHTML = `<label>门店范围<select id="operationsStore">${optionMarkup(state.stores, "全部门店")}</select></label><label>项目范围<select id="operationsProduct">${optionMarkup(state.products, "全部项目")}</select></label><label>老师范围<select id="operationsTeacher">${teacherOptions}</select></label><label>时间范围<select id="operationsPeriod">${periodOptions}</select></label><div data-rating-custom-date hidden>${chineseDateMarkup("operationsStart", "开始日期", today)}</div><div data-rating-custom-date hidden>${chineseDateMarkup("operationsEnd", "结束日期", today)}</div>${standardActions()}<div class="operations-score-filter" aria-label="最低评分">${[0, 1, 2, 3, 4, 5].map((score) => `<button type="button" data-score="${score}">${score === 0 ? "0 未评价" : `${score} 分`}</button>`).join("")}</div>`;
       $("operationsRules").textContent = "查询允许选择 0–5 分；0 分只代表未评价。评分分布只统计已评价的 1–5 分，未评价只进入评价覆盖率。";
+      if (chartsOnly) { document.querySelector(".operations-score-filter")?.remove(); $("operationsSearch").textContent = "查看图表"; }
       bindChineseDate("operationsStart");
       bindChineseDate("operationsEnd");
       $("operationsPeriod").addEventListener("change", (event) => { applyRatingPeriod(event.target.value); clearResults(); });
       document.querySelectorAll("[data-score]").forEach((button) => button.addEventListener("click", () => {
         const score = Number(button.dataset.score);
-        if (state.scores.has(score) && state.scores.size === 1) { setMessage("至少保留一个评分条件", "error"); return; }
         if (state.scores.has(score)) state.scores.delete(score); else state.scores.add(score);
         button.classList.toggle("active", state.scores.has(score));
         clearResults();
@@ -206,8 +207,10 @@
     state.categories.ZERO = { page: 1, pages: 1, total: 0, rows: [], cursors: [null] };
     state.categories.NONZERO = { page: 1, pages: 1, total: 0, rows: [], cursors: [null] };
     $("operationsSummary").hidden = true;
-    $("operationsResults").innerHTML = '<div class="operations-empty">填写条件后开始查询</div>';
-    $("operationsExport").disabled = true; $("operationsPrint").disabled = true;
+    if ($("operationsCharts")) $("operationsCharts").hidden = true;
+    if ($("operationsResults")) $("operationsResults").innerHTML = '<div class="operations-empty">填写条件后开始查询</div>';
+    if ($("operationsExport")) $("operationsExport").disabled = true;
+    if ($("operationsPrint")) $("operationsPrint").disabled = true;
     setMessage();
   }
 
@@ -244,7 +247,7 @@
     if ((!startDate && endDate) || (startDate && !endDate)) throw new Error("开始日期和结束日期必须同时填写");
     if (startDate > endDate) throw new Error("开始日期不能晚于结束日期");
     if (startDate && (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 > 366) throw new Error("自定义时间范围不能超过 366 天");
-    const payload = { pageNumber: page, pageSize, startDate, endDate, scores: [...state.scores].sort() };
+    const payload = { pageNumber: page, pageSize, startDate, endDate, scores: chartsOnly ? [0, 1, 2, 3, 4, 5] : [...state.scores].sort() };
     for (const [id, key] of [["operationsStore", "storeId"], ["operationsProduct", "productId"], ["operationsTeacher", "teacherId"]]) {
       const value = clean($(id)?.value); if (value) payload[key] = value;
     }
@@ -255,6 +258,7 @@
     if (state.loading) return;
     try {
       if (type !== "rating") validateThreshold();
+      if (type === "rating" && !chartsOnly && !state.scores.size) throw new Error("请至少选择一个评分");
       setBusy(true, type === "rating" ? "正在读取评价工单…" : "正在读取客户…");
       if (type === "rating") await loadRating(1); else await loadBoth();
     } catch (error) {
@@ -315,7 +319,8 @@
     state.ratingPages = Math.max(1, Number(result.totalPages || 1));
     state.total = Number(result.total || 0); state.summary = result.summary || {};
     state.searched = true;
-    renderSummary(); renderRatingResults(); enableExports(); setMessage(`查询完成，共 ${state.total} 单`);
+    renderSummary(); renderRatingResults(); enableExports();
+    setMessage(chartsOnly ? `图表已更新，共 ${Number(state.summary.total || 0)} 单` : `查询完成，共 ${state.total} 单`);
   }
 
   function renderSummary() {
@@ -328,6 +333,7 @@
     }
     $("operationsSummary").innerHTML = values.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? 0)}</strong></article>`).join("");
     $("operationsSummary").hidden = false;
+    if (chartsOnly) window.RatingCharts.render($("operationsCharts"), state.summary);
   }
 
   function customerLink(row) {
@@ -353,11 +359,12 @@
   }
 
   function renderRatingResults() {
+    if (chartsOnly) return;
     const body = state.ratingRows.map((row) => {
       const id = clean(row.id); const code = clean(row.recordCode); const category = clean(row.verificationType || "NORMAL").toUpperCase();
       const order = id ? `<a href="verification-detail.html?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}&category=${encodeURIComponent(category)}">${escapeHtml(code || "—")}</a>` : escapeHtml(code || "—");
       const score = Number(row.effectiveScore || 0);
-      return `<tr><td>${order}</td><td>${customerLink(row)}</td><td>${escapeHtml(row.storeName || "—")}</td><td>${escapeHtml(row.productName || "—")}</td><td>${escapeHtml(row.teacherName || "未指定")}</td><td>${escapeHtml(row.serviceTime || "—")}</td><td>${score ? `${score} 分` : "未评价"}</td><td>${score ? `${Number(row.storeEnvironmentScore || 0)} 分` : "—"}</td><td>${score && row.teacherName ? `${Number(row.teacherServiceScore || 0)} 分` : "—"}</td><td>${score ? `${Number(row.overallExperienceScore || 0)} 分` : "—"}</td></tr>`;
+      return `<tr><td>${order}</td><td>${customerLink(row)}</td><td>${escapeHtml(row.storeName || "—")}</td><td>${escapeHtml(row.productName || "—")}</td><td>${escapeHtml(row.teacherName || "未指定")}</td><td>${escapeHtml(row.serviceTime || "—")}</td><td>${score ? `${score} 分` : "未评价"}</td><td>${score ? `${Number(row.storeEnvironmentScore || 0)} 分` : "—"}</td><td>${score && row.teacherServiceScore != null ? `${Number(row.teacherServiceScore || 0)} 分` : "—"}</td><td>${score ? `${Number(row.overallExperienceScore || 0)} 分` : "—"}</td></tr>`;
     }).join("");
     const bucket = { page: state.ratingPage, pages: state.ratingPages };
     $("operationsResults").innerHTML = body ? `<div class="operations-table-scroll"><table class="operations-table"><thead><tr><th>工单号</th><th>客户</th><th>门店</th><th>项目</th><th>老师</th><th>服务时间</th><th>最低分</th><th>门店环境</th><th>老师服务</th><th>整体体验</th></tr></thead><tbody>${body}</tbody></table></div>${pager("RATING", bucket)}` : '<div class="operations-empty">当前条件下没有匹配工单</div>';
@@ -380,6 +387,7 @@
   }
 
   function enableExports() {
+    if (chartsOnly) return;
     const enabled = state.total > 0 && state.total <= EXPORT_LIMIT;
     $("operationsExport").disabled = !enabled; $("operationsPrint").disabled = !enabled;
     if (state.total > EXPORT_LIMIT) setMessage(`当前结果超过 ${EXPORT_LIMIT} 条，请缩小查询范围后导出`, "error");
@@ -392,9 +400,9 @@
   }
 
   function exportColumns() {
-    if (type === "inactive") return [["customerName", "客户"], ["storeName", "门店"], ["daysSince", "间隔天数"], ["baselineSource", "计算起点"], ["baselineAt", "上次核销"]];
+    if (type === "inactive") return [["customerName", "客户"], ["storeName", "门店"], ["daysSince", "间隔天数"], ["baselineAt", "上次核销日期（北京）", "date"]];
     if (type === "balance") return [["customerName", "客户"], ["storeName", "门店"], ["productName", "项目"], ["purchasedCount", "购入次数"], ["consumedCount", "已使用"], ["remainingCount", "剩余次数"]];
-    return [["recordCode", "工单号"], ["customerName", "客户"], ["storeName", "门店"], ["productName", "项目"], ["teacherName", "老师"], ["serviceTime", "服务时间"], ["effectiveScore", "最低分"], ["storeEnvironmentScore", "门店环境"], ["teacherServiceScore", "老师服务"], ["overallExperienceScore", "整体体验"]];
+    return [["recordCode", "工单号"], ["customerName", "客户"], ["storeName", "门店"], ["productName", "项目"], ["teacherName", "老师"], ["serviceTime", "服务日期（北京）", "date"], ["effectiveScore", "最低分"], ["storeEnvironmentScore", "门店环境"], ["teacherServiceScore", "老师服务"], ["overallExperienceScore", "整体体验"]];
   }
 
   async function exportRows(format) {
@@ -404,14 +412,14 @@
       const rows = await allRows();
       if (rows.length !== state.total) throw new Error("完整结果数量已变化，请重新查询后导出");
       const columns = exportColumns();
-      if (format === "csv") {
-        const quote = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-        const csv = [columns.map(([, label]) => quote(label)).join(","), ...rows.map((row) => columns.map(([key]) => quote(row[key])).join(","))].join("\r\n");
-        const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" })); link.download = `${document.title}-${businessToday()}.csv`; link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      const exportData = type === "inactive" ? rows.map(row => ({ ...row, baselineAt: String(row.baselineSource).toUpperCase() === "CUSTOMER_CREATED" ? "从未核销" : row.baselineAt })) : rows;
+      const displayValue = (row, key, kind) => kind === "date" ? row[key] === "从未核销" ? row[key] : window.WebReportExport.beijingDate(row[key]) : row[key];
+      if (format === "excel") {
+        window.WebReportExport.download(columns, exportData, `${document.title}-${businessToday()}`);
       } else {
         const printWindow = window.open("", "_blank");
         if (!printWindow) throw new Error("浏览器阻止了打印窗口，请允许弹出窗口后重试");
-        printWindow.document.write(`<meta charset="utf-8"><title>${escapeHtml(document.title)}</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:24px;color:#302a22}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #d8c5a3;text-align:center}th{background:#f4e7d0}h1{font-size:24px}</style><h1>${escapeHtml(document.title)}</h1><p>导出日期：${businessToday()} · 共 ${rows.length} 条</p><table><thead><tr>${columns.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${columns.map(([key]) => `<td>${escapeHtml(row[key] ?? "—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+        printWindow.document.write(`<meta charset="utf-8"><title>${escapeHtml(document.title)}</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:24px;color:#302a22}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #d8c5a3;text-align:center}th{background:#f4e7d0}h1{font-size:24px}</style><h1>${escapeHtml(document.title)}</h1><p>导出日期：${businessToday()} · 共 ${rows.length} 条</p><table><thead><tr>${columns.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr></thead><tbody>${exportData.map((row) => `<tr>${columns.map(([key,,kind]) => `<td>${escapeHtml(displayValue(row, key, kind) ?? "—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
         printWindow.document.close(); printWindow.focus(); printWindow.print();
       }
       setMessage(`已准备 ${rows.length} 条完整结果`);
@@ -420,16 +428,16 @@
   }
 
   function reset() {
-    if (type === "rating") state.scores = new Set([0, 1, 2, 3, 4, 5]);
+    if (type === "rating") state.scores = new Set();
     renderFilters(); clearResults();
   }
 
   $("operationsRulesToggle").addEventListener("click", () => { $("operationsRules").hidden = !$("operationsRules").hidden; });
-  $("operationsExport").addEventListener("click", () => exportRows("csv"));
-  $("operationsPrint").addEventListener("click", () => exportRows("print"));
+  $("operationsExport")?.addEventListener("click", () => exportRows("excel"));
+  $("operationsPrint")?.addEventListener("click", () => exportRows("print"));
 
   (async () => {
-    $("operationsResults").innerHTML = '<div class="operations-empty">正在读取查询选项…</div>';
+    if ($("operationsResults")) $("operationsResults").innerHTML = '<div class="operations-empty">正在读取查询选项…</div>';
     try {
       if (type === "rating") {
         const options = await callRating("getRatingAnalysisOptions");

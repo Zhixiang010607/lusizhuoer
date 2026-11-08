@@ -29,9 +29,9 @@ const dashboard = read("app.js");
 
 test("Web uses the warm tablet visual language without importing Mini Program source", () => {
   for (const color of ["#f3ede2", "#fffaf3", "#6f532e", "#a98243", "#302a22", "#2f2921"]) assert.match(theme, new RegExp(color, "i"));
-  assert.match(theme, /width: min\(1120px/);
+  assert.match(theme, /width: calc\(100% - 48px\)/);
   assert.match(theme, /\.side-project-bar[\s\S]*position: sticky/);
-  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.13/);
+  assert.match(auth, /web-tablet-parity\.css\?v=1\.0\.15/);
   assert.match(theme, /button, \.button-link,[\s\S]{0,220}min-height: 44px !important;[\s\S]{0,220}text-align: center !important;/);
   assert.doesNotMatch(`${theme}\n${auth}`, /miniprogram-app|\.wxss|\.wxml/);
   assert.match(context, /网页版也采用同一套平板横屏视觉与功能信息架构/);
@@ -39,8 +39,8 @@ test("Web uses the warm tablet visual language without importing Mini Program so
 });
 
 test("public login and rating pages load the current tablet stylesheet", () => {
-  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.13/);
-  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.13/);
+  assert.match(login, /web-tablet-parity\.css\?v=1\.0\.15/);
+  assert.match(rating, /web-tablet-parity\.css\?v=1\.0\.15/);
   assert.match(theme, /body\.login-page \.password-field button[\s\S]{0,220}min-height: 32px !important;[\s\S]{0,220}transform: translateY\(-50%\)/);
   assert.match(theme, /body\.login-page \.login-shell[\s\S]{0,160}width: min\(590px, calc\(100% - 32px\)\) !important;[\s\S]{0,120}max-width: 590px !important;/);
   assert.match(theme, /@media \(max-width: 600px\)[\s\S]*body\.login-page \.login-shell[\s\S]{0,120}width: 100% !important;/);
@@ -131,9 +131,10 @@ test("every Web selection group keeps neutral choices white and highlights only 
 test("every review menu receives the shared horizontal navigation layout", () => {
   assert.match(read("product-purchase-review.html"), /<details class="side-menu-group" data-menu="review"/);
   assert.match(auth, /reviewMenu\.classList\.add\("side-menu-group"\)/);
-  assert.match(auth, /href="recharge-review\.html">充值审核<\/a>[\s\S]*href="verification-review\.html">核销审核<\/a>[\s\S]*href="product-purchase-review\.html">产品购买审核<\/a>/);
-  assert.match(auth, /page === "recharge-review\.html" \|\| page === "refund-review\.html"/);
-  assert.doesNotMatch(auth, /href="refund-review\.html">退费审核<\/a>/);
+  for (const [route, label, kind] of [["product-purchase-review.html", "产品审核", "purchase"], ["recharge-review.html", "充值审核", "recharge"], ["refund-review.html", "退费审核", "refund"], ["verification-review.html", "核销审核", "verification"]]) {
+    assert.ok(auth.includes(JSON.stringify([route, label, kind]).replaceAll(',', ', ')));
+  }
+  assert.match(auth, /data-review-badge="total"/);
   assert.match(read("recharge-review.html"), /class="review-switches"[\s\S]*class="review-type-tabs"[\s\S]*class="review-query-mode"/);
   assert.match(theme, /\.review-switches \{[\s\S]{0,220}grid-template-columns: repeat\(2, minmax\(220px, 1fr\)\) !important;/);
   assert.match(theme, /\.side-menu-group > nav a:hover:not\(\.active\)[\s\S]{0,140}background: #f4e7d0 !important;/);

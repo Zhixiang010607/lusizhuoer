@@ -1,0 +1,35 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Web 隔离展示验收</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0}iframe{display:block}</style></head><body><iframe id="preview" title="隔离展示" sandbox="allow-scripts allow-same-origin allow-forms"></iframe><script>
+(async()=>{
+ if(!['localhost','127.0.0.1'].includes(location.hostname))return;
+ const params=new URLSearchParams(location.search),route=params.get('route')||'product-query.html';
+ const allowed=['product-query.html','attendance-tracking.html','daily-report-tracking.html','rating-analysis.html','rating-charts.html','inactive-customers.html','low-balance-customers.html','project-management.html','retail-product-management.html','store-management.html','teacher-management.html','hq-management.html','training-materials.html','index.html','customer-query.html','recharge-query.html','verification-query.html','recharge-review.html','refund-review.html','verification-review.html','product-purchase-review.html'];
+ if(!allowed.includes(route))return;
+ const doc=new DOMParser().parseFromString(await(await fetch('/'+route,{cache:'no-store'})).text(),'text/html');doc.querySelectorAll('script').forEach(s=>s.remove());
+ const base=doc.createElement('base');base.href=location.origin+'/';doc.head.prepend(base);
+ const css=doc.createElement('link');css.rel='stylesheet';css.href='/web-tablet-parity.css?audit='+Date.now();doc.head.append(css);
+ doc.documentElement.dataset.authReady='true';
+ const add=(text,src=false)=>{const s=doc.createElement('script');if(src)s.src=text+'?audit='+Date.now();else s.textContent=text;doc.body.append(s);};
+ const stub=`
+ const today='2026-11-08';
+ const allRows=Array.from({length:21},(_,i)=>({id:String(i+1),record_id:String(i+1),record_code:(i%2?'RC':'PP')+String(i+1).padStart(i%2?12:14,'0'),source_type:i%2?'GIFT':'PURCHASE',customer_name:'样例客户'+(i+1),customer_code:'QA'+(i+1),birth_date:'1990-01-01',store_id:'1',store_name:'样例门店',product_name_snapshot:i%2?'医用面膜':'新增产品类目',unit_count:i+1,teacher_name:'样例老师',record_status:'APPROVED',submitted_at:'2026-11-07T18:30:00Z',message:'合成测试留言',review_note:''}));
+ const people=Array.from({length:21},(_,i)=>({teacherId:String(i+1),teacherName:'样例老师'+(i+1),phone:'仅作排版验证',completed:true,reportId:String(i+1),updatedAt:'2026-11-08T01:02:03Z',clockIn:{id:'qa-'+(i+1),checkedInAt:'2026-11-08T01:02:03Z',placeName:'合成测试地点',formattedAddress:'仅用于隔离排版',latitude:23,longitude:113},clockOut:{id:'qa-out-'+(i+1),checkedInAt:'2026-11-08T09:02:03Z',latitude:23,longitude:113},workDurationSeconds:28800}));
+ window.CloudBasePhoneAuth={getPendingReviewCounts:async()=>({counts:{purchase:3,recharge:21,refund:2,verification:4},total:30,revision:"fixture"}),listStores:async()=>[{id:'1',store_name:'样例门店'}],listProducts:async()=>[],listRetailProducts:async()=>Array.from({length:21},(_,i)=>({id:String(i+1),product_code:'QA'+i,product_name:'样例产品'+(i+1),product_status:'ACTIVE'})),queryRetailProductRecords:async(p)=>{const filtered=allRows.filter(r=>(!p.sourceType||r.source_type===p.sourceType)&&(!p.customerName||r.customer_name.includes(p.customerName))); const page=Math.min(p.pageNumber,Math.max(1,Math.ceil(filtered.length/10)));return{orders:filtered.slice((page-1)*10,page*10),total:filtered.length,pageNumber:page,totalPages:Math.max(1,Math.ceil(filtered.length/10)),stores:[{id:'1',store_name:'样例门店'}],products:[{productId:'1',productName:'医用面膜',productStatus:'ACTIVE'},{productId:'2',productName:'新增产品类目',productStatus:'ARCHIVED'}]};}};
+ window.CloudBaseAuthConfig={}; window.registerFunctions=()=>{};window.registerAuth=()=>{};
+ window.cloudbase={init:()=>({callFunction:async({name,data})=>name==='customerRating'?{result:{success:true,data:data.action==='getRatingAnalysisOptions'?{stores:[],products:[],teachers:[]}:{orders:[],total:0,totalPages:1,pageNumber:1,summary:{total:100,rated:75,unrated:25,scoreCounts:[25,5,10,15,20,25]}}}}:{result:{ok:true,serverToday:today,attendanceDate:today,reportDate:today,completed:people,incomplete:people.slice(0,3).map(r=>({...r,completed:false})),clockInOnly:people.slice(0,2).map(r=>({...r,clockOut:null})),clockOutOnly:[],missing:[],teacher:people[0],report:{reportDate:today,updatedAt:'2026-11-08T01:02:03Z',completedWork:'这是合成日报内容，不连接生产数据库。'}}}})};
+ `;
+ add(stub);
+ add((await(await fetch('/web-review-notifications.js')).text()).replace('const s = JSON.parse(sessionStorage.getItem("prototypeSession") || "null");', 'const s = {role:"hq",account:"isolated-ui-qa"};'));
+ // Execute the real navigation shell with a fixture-only identity, not persisted credentials.
+ const auth=(await(await fetch('/auth-ui.js')).text()).replace('const page = location.pathname.split("/").pop() || "index.html";', 'const page = '+JSON.stringify(route)+';').replace('const isLocalPreview = ["127.0.0.1", "localhost"].includes(location.hostname);', 'const isLocalPreview = true;').replace('session = JSON.parse(sessionStorage.getItem("prototypeSession") || "null")','session = {role:"hq",account:"isolated-ui-qa",name:"隔离展示"}');add(auth.replace(/    const notificationsScript = document.createElement\("script"\);[\s\S]*?document.body.append\(notificationsScript\);/, '    window.WebReviewNotifications.start();'));
+ if(route==='product-query.html'){add('/datetime.js',true);add('/customer-age.js',true);add('/product-query.js',true);add((await(await fetch('/list-row-numbers.js')).text()).replace('const route = location.pathname.split("/").pop();','const route = '+JSON.stringify(route)+';'));}
+ if(route==='retail-product-management.html'){add('/retail-product-management.js',true);add((await(await fetch('/list-row-numbers.js')).text()).replace('const route = location.pathname.split("/").pop();','const route = '+JSON.stringify(route)+';'));}
+ if(['attendance-tracking.html','daily-report-tracking.html'].includes(route)){
+  add('/web-work-common.js',true);add('/tracking-ui.js',true);
+  // Suppress fixture URL rewrites only; production request and rendering code is intact.
+  add((await(await fetch('/'+route.replace('.html','.js'))).text()).replaceAll('history.replaceState','(() => {})'));
+ }
+ if(['rating-analysis.html','rating-charts.html','inactive-customers.html','low-balance-customers.html'].includes(route)){add('/datetime.js',true);add('/web-report-export.js',true);add('/rating-charts.js',true);add('/operational-metrics.js',true);add((await(await fetch('/list-row-numbers.js')).text()).replace('const route = location.pathname.split("/").pop();','const route = '+JSON.stringify(route)+';'));}
+ if(route==='index.html')doc.getElementById('rankingBody').innerHTML='<tr><td>第 1 名</td><td>样例门店</td><td>门店</td><td>12</td><td>8</td><td>3</td><td>0</td><td>100%</td></tr>';
+ document.getElementById('preview').srcdoc='<!doctype html>'+doc.documentElement.outerHTML;
+})();
+</script></body></html>

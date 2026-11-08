@@ -3,7 +3,7 @@
   if (!document.querySelector('link[data-web-tablet-parity]')) {
     const parityStyles = document.createElement("link");
     parityStyles.rel = "stylesheet";
-    parityStyles.href = "web-tablet-parity.css?v=1.0.13";
+    parityStyles.href = "web-tablet-parity.css?v=1.0.15";
     parityStyles.dataset.webTabletParity = "true";
     document.head.append(parityStyles);
   }
@@ -15,7 +15,7 @@
   const homes = { hq: "index.html", store: "store-detail.html", teacher: "teacher-work-orders.html" };
   const labels = { hq: "总部工作区", store: "门店工作区", teacher: "老师工作区" };
   const access = {
-    hq: new Set(["index.html", "inactive-customers.html", "low-balance-customers.html", "rating-analysis.html", "daily-report-tracking.html", "attendance-tracking.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "training-materials.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
+    hq: new Set(["index.html", "inactive-customers.html", "low-balance-customers.html", "rating-analysis.html", "rating-charts.html", "daily-report-tracking.html", "attendance-tracking.html", "change-password.html", "store-create.html", "project-create.html", "retail-product-create.html", "teacher-create.html", "hq-account-create.html", "hq-management.html", "store-management.html", "project-management.html", "retail-product-management.html", "teacher-management.html", "training-materials.html", "staff-detail.html", "store-detail.html", "store-analysis.html", "project-detail.html", "teacher-detail.html", "customer-detail.html", "customer-query.html", "recharge-query.html", "verification-query.html", "product-query.html", "recharge-detail.html", "verification-detail.html", "recharge-review.html", "refund-review.html", "product-purchase-review.html", "verification-review.html"]),
     store: new Set(["store-detail.html", "store-analysis.html", "change-password.html", "customer-detail.html", "customer-query.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "recharge-query.html", "verification-query.html", "recharge-detail.html", "verification-detail.html"]),
     teacher: new Set(["teacher-work-orders.html", "work-calendar.html", "attendance.html", "daily-report.html", "change-password.html", "teacher-work-order-detail.html", "customer-detail.html", "recharge-detail.html", "verification-detail.html", "customer-create.html", "recharge-create.html", "product-purchase-create.html", "refund-create.html", "verification-create.html", "verification-experience.html", "teacher-verification-create.html", "teacher-verification-experience.html", "teacher-recharge-create.html", "teacher-refund-create.html"])
   };
@@ -108,8 +108,8 @@
     const teacherWorkNav = session.role === "teacher"
       ? `<a class="${page === "work-calendar.html" ? "active" : ""}" href="work-calendar.html"><span class="nav-icon">历</span><span>工作月历</span></a><a class="${page === "daily-report.html" ? "active" : ""}" href="daily-report.html"><span class="nav-icon">日</span><span>工作日报</span></a><a class="${page === "attendance.html" ? "active" : ""}" href="attendance.html"><span class="nav-icon">勤</span><span>考勤打卡</span></a>`
       : "";
-    const homeActive = !["work-calendar.html", "daily-report.html", "attendance.html"].includes(page);
-    primaryNav.innerHTML = `<a class="${homeActive ? "active" : ""}" href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>${teacherWorkNav}`;
+    const homeActive = page === homes[session.role];
+    primaryNav.innerHTML = `<a class="${homeActive ? "active" : ""}" ${homeActive ? 'aria-current="page"' : ""} href="${homeUrl}"><span class="nav-icon">${navIcon}</span><span>${navLabel}</span></a>${teacherWorkNav}`;
     if (session.role === "store") {
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => { group.hidden = true; });
       const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["product-purchase-create.html", "产品购买"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"]];
@@ -120,7 +120,7 @@
       const businessLinks = [["customer-create.html", "客户建立"], ["recharge-create.html", "办卡充值"], ["product-purchase-create.html", "产品购买"], ["refund-create.html", "退费申请"], ["verification-create.html", "核销办理"], ["verification-experience.html", "体验核销"]];
       primaryNav.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="teacher-business"><summary><span class="nav-icon">办</span><span>业务办理</span></summary><nav>${businessLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     } else {
-      const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"]];
+      const queryLinks = [["customer-query.html", "客户查询"], ["recharge-query.html", "充值查询"], ["verification-query.html", "核销查询"], ["product-query.html", "产品查询"]];
       document.querySelectorAll(".side-project-bar > .side-menu-group").forEach((group) => {
         group.hidden = true;
       });
@@ -130,7 +130,7 @@
       });
       const managementLinks = [["project-management.html", "项目管理"], ["retail-product-management.html", "产品管理"], ["store-management.html", "门店管理"], ["teacher-management.html", "老师管理"], ["training-materials.html", "培训学习"], ["hq-management.html", "总部管理"]];
       const operationLinks = [["inactive-customers.html", "活跃预警"], ["low-balance-customers.html", "余次预警"], ["rating-analysis.html", "评价分析"], ["daily-report-tracking.html", "日报追踪"], ["attendance-tracking.html", "打卡追踪"]];
-      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-operations"><summary><span class="nav-icon">运</span><span>运营</span></summary><nav>${operationLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
+      document.querySelector('[data-menu="shared-query"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-operations"><summary><span class="nav-icon">运</span><span>运营</span></summary><nav>${operationLinks.map(([href, text]) => `<a class="${page === href || (href === "rating-analysis.html" && page === "rating-charts.html") ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
       document.querySelector('[data-menu="hq-operations"]')?.insertAdjacentHTML("afterend", `<details class="side-menu-group" open data-menu="hq-management"><summary><span class="nav-icon">管</span><span>管理</span></summary><nav>${managementLinks.map(([href, text]) => `<a class="${page === href ? "active" : ""}" href="${href}">${text}</a>`).join("")}</nav></details>`);
     }
   }
@@ -144,8 +144,9 @@
     }
     if (reviewMenu) {
       reviewMenu.classList.add("side-menu-group");
-      const rechargeFamilyActive = page === "recharge-review.html" || page === "refund-review.html";
-      reviewMenu.querySelector("nav").innerHTML = `<a class="${rechargeFamilyActive ? "active" : ""}" ${rechargeFamilyActive ? 'aria-current="page"' : ""} href="recharge-review.html">充值审核</a><a class="${page === "verification-review.html" ? "active" : ""}" ${page === "verification-review.html" ? 'aria-current="page"' : ""} href="verification-review.html">核销审核</a><a class="${page === "product-purchase-review.html" ? "active" : ""}" ${page === "product-purchase-review.html" ? 'aria-current="page"' : ""} href="product-purchase-review.html">产品购买审核</a>`;
+      const reviewLinks = [["product-purchase-review.html", "产品审核", "purchase"], ["recharge-review.html", "充值审核", "recharge"], ["refund-review.html", "退费审核", "refund"], ["verification-review.html", "核销审核", "verification"]];
+      reviewMenu.querySelector("nav").innerHTML = reviewLinks.map(([href, label, kind]) => `<a class="${page === href ? "active" : ""}" ${page === href ? 'aria-current="page"' : ""} href="${href}">${label}<em class="web-review-badge" data-review-badge="${kind}" hidden></em></a>`).join("");
+      reviewMenu.querySelector("summary")?.insertAdjacentHTML("beforeend", '<em class="web-review-badge" data-review-badge="total" hidden></em>');
       reviewMenu.hidden = false;
       reviewMenu.open = true;
     }
@@ -353,6 +354,13 @@
       if (document.visibilityState === "visible") verifyLiveIdentity({ force: true });
     });
     verifyLiveIdentity();
+  }
+
+  if (session.role === "hq") {
+    const notificationsScript = document.createElement("script");
+    notificationsScript.src = "web-review-notifications.js?v=1.0.0";
+    notificationsScript.onload = () => window.WebReviewNotifications?.start();
+    document.body.append(notificationsScript);
   }
 
   const logoutButtons = [$("logoutWorkspace"), $("logoutWorkspaceMobile")].filter(Boolean);

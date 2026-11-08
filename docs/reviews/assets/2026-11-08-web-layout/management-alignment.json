@@ -1,0 +1,596 @@
+[
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "project-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增项目"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "retail-product-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "上一页"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "下一页"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "跳转"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "store-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "查询"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增门店"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "teacher-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "查询"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增老师"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "hq-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "按条件搜索"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增总部人员"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "training-materials.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 46,
+        "text": "上传并发布"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 46,
+        "text": "搜索"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "project-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增项目"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "retail-product-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "上一页"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "下一页"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "跳转"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "store-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "查询"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增门店"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "teacher-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "查询"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增老师"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "hq-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "按条件搜索"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增总部人员"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "training-materials.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 46,
+        "text": "上传并发布"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 46,
+        "text": "搜索"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "project-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.1,
+        "height": 44,
+        "text": "退出登录"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增项目"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "retail-product-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.1,
+        "height": 44,
+        "text": "退出登录"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "封存产品"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "上一页"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "下一页"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "跳转"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "store-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.1,
+        "height": 44,
+        "text": "退出登录"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "查询"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增门店"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "teacher-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.1,
+        "height": 44,
+        "text": "退出登录"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "查询"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增老师"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "hq-management.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.1,
+        "height": 44,
+        "text": "退出登录"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "按条件搜索"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 44,
+        "text": "新增总部人员"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "training-materials.html",
+    "buttons": [
+      {
+        "dx": 0,
+        "dy": -0.1,
+        "height": 44,
+        "text": "退出登录"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 46,
+        "text": "上传并发布"
+      },
+      {
+        "dx": 0,
+        "dy": -0.2,
+        "height": 46,
+        "text": "搜索"
+      }
+    ]
+  }
+]

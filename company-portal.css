@@ -73,3 +73,11 @@ body.company-portal .login-form label, body.company-portal .login-options a { fo
   .public-project-hero img { width: 200px; justify-self: start; }
   body.company-portal .login-form-panel { padding: 24px 20px; }
 }
+
+/* Desktop service copy uses the available line before wrapping a final word. */
+@media (min-width: 1101px) {
+  body.company-portal .company-content { padding-inline: clamp(28px, 3vw, 64px); }
+  .company-section[data-company-section="services"] { max-width: 1200px; }
+  .company-section[data-company-section="services"] .company-facts { grid-template-columns: minmax(0, 1fr); }
+  .company-section[data-company-section="services"] .company-facts dd p { font-size: clamp(16px, 1.2vw, 18px); text-wrap: pretty; }
+}

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>广州露思卓儿科技有限公司</title><link rel="stylesheet" href="styles.css?v=0.15.59"><link rel="stylesheet" href="web-tablet-parity.css?v=1.0.13" data-web-tablet-parity><link rel="stylesheet" href="company-portal.css?v=1.0.1"><link rel="stylesheet" href="company-mobile.css?v=1.0.0"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>广州露思卓儿科技有限公司</title><link rel="stylesheet" href="styles.css?v=0.15.59"><link rel="stylesheet" href="web-tablet-parity.css?v=1.0.15" data-web-tablet-parity><link rel="stylesheet" href="company-portal.css?v=1.0.2"><link rel="stylesheet" href="company-mobile.css?v=1.0.0"><link rel="stylesheet" href="web-login.css?v=1.0.0"></head>
 <body class="login-page company-portal company-phone-enabled">
   <aside class="company-sidebar">
     <a class="company-brand" href="#overview"><span class="company-brand-art"><img src="assets/company-brand-bg-v4.jpg" alt="露思卓儿标志"></span><strong>露思卓儿</strong></a>
@@ -8,10 +8,9 @@
       <a href="#overview" data-company-nav="overview" aria-current="page">公司介绍</a>
       <a href="#about" data-company-nav="about">我们是谁</a>
       <a href="#values" data-company-nav="values">品牌理念</a>
-      <a href="#services" data-company-nav="services">我们在做的事</a>
+      <a href="#services" data-company-nav="services">服务体系</a>
       <a href="#partners" data-company-nav="partners">与谁同行</a>
       <a href="#projects" data-company-nav="projects">项目介绍</a>
-      <a href="#login" data-company-nav="login">账号登录</a>
     </nav>
   </aside>
   <div class="company-content">
@@ -39,7 +38,7 @@
       <h2>五维核心价值观</h2><dl class="company-facts"><div><dt>向阳而生</dt><dd>以自强立根，以成长为翼</dd></div><div><dt>真诚致远</dt><dd>以真心换信任，以纯粹赢长久</dd></div><div><dt>坚韧笃行</dt><dd>以拼搏为姿，以坚持为魂</dd></div><div><dt>大爱利他</dt><dd>怀感恩之心，以行动传爱</dd></div><div><dt>守正创新</dt><dd>以文化为基，以科技赋能</dd></div></dl>
     </section>
     <section class="company-section" data-company-section="services" hidden>
-      <h1>我们在做的事</h1><h2 class="company-balanced-title"><span>从清晰正确的方向开始，</span><span>把每一次服务做好</span></h2>
+      <h1><span class="company-desktop-only">服务体系</span><span class="company-mobile-only">我们在做的事</span></h1><h2 class="company-balanced-title"><span>从清晰正确的方向开始，</span><span>把每一次服务做好</span></h2>
       <dl class="company-facts"><div><dt>项目体系</dt><dd><p>王牌品项一｜《魔法柔肤》仪：无创科技调肤，90分钟，焕现肌肤白、透、亮、润、紧。</p><p>王牌品项二｜《海洋之蕴》三维精雕：分层对抗肌肤衰老，作用胶原、肌肉、筋膜，提拉收紧，重塑年轻轮廓。</p><p>王牌品项三｜《露思康辰》E脉通：专注身体痛症调理、体温管理，调理身体亚健康。</p></dd></div><div><dt>门店支持</dt><dd>免费帮门店搭建专属科美事业部，赋能美容师，专业从容地解决客户的美与亚健康需求。</dd></div><div><dt>长期陪伴</dt><dd>在持续沟通与真实服务中共同成长，让专业沉淀成稳定、值得信赖的体验。</dd></div></dl>
     </section>
     <section class="company-section" data-company-section="partners" hidden>
@@ -55,18 +54,20 @@
       <div class="company-mobile-only company-phone-brand"><strong>露思卓儿</strong><span>广州露思卓儿科技有限公司</span></div>
     </section>
   <main class="login-shell" data-company-section="login" hidden>
+    <a class="web-login-back" href="#overview">‹ 返回公司主页</a>
+    <div class="web-login-brand"><span class="web-login-emblem"><img src="assets/company-brand-bg-v4.jpg" alt=""></span><strong>露思卓儿</strong></div>
     <section class="login-form-panel">
       <div class="login-form-wrap">
-        <div id="loginWelcomeHeading" class="login-heading"><span class="login-system-mark">HQ</span><h2>登录</h2></div>
+        <div id="loginWelcomeHeading" class="web-login-heading"><h2>内部账号登录</h2><p>登录账号，开始今天的工作</p></div>
         <form id="loginForm" class="login-form" novalidate>
           <label>手机号<input id="loginPhone" autocomplete="tel" inputmode="numeric" maxlength="11" placeholder="请输入中国大陆手机号" required></label>
           <label id="passwordLoginField">登录密码<span class="password-field"><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入登录密码"><button id="togglePassword" type="button" aria-label="显示密码">显示</button></span></label>
           <div class="login-options"><label><input id="rememberAccount" type="checkbox">记住账号</label><a href="#" id="forgotPassword">修改密码</a></div>
           <p id="loginError" class="login-error" role="alert"></p>
-          <button class="login-submit" type="submit">登录系统</button>
+          <button class="login-submit" type="submit">登录</button>
         </form>
         <form id="passwordResetForm" class="login-form" novalidate hidden>
-          <div class="login-heading"><span class="login-system-mark">HQ</span><h2>修改密码</h2></div>
+          <div class="login-heading"><h2>修改密码</h2></div>
           <label>手机号<input id="resetPhone" autocomplete="tel" inputmode="numeric" maxlength="11" placeholder="请输入中国大陆手机号" required></label>
           <label>短信验证码<span class="password-field"><input id="resetSmsCode" inputmode="numeric" maxlength="6" placeholder="请输入验证码" required><button id="sendResetSms" type="button">获取验证码</button></span></label>
           <label>新密码<input id="resetNewPassword" type="password" minlength="8" maxlength="32" autocomplete="new-password" placeholder="至少 8 位，含三类字符" required></label>
@@ -79,7 +80,8 @@
     </section>
   </main>
   </div>
-  <script src="company-portal.js?v=1.1.0"></script>
-  <script src="company-mobile.js?v=1.0.0"></script>
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.8"></script><script src="login.js?v=0.17.6"></script>
+  <script src="company-portal.js?v=1.1.1"></script>
+  <script src="company-mobile.js?v=1.0.1"></script>
+  <script src="web-login-presentation.js?v=1.0.0"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.10"></script><script src="login.js?v=0.17.7"></script>
 </body></html>

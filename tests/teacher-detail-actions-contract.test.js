@@ -75,11 +75,11 @@ for (const file of ["query.js", "management.js", "detail.js"]) {
     `${file} must no longer point users to the retired mock teacher page`);
 }
 
-assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.8/,
+assert.match(staffDetailHtml, /cloudbase-phone-auth\.js\?v=0\.20\.10/,
   "teacher home must refresh the shared cloud-function client");
 assert.match(staffDetailHtml, /staff-detail\.js\?v=0\.15\.18/,
   "teacher home must refresh its action handlers");
-assert.match(staffDetailHtml, /web-tablet-parity\.css\?v=1\.0\.13" data-web-tablet-parity/,
+assert.match(staffDetailHtml, /web-tablet-parity\.css\?v=1\.0\.15" data-web-tablet-parity/,
   "teacher home must load the compact iPad-parity layer before the shared navigation script");
 assert.match(teacherCreateHtml, /teacher-create\.js\?v=0\.6\.0/,
   "teacher creation must refresh the attendance-enrollment UI");

@@ -784,10 +784,15 @@
         : data.orders || [];
     },
     async reviewOrder({ recordType, recordId, decision, note }) {
-      return callStaffAccount(
+      const data = await callStaffAccount(
         { action: "reviewOrder", recordType, recordId, decision, note },
         "工单审核失败"
       );
+      window.dispatchEvent(new Event("workspace-review-completed"));
+      return data;
+    },
+    async getPendingReviewCounts() {
+      return callStaffAccount({ action: "getPendingReviewCounts" }, "待审核数量读取失败");
     },
     async listRetailProductPurchaseReviews({ purchaseCode = "", storeId = "", status = "", limit = 100, pageNumber = 1 } = {}) {
       const data = await callStaffAccount(
@@ -796,11 +801,20 @@
       );
       return { ...data, orders: data.orders || [], stores: data.stores || [] };
     },
-    async reviewRetailProductPurchase({ recordId, decision, note }) {
+    // Query all product sources without changing the purchase-only review call above.
+    async queryRetailProductRecords({ storeId = "", retailProductId = "", sourceType = "", status = "", customerName = "", birthDate = "", startDate = "", endDate = "", recordCode = "", pageNumber = 1 } = {}) {
       return callStaffAccount(
+        { action: "listRetailProductPurchaseReviews", storeId, retailProductId, sourceType, status, customerName, birthDate, startDate, endDate, recordCode, limit: 10, pageNumber },
+        "产品查询失败"
+      );
+    },
+    async reviewRetailProductPurchase({ recordId, decision, note }) {
+      const data = await callStaffAccount(
         { action: "reviewRetailProductPurchase", recordId, decision, note },
         "产品购买单审核失败"
       );
+      window.dispatchEvent(new Event("workspace-review-completed"));
+      return data;
     },
     smsCooldownRemaining(phone) { return cooldownRemaining(phone); }
   };

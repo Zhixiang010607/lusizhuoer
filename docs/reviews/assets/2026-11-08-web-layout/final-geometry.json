@@ -1,0 +1,365 @@
+[
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "project-management.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "retail-product-management.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "store-management.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "teacher-management.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "hq-management.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "training-materials.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "rating-analysis.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "rating-charts.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "attendance-tracking.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "daily-report-tracking.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "route": "product-query.html",
+    "width": 390,
+    "scrollWidth": 390,
+    "left": 12,
+    "right": 378
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "project-management.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "retail-product-management.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "store-management.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "teacher-management.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "hq-management.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "training-materials.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "rating-analysis.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "rating-charts.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "attendance-tracking.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "daily-report-tracking.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 834,
+      "height": 1112
+    },
+    "route": "product-query.html",
+    "width": 834,
+    "scrollWidth": 834,
+    "left": 24,
+    "right": 810
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "project-management.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "retail-product-management.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "store-management.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "teacher-management.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "hq-management.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "training-materials.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "rating-analysis.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "rating-charts.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "attendance-tracking.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "daily-report-tracking.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  },
+  {
+    "size": {
+      "width": 1440,
+      "height": 1000
+    },
+    "route": "product-query.html",
+    "width": 1440,
+    "scrollWidth": 1440,
+    "left": 24,
+    "right": 1416
+  }
+]

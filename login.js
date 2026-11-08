@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.17.6";
+  const VERSION = "0.17.7";
   const SMS_BRAND = "露思卓儿";
   const WEB_HQ_ONLY_ERROR = "网页版仅允许总部账号登录；老师和门店账号请使用微信小程序。";
   const $ = (id) => document.getElementById(id);
@@ -91,6 +91,7 @@
     const visible = $("loginPassword").type === "text";
     $("loginPassword").type = visible ? "password" : "text";
     $("togglePassword").textContent = visible ? "显示" : "隐藏";
+    $("togglePassword").setAttribute("aria-label", visible ? "显示密码" : "隐藏密码");
   });
   $("forgotPassword").addEventListener("click", (event) => {
     event.preventDefault();
@@ -152,7 +153,7 @@
       return;
     }
     try {
-      setError(); setBusy(submit, true, "登录系统");
+      setError(); setBusy(submit, true, "登录");
       const identity = await window.CloudBasePhoneAuth.signInWithPassword(phone, password);
       if (bootstrapMode) await window.CloudBasePhoneAuth.bootstrapHq();
       const staff = await window.CloudBasePhoneAuth.getStaffSession();
@@ -166,7 +167,7 @@
       enterWorkspace(activeSession);
     } catch (error) {
       setError(error.message || "登录失败，请检查手机号和密码");
-    } finally { setBusy(submit, false, "登录系统"); }
+    } finally { setBusy(submit, false, "登录"); }
   });
   document.documentElement.dataset.prototypeVersion = VERSION;
   window.setInterval(refreshResetSmsButton, 1000);

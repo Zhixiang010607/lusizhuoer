@@ -41,7 +41,8 @@ test('public company navigation changes presentation only and handles hashes/bac
   for(const id of [...ids,'unknown']){location.hash='#'+id;handler();assert.deepEqual(sections.filter(s=>!s.hidden).map(s=>s.dataset.companySection),[ids.includes(id)?id:'overview']);}
   location.hash='';location.search='?reason=登录';handler();assert.equal(sections[6].hidden,false);
   location.search='?mode=reset';handler();assert.equal(sections[6].hidden,false);
-  const html=read('login.html');for(const id of ids)assert.ok(html.includes(`data-company-nav="${id}"`));
+  const html=read('login.html');for(const id of ids.slice(0,6))assert.ok(html.includes(`data-company-nav="${id}"`));
+  assert.doesNotMatch(html,/data-company-nav="login"/); assert.match(html,/class="company-login-link" href="#login"/);
   assert.match(html,/10000\+/);assert.match(html,/300000\+/);
   assert.doesNotMatch(read('company-portal.js'),/CloudBase|fetch\(|localStorage|sessionStorage/);
   // Older cached HTML keeps its original single-section behavior during rollout.

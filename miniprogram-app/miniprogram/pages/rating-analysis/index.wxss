@@ -140,3 +140,15 @@
   .chart-card.large-counts .legend-head > text { padding-right: 6px; padding-left: 6px; font-size: 16px; }
   .chart-card.large-counts .legend-row > .legend-key, .chart-card.large-counts .legend-row > .legend-count, .chart-card.large-counts .legend-row > .legend-value { padding-right: 6px; padding-left: 6px; font-size: 14px; }
 }
+
+.rating-page-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin-bottom: 20rpx; padding: 10rpx; background: #eee1cd; border-radius: 20rpx; }
+.rating-page-tabs button { display: flex; align-items: center; justify-content: center; height: 80rpx; min-height: 80rpx; padding: 0 16rpx; border: 0; border-radius: 14rpx; background: #fffaf3; color: #79592d; line-height: 1; font-size: 28rpx; }
+.rating-page-tabs button.selected { background: #86652f; color: #fffaf3; }
+@media (min-width: 700px) { .rating-page-tabs { gap: 12px; margin-bottom: 18px; padding: 6px; border-radius: 14px; } .rating-page-tabs button { height: 44px; min-height: 44px; padding: 0 18px; border-radius: 9px; font-size: 15px; } }
+/* Override the shared tablet button cap inside this two-column switch. */
+.rating-page-tabs button { box-sizing: border-box; width: 100% !important; max-width: none !important; min-width: 0 !important; margin: 0 !important; }
+.page .search-card > .rating-search-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; width: 100%; max-width: none; margin: 0; }
+.rating-search-actions button { grid-column: -2 / -1; width: 100% !important; max-width: none !important; margin: 0 !important; }
+@media (min-width: 700px) {
+  .page .search-card > .rating-search-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+}

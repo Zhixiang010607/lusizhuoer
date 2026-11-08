@@ -227,7 +227,7 @@ test("all three marketing pages export complete PDF and Excel reports rather tha
     assert.match(wxml, /disabled="\{\{loading \|\| exporting \|\| total <= 0\}\}"/);
   }
 
-  const ratingJs = read("pages", "rating-analysis", "index.js");
+  const ratingJs = read("pages", "rating-analysis", "rating-page.js");
   const ratingWxml = read("pages", "rating-analysis", "index.wxml");
   assert.match(ratingJs, /callRating\("queryRatingAnalysis", \{ \.\.\.this\.payload\(1, EXPORT_BATCH_SIZE\), exportAll: true \}\)/);
   assert.match(ratingJs, /rows\.length !== expectedTotal/);

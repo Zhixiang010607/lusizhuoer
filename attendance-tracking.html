@@ -12,7 +12,7 @@
   <aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>打卡追踪</small></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
   <header class="topbar"><div><p class="eyebrow">ATTENDANCE TRACKING</p><h1>打卡追踪</h1><p class="subtitle">按日期查看在职老师完整、单次和未打卡情况。</p></div><div class="status"><span></span>总部只读</div></header>
   <main class="attendance-tracking-main">
-    <section class="panel"><div class="attendance-date-picker"><input id="trackingAttendanceDate" type="hidden" data-chinese-date aria-label="选择追踪日期"><button id="trackingAttendanceConfirm" type="button">确认日期</button></div><p id="attendanceTrackingMessage" class="form-message" role="status" aria-live="polite"></p></section>
+    <section class="panel"><div class="attendance-date-picker"><input id="trackingAttendanceDate" type="hidden"><div id="attendanceTrackingDateParts" class="tracking-date-parts" aria-label="选择追踪日期"></div><button id="trackingAttendanceConfirm" type="button">确认</button></div><p id="attendanceTrackingMessage" class="form-message" role="status" aria-live="polite"></p></section>
     <section class="panel"><div class="panel-heading"><div><h2 id="attendanceTrackingTitle">正在读取…</h2><p>只有上下班两次均完成才计算工作时长。</p></div></div><div id="attendanceTrackingSummary" class="tracking-summary"></div></section>
     <div id="attendanceTrackingGroups"></div>
   </main>
@@ -21,9 +21,10 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
   <script src="cloudbase-auth-config.js"></script>
-<script src="auth-ui.js?v=0.21.5"></script>
+<script src="auth-ui.js?v=0.21.8"></script>
   <script src="web-work-common.js?v=1.0.0"></script>
   <script src="attendance-photo.js?v=1.0.0"></script>
-  <script src="attendance-tracking.js?v=1.0.2"></script>
+  <script src="tracking-ui.js?v=1.0.0"></script>
+  <script src="attendance-tracking.js?v=1.0.3"></script>
 </body>
 </html>

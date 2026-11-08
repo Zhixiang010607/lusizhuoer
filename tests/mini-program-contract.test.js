@@ -31,7 +31,7 @@ const subpackagePages = (app.subPackages || []).flatMap((subpackage) =>
 const registeredPages = [...app.pages, ...subpackagePages];
 assert.deepEqual([...registeredPages].sort(), [
   ...expectedPages.map((page) => `pages/${page}/index`),
-  "packages/report-font/index"
+  "packages/report-font/index", "pages/rating-analysis/charts"
 ].sort(),
   "the complete isolated mini-program page inventory must remain registered");
 assert.equal(new Set((app.subPackages || []).map(({ root: packageRoot }) => packageRoot)).size,

@@ -46,6 +46,7 @@ const ROLE_MATRIX = Object.freeze({
   "pages/inactive-customers/index": ["hq", "store"],
   "pages/low-balance-customers/index": ["hq", "store"],
   "pages/rating-analysis/index": ["hq", "store"],
+  "pages/rating-analysis/charts": ["hq", "store"],
   "pages/records/index": ["hq", "store"],
   "pages/customer-detail/index": ["hq", "store", "teacher"],
   "pages/order-detail/index": ["hq", "store", "teacher"],
@@ -55,6 +56,11 @@ const ROLE_MATRIX = Object.freeze({
   "pages/product-purchase-detail/index": ["hq"],
   "pages/verification/index": ["store", "teacher"]
 });
+
+function pageSource(route) {
+  const source = read(`${route}.js`);
+  return route.startsWith("pages/rating-analysis/") ? source + read("pages/rating-analysis/rating-page.js") : source;
+}
 
 function boundHandlers(wxml) {
   return [...wxml.matchAll(/\b(?:bind|catch)(?::?[a-zA-Z-]+)\s*=\s*"([A-Za-z_$][\w$]*)"/g)]
@@ -88,7 +94,7 @@ test("every registered page and reusable component wires each visible interactio
     const jsPath = `${target}.js`;
     const wxmlPath = `${target}.wxml`;
     if (!fs.existsSync(jsPath) || !fs.existsSync(wxmlPath)) continue;
-    const source = fs.readFileSync(jsPath, "utf8");
+    const source = target.includes(`${path.sep}pages${path.sep}rating-analysis${path.sep}`) ? fs.readFileSync(jsPath, "utf8") + read("pages/rating-analysis/rating-page.js") : fs.readFileSync(jsPath, "utf8");
     const wxml = fs.readFileSync(wxmlPath, "utf8");
     for (const handler of new Set(boundHandlers(wxml))) {
       assert.ok(declaredHandler(source, handler), `${path.relative(mini, wxmlPath)} binds missing handler ${handler}`);
@@ -99,7 +105,7 @@ test("every registered page and reusable component wires each visible interactio
 test("every page enforces the exact headquarters, store, and teacher permission matrix", () => {
   for (const route of routes) {
     const expected = [...ROLE_MATRIX[route]].sort();
-    const actual = guardedRoles(read(`${route}.js`));
+    const actual = guardedRoles(pageSource(route));
     if (!expected.length) {
       assert.equal(actual, null, `${route} is public and must not depend on a stale business session`);
     } else {
@@ -124,7 +130,7 @@ test("all authenticated pages keep the native navigation title on the company br
     if (!ROLE_MATRIX[route].length) continue;
     const page = JSON.parse(read(`${route}.json`));
     assert.equal(page.navigationBarTitleText, "露思卓儿", `${route} must keep the native title on the brand`);
-    const source = read(`${route}.js`);
+    const source = pageSource(route);
     const titleCalls = source.match(/setNavigationBarTitle\([^)]*\)/g) || [];
     for (const call of titleCalls) {
       assert.match(call, /setNavigationBarTitle\(\{\s*title:\s*"露思卓儿"\s*\}\)/,

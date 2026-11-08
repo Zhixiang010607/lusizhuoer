@@ -60,7 +60,7 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(authUi, /const operationLinks = \[[\s\S]*?日报追踪[\s\S]*?\];/);
   assert.match(authUi, /data-menu="hq-operations"[\s\S]*?operationLinks\.map/);
   for (const text of ["已填写", "未填写", "老师姓名", "老师电话", "日报内容", "提交时间", "是否完成"]) {
-    assert.match(html, new RegExp(text));
+    assert.match(`${html}\n${client}`, new RegExp(text));
   }
   assert.match(client, /staff-detail\.html\?role=teacher/);
   assert.match(client, /getHqDailyReportTrackingDay/);
@@ -68,7 +68,7 @@ test("HQ operations menu links to a responsive read-only tracker", () => {
   assert.match(client, /teacher\.phone/);
   assert.match(client, /teacher\.updatedAt \|\| teacher\.updated_at/);
   assert.match(client, /if \(!teacher\?\.completed\) return "—"/);
-  assert.match(client, /提交时间 \$\{submittedAt\}（上海时间）/);
+  assert.match(client, /提交时间 \$\{submittedAt\}（北京时间）/);
   assert.doesNotMatch(`${html}\n${client}`, /老师生日|birthDate|打卡|attendance/i);
   assert.match(css, /@media\s*\(max-width:\s*1180px\)/);
   assert.match(css, /@media\s*\(max-width:\s*760px\)/);

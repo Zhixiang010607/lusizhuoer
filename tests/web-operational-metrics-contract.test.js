@@ -33,8 +33,8 @@ test("three Web operational pages use the shared responsive implementation", () 
     const html = read(file);
     assert.match(html, new RegExp(`data-operation-metric="${scope}"`));
     assert.match(html, /operational-metrics\.css\?v=1\.0\.2/);
-    assert.match(html, /operational-metrics\.js\?v=1\.0\.2/);
-    assert.match(html, /auth-ui\.js\?v=0\.21\.5/);
+    assert.match(html, /operational-metrics\.js\?v=1\.1\.0/);
+    assert.match(html, /auth-ui\.js\?v=0\.21\.8/);
     assert.match(html, /id="operationsPrint"/);
     assert.match(html, /id="operationsExport"/);
     assert.match(html, /打印 \/ PDF/);
@@ -72,15 +72,15 @@ test("Web operations preserve server categories, cursors, scores, paging, export
   for (const token of ["balanceCategory: \"BOTH\"", "cursorBaselineAt", "cursorCustomerId", "cursorRemainingCount", "cursorProductId", "scores:", "exportAll: true", "EXPORT_LIMIT = 1000"]) assert.match(client, new RegExp(token));
   assert.match(client, /customer-detail\.html\?customerId=/);
   assert.match(client, /verification-detail\.html\?recordId=/);
-  assert.match(client, /text\/csv;charset=utf-8/);
+  assert.match(client, /WebReportExport\.download/);
 });
 
-test("daily tracker stacks complete tables and production CSS has a new cache key", () => {
+test("daily tracker pairs complete tables and uses direct date selectors", () => {
   const html = read("daily-report-tracking.html");
-  const trackerCss = read("daily-report-tracking.css");
-  assert.match(html, /daily-report-tracking\.css\?v=0\.2\.2/);
-  assert.match(trackerCss, /\.daily-tracking-columns\s*\{[^}]*grid-template-columns:\s*1fr/);
-  assert.match(trackerCss, /grid-template-columns:\s*minmax\(120px, 1fr\) minmax\(150px, 1fr\) minmax\(110px, 0\.8fr\) minmax\(88px, 0\.7fr\) 92px/);
+  assert.match(html, /tracking-ui\.js\?v=1\.0\.0/);
+  assert.match(html, /dailyTrackingDateParts/);
+  assert.match(read("web-tablet-parity.css"), /daily-tracking-columns,[\s\S]{0,200}grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(read("tracking-ui.js"), /rows\.slice\(\(page-1\)\*10,page\*10\)/);
 });
 
 test("receipt preview is bounded and recharge review uses a compact no-wrap table", () => {

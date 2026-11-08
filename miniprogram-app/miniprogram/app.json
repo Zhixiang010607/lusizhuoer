@@ -30,7 +30,7 @@
     { "root": "pages/customers", "pages": ["index"] },
     { "root": "pages/inactive-customers", "pages": ["index"] },
     { "root": "pages/low-balance-customers", "pages": ["index"] },
-    { "root": "pages/rating-analysis", "pages": ["index"] },
+    { "root": "pages/rating-analysis", "pages": ["index", "charts"] },
     { "root": "packages/report-font", "name": "report-font", "pages": ["index"] },
     { "root": "pages/customer-detail", "pages": ["index"] },
     { "root": "pages/customer-create", "pages": ["index"] },
