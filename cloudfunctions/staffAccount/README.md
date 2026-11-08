@@ -1,8 +1,8 @@
 # staffAccount 云函数
 
-本版无需新SQL，勿重复执行既有094／095。先部署 staffAccount v105 和 faceRecognition v143，分别核对运行时与根文件回下载，再发布Web和小程序；其他未改动云函数不重传，短信仍未发送。
+本版先按完整备份门禁执行并验收 [096短信发送队列](../../database/cloudbase-console/096-README.md)，再原地部署 staffAccount v106，核对运行时及所有根文件回下载。仅本函数有代码变更，不重传其他函数、Web或小程序；发送总开关保持关闭，签名可用、执行角色权限和实际收信验收完成前不能宣称短信上线。094／095已执行，不重复。
 
-当前版本：`v105`
+当前版本：`v106`
 
 本版只读导出：产品查询同时包含购买和充值赠送；总部及当前有效组长的每日考勤／日报读取支持 exportAll=true，单次最多1000条，组长仍仅限当前分配成员。日报在同一条查询读取正文，避免逐人请求；产品按来源＋明细行识别，不按父工单合并。无新 SQL。
 
@@ -15,12 +15,12 @@
 `v101` 封存老师使用迁移093的总部专用原子状态函数：普通成员退出小组；组长取消资格并释放全部成员，恢复不自动归组，不额外生成分组操作记录。状态同步、认证层禁用与失败补偿继续保留；老师基本资料同步展示当前组长姓名。先完整备份、执行并验收093，再部署本函数与 faceRecognition v143；本源码包不代表已部署。
 
 
-`v100` 增加老师兼任小组长的总部任免、人员分配及组内只读接口。仍只有总部／门店／老师三种业务角色；组长是老师附加资格，不取得总部或成员写入权限。普通老师全局只能归属一个组长，组长不能成为成员，换组先移除。取消组长由迁移 091 的同一数据库事务自动释放全部成员并保留审计。每次组内读取均按当前 UID 和实际查询内的成员关系鉴权，旧总部 action 仍仅总部可用。独立 `getTeamDashboard` 复用总部可信业务归属、汇总和排名布局，事实、名单、分页和全部时间起点均限定当前成员；成员只读页面仅保留老师主页和考勤日报。先完整备份并执行、验收 091，再联动部署 staffAccount v105 与 faceRecognition v143，最后更新客户端。本源码状态不表示已经部署。
+`v100` 增加老师兼任小组长的总部任免、人员分配及组内只读接口。仍只有总部／门店／老师三种业务角色；组长是老师附加资格，不取得总部或成员写入权限。普通老师全局只能归属一个组长，组长不能成为成员，换组先移除。取消组长由迁移 091 的同一数据库事务自动释放全部成员并保留审计。每次组内读取均按当前 UID 和实际查询内的成员关系鉴权，旧总部 action 仍仅总部可用。独立 `getTeamDashboard` 复用总部可信业务归属、汇总和排名布局，事实、名单、分页和全部时间起点均限定当前成员；成员只读页面仅保留老师主页和考勤日报。先完整备份并执行、验收 091，再联动部署 staffAccount v106 与 faceRecognition v143，最后更新客户端。本源码状态不表示已经部署。
 
 
 `v98` 配合照片打卡，只把考勤只读响应中的 NULL 人脸分数原样返回 NULL，不再转换成 0 分；历史真实分数不变。不改查询权限、日报、培训发布、审核或核销。2026-11-01 已按 090 指引备份、迁移、验收并与 faceRecognition v137 一起部署。2026-11-05 的 faceRecognition v138 只修复结果恢复读取，不需重新部署本函数或重跑迁移。
 
-当前联动部署矩阵：`staffAccount v105`、`faceRecognition v143`、
+当前联动部署矩阵：`staffAccount v106`、`faceRecognition v143`、
 `verificationPhoto v13`、`teacherCreate v9`、`customerRating v9`。迁移 075—086
 验收通过后再部署当前版本；照片打卡还须先按 090 指引完整备份、迁移和验收（既有 087 不重复执行）。下文较旧版本号属于历史说明。
 
@@ -82,7 +82,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。旧 Saga 的退役
 已由迁移 053 完成；该迁移会物理删除旧操作表与六个私有函数，不影响老师及
-业务历史。当前联动版本为 `staffAccount v105`／`faceRecognition v143`／
+业务历史。当前联动版本为 `staffAccount v106`／`faceRecognition v143`／
 `verificationPhoto v13`／`teacherCreate v9`。
 
 ## 保留能力
@@ -138,9 +138,19 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 微信小程序快捷登录也不为 `staffAccount` 新增 AppSecret 或自定义登录私钥环境变量。微信小程序 AppSecret 只配置在 CloudBase 身份源的服务端设置中，不得进入小程序、云函数环境变量、README、ZIP、日志或截图。
 
+## 审核通知发送（v106）
+
+096创建私有发送状态与outbox，默认关闭；只为启用后新提交、且该类已选择接收的在职总部生成通知。不回填历史积压，不读取客户／工单备注进入短信。四模板：产品2769941、充值2769944、退费2769946、补录核销2769949；签名内容固定“露思卓儿”。复用现有短信应用1401179904，不改登录验证码配置；正式启用前必须核对该应用的频控满足实际通知量。
+
+每分钟可信平台Timer最多串行处理5笔，单次SDK网络请求5秒；发送前重查申请状态、在职总部、四类开关及绑定手机。仅使用SCF执行角色的短期 `TENCENTCLOUD_SECRETID`／`TENCENTCLOUD_SECRETKEY`／`TENCENTCLOUD_SESSIONTOKEN`，不新增长期密钥，不打印凭据、手机号或原始SDK错误。执行角色需 `sms:SendSms` 最小权限；没有权限时不能以本地账号凭据替代。
+
+唯一键、数据库锁及租约保护并发；发出前持久写入SENDING，确认腾讯云单收件回执后记ACCEPTED（仅平台受理，不等于手机送达）。网络超时、异常回执或中断记UNKNOWN，不自动重发；确定拒绝记REJECTED。尚未发出的过期租约可恢复，过期、已审核、封存、关掉该类或换手机号的任务取消。通知失败不改变工单审核、扣次或余额；不增加客户端发送action，不使用SessionContext充当平台幂等键。
+
+`health.reviewSmsDeliveryReady`只表示数据库开关与运行时短期凭据齐全；签名／运营商报备、发送权限、频控和实际送达必须另行验收后才启用。096首次执行后该值必须为false。现有Web／小程序四类设置接口兼容，无需发布客户端。
+
 ## 月度额度 Timer
 
-本函数只保留老师体验额度月度重置 Timer。旧的 `reconcile-teacher-face-operations` Timer 必须从 `staffAccount` 触发器配置中删除。
+本函数保留老师体验额度月度重置 Timer，并新增独立 `send-hq-review-sms` 每分钟发送队列 Timer；未启用发送时不得补发历史业务。旧的 `reconcile-teacher-face-operations` Timer 必须从 `staffAccount` 触发器配置中删除。
 
 ```json
 {
@@ -159,26 +169,29 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 ## 部署与验收
 
-上传包文件名必须为 `staffAccount-v105.zip`。ZIP 根目录直接包含：
+上传包文件名必须为 `staffAccount-v106.zip`。ZIP 根目录直接包含：
 
 ```text
 index.js
 teacher-team.js
 teacher-team-dashboard.js
+hq-review-sms.js
+review-sms-sender.js
+package-lock.json
 package.json
 README.md
 ```
 
-不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v102`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v102`。
+不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v106`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v106`。
 
 生产切换顺序：
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这只建立 Auth 身份，业务会话仍只认既有 UID 映射，未绑定身份必须拒绝。
-2. 核对既有迁移 060—090 已执行，不重复执行历史破坏性迁移。完整备份后执行并验收 [091 组长迁移](../../database/cloudbase-console/091-README.md)，再部署 v105。091 不删除或改写现有人员及业务记录，也不自动任命任何老师。既有培训私有桶 `training-materials` 保持原配置。打包上传 `staffAccount-v105.zip`，使用 Node.js 20，保留上述环境变量和已登录非匿名用户安全规则。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
-3. 联动部署 `customerRating v9`，保留 `verificationPhoto v13`、`teacherCreate v9` 及其私有桶、密钥和定时任务；本轮客户运营补充包含组长本人，并新增组长专用评价只读接口；照片与老师创建函数无需重复部署。`staffAccount v105` 不签发或写入客户评价。
+2. 核对既有迁移 060—090 已执行，不重复执行历史破坏性迁移。完整备份后执行并验收 [091 组长迁移](../../database/cloudbase-console/091-README.md)，再部署 v106。091 不删除或改写现有人员及业务记录，也不自动任命任何老师。既有培训私有桶 `training-materials` 保持原配置。打包上传 `staffAccount-v106.zip`，使用 Node.js 20，保留上述环境变量和已登录非匿名用户安全规则。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
+3. 联动部署 `customerRating v9`，保留 `verificationPhoto v13`、`teacherCreate v9` 及其私有桶、密钥和定时任务；本轮客户运营补充包含组长本人，并新增组长专用评价只读接口；照片与老师创建函数无需重复部署。`staffAccount v106` 不签发或写入客户评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
-6. `staffAccount v105`、`faceRecognition v143`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布依赖新后端契约的小程序；不得先发布依赖培训资料、日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。v130 → v133 的高清读取兼容客户端放宽本地图片字节／尺寸校验，并明确用旧服务端已有 original=true 参数首屏读取原图；与旧服务端兼容，应先让实际使用者更新，再完整备份执行 089 并更新考勤函数。不会引入新 action，也不因矩阵变更重复部署本函数。
+6. `staffAccount v106`、`faceRecognition v143`、`verificationPhoto v13` 和 `teacherCreate v9` 验收通过后才发布依赖新后端契约的小程序；不得先发布依赖培训资料、日报、考勤、老师创建、照片 5 MiB 边界或无参数 `session` 的客户端。v130 → v133 的高清读取兼容客户端放宽本地图片字节／尺寸校验，并明确用旧服务端已有 original=true 参数首屏读取原图；与旧服务端兼容，应先让实际使用者更新，再完整备份执行 089 并更新考勤函数。不会引入新 action，也不因矩阵变更重复部署本函数。
 
 健康检查必须返回：
 

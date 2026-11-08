@@ -1,7 +1,7 @@
 "use strict";
 
-// Preparation only: no SMS SDK, credentials, message send or business hooks.
-exports.createHqReviewSms = ({ executeSql, requireHq, numericId, sqlText, fail }) => ({
+// Preference actions never send; only the platform-only outbox worker can send.
+exports.createHqReviewSms = ({ executeSql, requireHq, numericId, sqlText, fail, deliveryReady=async()=>false }) => ({
   async run(caller, event, write = false) {
     requireHq(caller);
     const id = numericId(event.staffAccountId, "总部人员");
@@ -25,6 +25,6 @@ exports.createHqReviewSms = ({ executeSql, requireHq, numericId, sqlText, fail }
     if (!preference || String(preference.staffAccountId) !== String(id) || typeof preference.enabled !== "boolean") {
       fail(write ? "保存结果未确认，请重新读取设置核对" : "短信设置读取失败，请重试", "SMS_PREFERENCE_UNCONFIRMED");
     }
-    return { ...preference, deliveryReady: false };
+    return { ...preference, deliveryReady: await deliveryReady() };
   }
 });

@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v105";
+const FUNCTION_VERSION = "v106";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5497,9 +5497,16 @@ async function getTrainingMaterialAccess(caller, event) {
   return { materialId: String(row.id), title: String(row.title || ""), material, url: signed, expiresIn: 300 };
 }
 
+function reviewSmsSenderService() {
+  return require("./review-sms-sender").createReviewSmsSender({executeSql,sqlText,requireControlPlane:requireTeacherExperienceTimerControlPlaneCaller});
+}
+
 async function main(event = {}, context = {}) {
   const scheduledReset = await handleTrustedTeacherExperienceResetTimer(event, context);
   if (scheduledReset) return scheduledReset;
+  if (event.Type === "Timer" && event.TriggerName === "send-hq-review-sms") {
+    return reviewSmsSenderService().handle(event, context);
+  }
   const action = event.action || "session";
   if (action === "health") {
     return {
@@ -5508,6 +5515,9 @@ async function main(event = {}, context = {}) {
       version: FUNCTION_VERSION,
       managerNodeInstalled: managerDependencyInstalled(),
       teacherExperienceResetTimerTriggerName: TEACHER_EXPERIENCE_RESET_TIMER_TRIGGER_NAME,
+      reviewSmsTimerTriggerName: require("./review-sms-sender").TRIGGER_NAME,
+      reviewSmsDeliveryReady: await reviewSmsSenderService().ready(),
+      reviewSmsDiagnostics: reviewSmsSenderService().diagnostics(),
       teacherCreationService: "teacherCreate"
     };
   }
@@ -5797,7 +5807,7 @@ async function main(event = {}, context = {}) {
     return { ok: true, template: await removeProductReceiptLogo(caller, event) };
   }
   if (action === "getHqReviewSmsPreference" || action === "setHqReviewSmsPreference") {
-    const service = require("./hq-review-sms").createHqReviewSms({ executeSql, requireHq, numericId, sqlText, fail });
+    const service = require("./hq-review-sms").createHqReviewSms({ executeSql, requireHq, numericId, sqlText, fail, deliveryReady:reviewSmsSenderService().ready });
     return { ok: true, preference: await service.run(caller, event, action === "setHqReviewSmsPreference") };
   }
   if (action === "getPendingReviewCounts") {
