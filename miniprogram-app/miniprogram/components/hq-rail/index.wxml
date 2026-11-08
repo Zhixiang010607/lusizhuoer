@@ -18,6 +18,7 @@
   <view data-route="/pages/retail-product-management/index" bindtap="go">产品管理</view>
   <view data-route="/pages/hq-directory/index?type=store" bindtap="go">门店管理</view>
   <view data-route="/pages/hq-directory/index?type=teacher" bindtap="go">老师管理</view>
+  <view data-route="/pages/hq-directory/index?type=hq" bindtap="go">总部管理</view>
 </view>
 <view wx:if="{{open === 'review'}}" class="rail-popover" catchtap="noop">
   <view data-route="/pages/reviews/index?type=recharge" bindtap="go">充值审核</view>

@@ -941,7 +941,9 @@ Page({
       const productLabel = this.data.hqProductLabels[this.data.hqProductIndex] || "全部项目";
       const reportStartDate = this.data.hqPeriod === "ALL" ? "最早记录" : range.startDate;
       const reportEndDate = this.data.hqPeriod === "ALL" ? "今天" : range.endDate;
+      const cjkFontBytes = await hqReport.loadCjkFontBytes();
       const output = hqReport.createReportPdf({
+        cjkFontBytes,
         startDate: reportStartDate, endDate: reportEndDate, dimensionLabel,
         metric: rankingMetric, metricLabel, productLabel, generatedAt: reportTimestamp(),
         productRows, totals: this.data.hqProjectSummaryTotals, rankingRows, rankingTotal

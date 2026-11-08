@@ -218,7 +218,8 @@ async function openWorkbook({ bytes, filename }) {
   }
   if (typeof wx.openDocument !== "function") throw new Error("当前微信版本无法打开 Excel，请升级微信后重试");
   const filePath = `${wx.env.USER_DATA_PATH}/${safeFilename(filename)}.xlsx`;
-  await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data: bytes, success: resolve, fail: reject }));
+  const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data, success: resolve, fail: reject }));
   await wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "xlsx", showMenu: true, success: resolve, fail: reject }));
   return filePath;
 }

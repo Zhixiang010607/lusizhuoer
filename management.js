@@ -1,7 +1,7 @@
 ﻿(() => {
   "use strict";
 
-  const VERSION = "0.14.25";
+  const VERSION = "0.14.26";
   const type = document.body.dataset.management;
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat("zh-CN");
@@ -227,7 +227,7 @@
       $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
       return;
     }
-    target.innerHTML = `<section class="panel people-result-panel"><div class="panel-heading"><div><h2>查询结果</h2><p>共 ${results.length} 条。总部可进入该账号自身范围内的全局视图。</p></div></div><div class="people-result-list">${results.map((person) => { const detail = type === "store" ? `store-detail.html?authUid=${encodeURIComponent(person.id)}` : `staff-detail.html?role=${encodeURIComponent(type)}&id=${encodeURIComponent(person.id)}`; const location = type === "store" ? [person.province, person.city, person.district].filter(Boolean).join(" · ") : person.phone || "未填写"; return `<article class="people-result-row"><div><strong>${escapeHtml(person.name)}</strong><span>${escapeHtml(person.id)} · ${escapeHtml(location)} · ${escapeHtml(person.status)}</span></div><a class="button-link secondary-button" href="${detail}">进入全局视图</a></article>`; }).join("")}</div></section>`;
+    target.innerHTML = `<section class="panel people-result-panel"><div class="panel-heading"><div><h2>查询结果</h2><p>共 ${results.length} 条。总部可进入该账号自身范围内的全局视图。</p></div></div><div class="people-result-list">${results.map((person) => { const detail = type === "store" ? `store-detail.html?authUid=${encodeURIComponent(person.id)}` : `staff-detail.html?role=${encodeURIComponent(type)}&id=${encodeURIComponent(person.id)}`; const location = type === "store" ? [person.province, person.city, person.district].filter(Boolean).join(" · ") : person.phone || "未填写"; return `<article class="people-result-row"><div><strong>${escapeHtml(person.name)}</strong><span>${type === "hq" ? "" : `${escapeHtml(person.id)} · `}${escapeHtml(location)} · ${escapeHtml(person.status)}</span></div><div class="people-result-actions">${type === "hq" ? `<button type="button" class="secondary-button" data-hq-sms-id="${escapeHtml(person.databaseId)}" data-hq-sms-name="${escapeHtml(person.name)}">短信设置</button>` : ""}<a class="button-link secondary-button" href="${detail}">进入全局视图</a></div></article>`; }).join("")}</div></section>`;
     $("simpleStatsBody") && ($("simpleStatsBody").innerHTML = "");
   }
 

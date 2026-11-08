@@ -5,8 +5,8 @@
   const PAGE_HEIGHT = 595.28;
   const MARGIN = 34;
   const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-  const ROW_HEIGHT = 22;
-  const HEADER_HEIGHT = 25;
+  const ROW_HEIGHT = 28;
+  const HEADER_HEIGHT = 30;
   const COLORS = Object.freeze({
     background: [1, 0.984, 0.953],
     band: [0.725, 0.541, 0.239],
@@ -133,7 +133,7 @@
     addFillRect(commands, MARGIN, top, CONTENT_WIDTH, HEADER_HEIGHT, COLORS.pale);
     columns.forEach((column) => {
       addStrokeRect(commands, x, top, column.width, HEADER_HEIGHT);
-      addText(commands, column.label, x + 5, top + 7, 9, { width: column.width - 10, align: column.align || "center", color: COLORS.dark });
+      addText(commands, column.label, x + 5, top + 9, 10.5, { width: column.width - 10, align: column.align || "center", color: COLORS.dark });
       x += column.width;
     });
     rows.forEach((row, rowIndex) => {
@@ -142,7 +142,7 @@
       addFillRect(commands, MARGIN, rowTop, CONTENT_WIDTH, ROW_HEIGHT, row.__total ? COLORS.pale : (rowIndex % 2 ? COLORS.paleAlt : COLORS.white));
       columns.forEach((column) => {
         addStrokeRect(commands, x, rowTop, column.width, ROW_HEIGHT);
-        addText(commands, row[column.key], x + 5, rowTop + 6, row.__total ? 9.5 : 8.5, {
+        addText(commands, row[column.key], x + 5, rowTop + 8, row.__total ? 11 : 10.5, {
           width: column.width - 10,
           align: column.align || (column.numeric ? "right" : "left"),
           color: row.__total ? COLORS.dark : COLORS.muted
@@ -187,7 +187,8 @@
     return concatBytes([ascii(`<< /Length ${bytes.byteLength} >>\nstream\n`), bytes, ascii("\nendstream")]);
   }
 
-  function createPdfBytes(pageCommands) {
+  function createPdfBytes(pageCommands, fontBytes) {
+    const embedded = fontBytes instanceof Uint8Array && fontBytes.byteLength > 1000;
     const objects = new Map();
     const pageReferences = [];
     objects.set(1, ascii("<< /Type /Catalog /Pages 2 0 R >>"));
@@ -195,15 +196,33 @@
     objects.set(4, ascii("<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 5 >> /DW 1000 >>"));
     objects.set(5, ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"));
     pageCommands.forEach((commands, index) => {
-      const pageNumber = 6 + index * 2;
+      const pageNumber = (embedded ? 9 : 6) + index * 2;
       const contentNumber = pageNumber + 1;
       pageReferences.push(`${pageNumber} 0 R`);
-      addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 24, 8, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted });
+      addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 24, 9, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted });
       objects.set(pageNumber, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 5 0 R >> >> /Contents ${contentNumber} 0 R >>`));
       objects.set(contentNumber, streamObject(commands.join("\n")));
     });
+    if (embedded) {
+      const codes = new Set();
+      pageCommands.flat().filter(command => command.startsWith("BT /F1 ")).forEach(command => {
+        const match = command.match(/<([0-9A-F]+)> Tj/);
+        if (match) for (let offset = 0; offset < match[1].length; offset += 4) codes.add(match[1].slice(offset, offset + 4));
+      });
+      const lines = ["/CIDInit /ProcSet findresource begin", "12 dict begin", "begincmap", "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def", "/CMapName /HqUnicode def", "/CMapType 2 def", "1 begincodespacerange", "<0000> <FFFF>", "endcodespacerange"];
+      const sorted = [...codes].sort();
+      for (let offset = 0; offset < sorted.length; offset += 100) {
+        const group = sorted.slice(offset, offset + 100); lines.push(`${group.length} beginbfchar`, ...group.map(code => `<${code}> <${code}>`), "endbfchar");
+      }
+      lines.push("endcmap", "CMapName currentdict /CMap defineresource pop", "end", "end");
+      objects.set(3, ascii("<< /Type /Font /Subtype /Type0 /BaseFont /NotoSansCJKsc-Regular /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>"));
+      objects.set(4, ascii("<< /Type /Font /Subtype /CIDFontType0 /BaseFont /NotoSansCJKsc-Regular /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 7 0 R /DW 1000 >>"));
+      objects.set(6, streamObject(lines.join("\n")));
+      objects.set(7, ascii("<< /Type /FontDescriptor /FontName /NotoSansCJKsc-Regular /Flags 4 /FontBBox [-1002 -1048 2928 1808] /ItalicAngle 0 /Ascent 1160 /Descent -288 /CapHeight 733 /StemV 80 /FontFile3 8 0 R >>"));
+      objects.set(8, concatBytes([ascii(`<< /Length ${fontBytes.byteLength} /Subtype /CIDFontType0C >>\nstream\n`), fontBytes, ascii("\nendstream")]));
+    }
     objects.set(2, ascii(`<< /Type /Pages /Count ${pageReferences.length} /Kids [${pageReferences.join(" ")}] >>`));
-    const objectCount = 5 + pageCommands.length * 2;
+    const objectCount = (embedded ? 8 : 5) + pageCommands.length * 2;
     const chunks = [concatBytes([ascii("%PDF-1.4\n%"), new Uint8Array([0xe2, 0xe3, 0xcf, 0xd3]), ascii("\n")])];
     const offsets = new Array(objectCount + 1).fill(0);
     let length = chunks[0].byteLength;
@@ -288,11 +307,19 @@
       ...tablePages("项目汇总", summaryColumns, summaryRows, metadata),
       ...tablePages(`完整排名 · 按${clean(report.metricLabel, "业务")}次数降序`, rankingColumns, rankingRows)
     ];
-    return { bytes: createPdfBytes(pages), pages: pages.length };
+    return { bytes: createPdfBytes(pages, report.cjkFontBytes), pages: pages.length };
   }
 
-  function downloadReport(report = {}) {
-    const output = createReportPdf(report);
+  let fontPromise = null;
+  async function downloadReport(report = {}) {
+    if (!fontPromise) fontPromise = fetch("assets/fonts/NotoSansCJKsc-Common-Identity.cff?v=1").then(response => {
+      if (!response.ok) throw new Error("PDF 中文字体下载失败，请重试");
+      return response.arrayBuffer();
+    }).then(bytes => {
+      if (bytes.byteLength < 1000 || bytes.byteLength > 1200000) throw new Error("PDF 中文字体内容无效");
+      return new Uint8Array(bytes);
+    }).catch(error => { fontPromise = null; throw error; });
+    const output = createReportPdf({ ...report, cjkFontBytes: await fontPromise });
     const filename = `${safeFilename(report.filename || "露思卓儿总部业务统计报表")}.pdf`;
     const url = URL.createObjectURL(new Blob([output.bytes], { type: "application/pdf" }));
     const link = document.createElement("a");

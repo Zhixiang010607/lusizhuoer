@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>总部管理</title>
   <link rel="stylesheet" href="styles.css?v=0.15.44">
+  <link rel="stylesheet" href="hq-sms-settings.css?v=1.0.0">
 </head>
 <body data-management="hq">
   <aside class="side-project-bar" aria-label="项目栏">
@@ -20,11 +21,25 @@
       <div class="toolbar-actions"><button id="searchPeople" type="button">按条件搜索</button><button id="addEntity">新增总部人员</button></div>
     </section>
     <section id="entityInfo" class="management-summary"></section>
+    <section id="hqSmsSettings" class="panel hq-sms-settings" hidden>
+      <div class="panel-heading"><h2 id="hqSmsTarget">审核短信</h2><button id="hqSmsClose" class="secondary-button" type="button">收起</button></div>
+      <p class="sms-description">任何总部账号都可以修改总部人员的接收设置，四项默认不接收。</p>
+      <form id="hqSmsForm">
+        <div class="sms-setting-row"><div><strong>四类审核提醒</strong><p>产品、充值、退费、补录核销</p><p id="hqSmsPhone"></p></div><div class="sms-category-grid">
+          <label class="sms-toggle"><input id="hqSms-purchase" type="checkbox" disabled>产品审核</label>
+          <label class="sms-toggle"><input id="hqSms-recharge" type="checkbox" disabled>充值审核</label>
+          <label class="sms-toggle"><input id="hqSms-refund" type="checkbox" disabled>退费审核</label>
+          <label class="sms-toggle"><input id="hqSms-verification" type="checkbox" disabled>核销审核</label>
+        </div></div>
+        <p class="sms-description">短信服务准备中，设置会保存，服务启用后生效。封存人员不接收提醒。</p>
+        <div class="sms-footer"><button id="hqSmsSave" type="submit" disabled>保存设置</button><span id="hqSmsStatus" role="status" aria-live="polite"></span></div>
+      </form>
+    </section>
     <section class="panel customer-permission-banner"><strong>总部账号规则</strong><span>一个手机号只能对应一个业务身份。姓名查询会展示所有同名人员；封存后该人员无法登录。</span></section>
   </main>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script>
-  <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.10"></script><script src="datetime.js?v=0.1.2"></script><script src="management.js?v=0.14.25"></script><script src="auth-ui.js?v=0.21.8"></script>
+  <script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.11"></script><script src="datetime.js?v=0.1.2"></script><script src="hq-sms-settings.js?v=1.0.0"></script><script src="management.js?v=0.14.26"></script><script src="auth-ui.js?v=0.21.8"></script>
 </body>
 </html>

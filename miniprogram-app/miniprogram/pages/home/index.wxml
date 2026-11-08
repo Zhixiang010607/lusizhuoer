@@ -63,6 +63,7 @@
       <view data-type="product" bindtap="openManagement">产品管理</view>
       <view data-type="store" bindtap="openManagement">门店管理</view>
       <view data-type="teacher" bindtap="openManagement">老师管理</view>
+      <view data-type="hq" bindtap="openManagement">总部管理</view>
       <view bindtap="openTrainingMaterials">培训学习</view>
     </view>
   </view>

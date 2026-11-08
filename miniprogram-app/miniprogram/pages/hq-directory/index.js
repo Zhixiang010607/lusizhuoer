@@ -2,6 +2,7 @@ const { callStaff } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 
 const META = Object.freeze({
+  hq: { title: "总部管理", noun: "总部人员", action: "listStaff", unit: "人" },
   store: { title: "门店管理", noun: "门店", action: "listStores", unit: "家" },
   teacher: { title: "老师管理", noun: "老师", action: "listStaff", unit: "人" }
 });
@@ -78,11 +79,11 @@ Page({
     const request = Object.freeze({ epoch, type, action: meta.action, noun: meta.noun });
     this.setData({ loading: true, message: "", error: false });
     try {
-      const payload = request.type === "teacher" ? Object.freeze({ role: "teacher" }) : Object.freeze({});
+      const payload = request.type !== "store" ? Object.freeze({ role: request.type }) : Object.freeze({});
       const result = await callStaff(request.action, payload);
       if (this._unloaded || request.epoch !== this._requestEpoch || request.type !== this.data.type) return;
       const source = request.type === "store" ? result.stores : result.staff;
-      const rows = (source || []).map(request.type === "store" ? storeView : teacherView);
+      const rows = (source || []).map(item => request.type === "store" ? storeView(item) : request.type === "hq" ? { ...teacherView(item), ref: text(item.id), name: text(item.staff_name) || "未命名总部人员" } : teacherView(item));
       const name = text(this.data.searchName).toLocaleLowerCase("zh-CN");
       const phone = normalizedPhone(this.data.searchPhone);
       const searchRows = this.data.searched ? rows.filter((item) =>
@@ -144,11 +145,16 @@ Page({
     this.setData({ [`${kind}Page`]: page, message: "", error: false }, () => this.syncDirectoryPages());
   },
   openCreate() {
+    if (this.data.type === "hq") return;
     wx.navigateTo({ url: this.data.type === "store" ? "/pages/store-create/index" : "/pages/teacher-create/index" });
   },
   openDetail(event) {
     const ref = String(event.currentTarget.dataset.ref || "");
     if (!ref) return;
+    if (this.data.type === "hq") {
+      wx.navigateTo({ url: `/pages/hq-sms-settings/index?staffAccountId=${encodeURIComponent(ref)}` });
+      return;
+    }
     const route = this.data.type === "store" ? "store-detail/index?storeRef" : "teacher-detail/index?teacherRef";
     wx.navigateTo({ url: `/pages/${route}=${encodeURIComponent(ref)}` });
   }

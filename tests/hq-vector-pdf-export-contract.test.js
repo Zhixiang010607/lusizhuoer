@@ -8,6 +8,7 @@ const test = require("node:test");
 const root = path.resolve(__dirname, "..");
 const webReport = require(path.join(root, "hq-dashboard-report.js"));
 const miniReport = require(path.join(root, "miniprogram-app", "miniprogram", "services", "hq-dashboard-report.js"));
+const cjkFontBytes = require("node:zlib").brotliDecompressSync(fs.readFileSync(path.join(root, "miniprogram-app/miniprogram/packages/report-font/NotoSansCJKsc-Common-Identity.br")));
 
 function reportInput() {
   return {
@@ -63,6 +64,15 @@ test("both clients keep archived projects selectable with an explicit label", ()
 });
 
 for (const [client, exporter] of [["web", webReport], ["mini-program", miniReport]]) {
+  test(`${client} production font path embeds Chinese glyphs and copyable Unicode`, () => {
+    const output = exporter.createReportPdf({ ...reportInput(), cjkFontBytes });
+    const source = Buffer.from(output.bytes).toString("latin1");
+    assert.match(source, /\/BaseFont \/NotoSansCJKsc-Regular/);
+    assert.match(source, /\/FontFile3 8 0 R/);
+    assert.match(source, /\/ToUnicode 6 0 R/);
+    assert.doesNotMatch(source, /\/BaseFont \/STSong-Light/);
+    assert(output.bytes.byteLength > cjkFontBytes.byteLength);
+  });
   test(`${client} PDF totals use freshly loaded project rows instead of stale homepage totals`, () => {
     const current = reportInput();
     const stale = { ...current, totals: { recharge: 999, verification: 888, experience: 777, refund: 666 } };

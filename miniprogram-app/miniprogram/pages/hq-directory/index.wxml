@@ -3,12 +3,13 @@
 
   <view class="search-panel">
     <view class="search-fields">
-      <label><text>{{type === 'store' ? '按门店名称查询' : '按姓名查询'}}</text><input value="{{searchName}}" bindinput="inputSearchName" bindconfirm="runSearch" confirm-type="search" placeholder="{{type === 'store' ? '输入门店名称' : '输入老师姓名'}}" /></label>
+      <label><text>{{type === 'store' ? '按门店名称查询' : '按姓名查询'}}</text><input value="{{searchName}}" bindinput="inputSearchName" bindconfirm="runSearch" confirm-type="search" placeholder="{{type === 'store' ? '输入门店名称' : (type === 'hq' ? '输入总部人员姓名' : '输入老师姓名')}}" /></label>
       <label><text>{{type === 'store' ? '按联系人电话查询' : '按联系电话查询'}}</text><input type="number" value="{{searchPhone}}" bindinput="inputSearchPhone" bindconfirm="runSearch" confirm-type="search" placeholder="输入联系电话" /></label>
     </view>
-    <view class="search-actions"><button class="primary" bindtap="runSearch" disabled="{{loading}}">开始查询</button><button class="secondary" bindtap="openCreate">新增{{noun}}</button></view>
+    <view class="search-actions {{type === 'hq' ? 'single' : ''}}"><button class="primary" bindtap="runSearch" disabled="{{loading}}">开始查询</button><button wx:if="{{type !== 'hq'}}" class="secondary" bindtap="openCreate">新增{{noun}}</button></view>
   </view>
 
+  <view wx:if="{{type === 'hq'}}" class="message">点击总部人员姓名，分别设置四类审核短信。</view>
   <view wx:if="{{message}}" class="message {{error ? 'error' : 'success'}}">{{message}}</view>
 
   <view class="table-section {{type}}">
@@ -16,7 +17,7 @@
     <scroll-view wx:if="{{searchRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{searchPageRows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text class="list-row-number">序号</text><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>{{type === 'hq' ? '总部姓名' : '老师姓名'}}</text><text>联系电话</text><text>状态</text></view>
         <block wx:if="{{searched && searchRows.length}}"><template is="directoryRows" data="{{rows: searchPageRows, type: type}}" /></block>
       </view>
     </scroll-view>
@@ -29,7 +30,7 @@
     <scroll-view wx:if="{{activeRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{activePageRows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text class="list-row-number">序号</text><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>{{type === 'hq' ? '总部姓名' : '老师姓名'}}</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{activeRows.length}}" is="directoryRows" data="{{rows: activePageRows, type: type}}" />
       </view>
     </scroll-view>
@@ -42,7 +43,7 @@
     <scroll-view wx:if="{{archivedRows.length}}" class="table-scroll" scroll-x="true" data-visible-rows="{{archivedPageRows.length}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="data-table {{type}}">
         <view class="table-row table-head store" wx:if="{{type === 'store'}}"><text class="list-row-number">序号</text><text>门店名称</text><text>联系人</text><text>联系电话</text><text>完整地址</text><text>状态</text></view>
-        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>老师姓名</text><text>联系电话</text><text>状态</text></view>
+        <view class="table-row table-head teacher" wx:else><text class="list-row-number">序号</text><text>{{type === 'hq' ? '总部姓名' : '老师姓名'}}</text><text>联系电话</text><text>状态</text></view>
         <template wx:if="{{archivedRows.length}}" is="directoryRows" data="{{rows: archivedPageRows, type: type}}" />
       </view>
     </scroll-view>

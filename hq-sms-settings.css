@@ -1,0 +1,20 @@
+.hq-sms-settings[hidden] { display: none; }
+.hq-sms-settings .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.hq-sms-settings h2 { margin: 0; }
+.hq-sms-settings .sms-description { color: var(--muted, #7d7161); margin: 10px 0 20px; }
+.hq-sms-settings .sms-setting-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 18px 0; border-block: 1px solid #e5d4b7; }
+.hq-sms-settings .sms-setting-row p { margin: 6px 0 0; }
+.hq-sms-settings .sms-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; white-space: nowrap; cursor: pointer; }
+.hq-sms-settings input[type="checkbox"] { width: 22px; height: 22px; accent-color: #7d5b2d; margin: 0; }
+.hq-sms-settings .sms-footer { display: flex; align-items: center; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+.hq-sms-settings button, .people-result-actions > button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.people-result-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+@media (max-width: 600px) {
+  body[data-management="hq"] .people-result-row { flex-direction: column; align-items: stretch; }
+  .hq-sms-settings .sms-setting-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .people-result-actions { width: 100%; }
+  .people-result-actions > * { flex: 1; text-align: center; white-space: nowrap; }
+  .hq-sms-settings .sms-footer button { width: 100%; }
+}
+
+.hq-sms-settings .sms-category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }

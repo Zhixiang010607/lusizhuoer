@@ -2,15 +2,14 @@
 
 const PDF_EXPORT_MAX_ROWS = 1000;
 const CJK_FONT_FILENAME = "NotoSansCJKsc-Common-Identity.br";
-const CJK_FONT_SUBPACKAGE = "report-font";
 const CJK_FONT_DIRECTORY = "packages/report-font";
 const PAGE_WIDTH = 841.89;
 const PAGE_HEIGHT = 595.28;
 const MARGIN = 30;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const ROW_HEIGHT = 22;
-const HEADER_HEIGHT = 24;
-const GROUP_HEIGHT = 24;
+const ROW_HEIGHT = 28;
+const HEADER_HEIGHT = 30;
+const GROUP_HEIGHT = 28;
 const BOTTOM = 34;
 const COLORS = Object.freeze({
   background: [1, 0.984, 0.953], band: [0.475, 0.349, 0.184], dark: [0.188, 0.165, 0.133],
@@ -126,8 +125,8 @@ function startPage(title, subtitle, continuation) {
   const commands = [];
   addFillRect(commands, 0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.background);
   addFillRect(commands, 0, 0, PAGE_WIDTH, 10, COLORS.band);
-  addText(commands, title, MARGIN, 23, 17, { width: CONTENT_WIDTH * 0.7 });
-  addText(commands, continuation ? "查询结果（续）" : subtitle, MARGIN + CONTENT_WIDTH * 0.7, 27, 9, {
+  addText(commands, title, MARGIN, 23, 18, { width: CONTENT_WIDTH * 0.7 });
+  addText(commands, continuation ? "查询结果（续）" : subtitle, MARGIN + CONTENT_WIDTH * 0.7, 27, 10, {
     width: CONTENT_WIDTH * 0.3, align: "right", color: COLORS.muted
   });
   return { commands, top: 58 };
@@ -135,31 +134,38 @@ function startPage(title, subtitle, continuation) {
 function drawGroupTitle(commands, label, count, top, continuation) {
   addFillRect(commands, MARGIN, top, CONTENT_WIDTH, GROUP_HEIGHT, COLORS.paleAlt);
   addStrokeRect(commands, MARGIN, top, CONTENT_WIDTH, GROUP_HEIGHT);
-  addText(commands, `门店：${label}${continuation ? "（续）" : ""}（${count} 条）`, MARGIN + 8, top + 7, 9.5, { width: CONTENT_WIDTH - 16, color: COLORS.band });
+  addText(commands, `门店：${label}${continuation ? "（续）" : ""}（${count} 条）`, MARGIN + 8, top + 8, 11, { width: CONTENT_WIDTH - 16, color: COLORS.band });
 }
 function drawHeader(commands, columns, top) {
   let x = MARGIN;
   columns.forEach((column) => {
     addFillRect(commands, x, top, column.pdfWidth, HEADER_HEIGHT, COLORS.pale);
     addStrokeRect(commands, x, top, column.pdfWidth, HEADER_HEIGHT);
-    addText(commands, column.header, x + 4, top + 7, 8.5, { width: column.pdfWidth - 8, align: "center" });
+    addText(commands, column.header, x + 4, top + 9, 10, { width: column.pdfWidth - 4, align: "center" });
     x += column.pdfWidth;
   });
 }
-function drawRow(commands, columns, row, top, alternate) {
+function rowLayout(columns, row) {
+  const size = columns.length <= 7 ? 11 : 10;
+  const lineHeight = size + 4;
+  const cells = columns.map((column) => wrapped(typeof column.value === "function" ? column.value(row) : row[column.key], column.pdfWidth - 16, size));
+  return { size, lineHeight, cells, height: Math.max(ROW_HEIGHT, Math.max(...cells.map(lines => lines.length)) * lineHeight + 14) };
+}
+function drawRow(commands, columns, row, top, alternate, layout) {
   let x = MARGIN;
-  columns.forEach((column) => {
-    addFillRect(commands, x, top, column.pdfWidth, ROW_HEIGHT, alternate ? COLORS.paleAlt : COLORS.white);
-    addStrokeRect(commands, x, top, column.pdfWidth, ROW_HEIGHT);
-    const value = typeof column.value === "function" ? column.value(row) : row[column.key];
-    addText(commands, value, x + 4, top + 6, 8, {
-      width: column.pdfWidth - 8,
-      align: column.type === "number" ? "right" : (column.align || "left"),
-      color: COLORS.muted
-    });
+  columns.forEach((column, index) => {
+    addFillRect(commands, x, top, column.pdfWidth, layout.height, alternate ? COLORS.paleAlt : COLORS.white);
+    addStrokeRect(commands, x, top, column.pdfWidth, layout.height);
+    const lines = layout.cells[index];
+    const textTop = top + (layout.height - lines.length * layout.lineHeight) / 2;
+    lines.forEach((line, lineIndex) => addText(commands, line, x + 4, textTop + lineIndex * layout.lineHeight, layout.size, {
+      width: column.pdfWidth - 4,
+      align: column.type === "number" ? "right" : (column.align || "left"), color: COLORS.muted
+    }));
     x += column.pdfWidth;
   });
 }
+
 function ascii(value) {
   const text = String(value);
   const output = new Uint8Array(text.length);
@@ -179,7 +185,7 @@ function streamObject(value) {
 }
 function byteView(value) {
   if (value instanceof Uint8Array) return value;
-  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (value instanceof ArrayBuffer || Object.prototype.toString.call(value) === "[object ArrayBuffer]") return new Uint8Array(value);
   if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   throw new Error("PDF 内置中文字体内容无效");
 }
@@ -204,19 +210,13 @@ function readBundledCjkFont() {
 
 function loadCjkFontBytes() {
   if (bundledCjkFontPromise) return bundledCjkFontPromise;
-  if (typeof wx === "undefined" || typeof wx.loadSubpackage !== "function") {
+  if (typeof require.async !== "function") {
     return Promise.reject(new Error("当前微信版本无法加载 PDF 中文字体，请升级微信后重试"));
   }
-  bundledCjkFontPromise = new Promise((resolve, reject) => {
-    wx.loadSubpackage({
-      name: CJK_FONT_SUBPACKAGE,
-      success: () => {
-        try { resolve(readBundledCjkFont()); }
-        catch (error) { reject(error); }
-      },
-      fail: (error) => reject(new Error(`PDF 中文字体加载失败：${error?.errMsg || error?.message || "分包下载失败"}`))
-    });
-  }).catch((error) => {
+  // Mini Program cross-subpackage loading uses require.async; wx.loadSubpackage
+  // is a Mini Game API and is not present in the Mini Program runtime.
+  bundledCjkFontPromise = require.async("../packages/report-font/ready.js")
+    .then(() => readBundledCjkFont()).catch((error) => {
     bundledCjkFontPromise = null;
     throw error;
   });
@@ -257,6 +257,7 @@ function toUnicodeCMap(mappings) {
 function createPdfBytes(pageCommands, cjkFontBytes) {
   const objects = new Map();
   const pageReferences = [];
+  pageCommands.forEach((commands, index) => addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 22, 9, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted }));
   const cjkMappings = new Map();
   pageCommands.forEach((commands) => {
     if (commands.cjkMappings) commands.cjkMappings.forEach((unicode, cid) => cjkMappings.set(cid, unicode));
@@ -272,7 +273,6 @@ function createPdfBytes(pageCommands, cjkFontBytes) {
     const pageNumber = 9 + index * 2;
     const contentNumber = pageNumber + 1;
     pageReferences.push(`${pageNumber} 0 R`);
-    addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 22, 8, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted });
     objects.set(pageNumber, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 5 0 R >> >> /Contents ${contentNumber} 0 R >>`));
     objects.set(contentNumber, streamObject(commands.join("\n")));
   });
@@ -294,7 +294,10 @@ function createPdfBytes(pageCommands, cjkFontBytes) {
 
 function createGroupedPdf(options = {}) {
   const rows = Array.isArray(options.rows) ? options.rows : [];
-  const columns = scaledColumns(Array.isArray(options.columns) ? options.columns : []);
+  // Store names already appear in each group heading; avoid a repeated narrow column.
+  const columns = scaledColumns((Array.isArray(options.columns) ? options.columns : [])
+    .filter(column => column.key !== "storeName")
+    .map(column => ({ ...column, width: column.key === "recordCode" ? 26 : column.key === "serviceTime" ? 24 : column.width })));
   if (!rows.length) throw new Error("当前查询没有可导出的结果");
   if (!columns.length) throw new Error("PDF 缺少列定义");
   if (rows.length > PDF_EXPORT_MAX_ROWS) throw new Error(`当前结果有 ${rows.length} 条，单次最多导出 ${PDF_EXPORT_MAX_ROWS} 条`);
@@ -304,15 +307,15 @@ function createGroupedPdf(options = {}) {
   const groups = groupedRows(rows, groupKey, groupLabel);
   const pages = [];
   let page = startPage(clean(options.title, "运营指标查询结果"), "按门店分组", false);
-  const criteriaLines = wrapped(clean(options.criteria, `共 ${rows.length} 条`), CONTENT_WIDTH - 8, 8.5);
+  const criteriaLines = wrapped(clean(options.criteria, `共 ${rows.length} 条`), CONTENT_WIDTH - 8, 10);
   criteriaLines.forEach((line, index) => {
-    addText(page.commands, line, MARGIN, page.top + index * 12, 8.5, { width: CONTENT_WIDTH, color: COLORS.muted });
+    addText(page.commands, line, MARGIN, page.top + index * 14, 10, { width: CONTENT_WIDTH, color: COLORS.muted });
   });
-  page.top += criteriaLines.length * 12 + 10;
+  page.top += criteriaLines.length * 14 + 10;
   for (const group of groups) {
     let rowIndex = 0;
     do {
-      if (page.top + GROUP_HEIGHT + HEADER_HEIGHT + ROW_HEIGHT > PAGE_HEIGHT - BOTTOM) {
+      if (page.top + GROUP_HEIGHT + HEADER_HEIGHT + rowLayout(columns, group.rows[rowIndex]).height > PAGE_HEIGHT - BOTTOM) {
         pages.push(page.commands);
         page = startPage(clean(options.title, "运营指标查询结果"), "查询结果", true);
       }
@@ -320,9 +323,12 @@ function createGroupedPdf(options = {}) {
       page.top += GROUP_HEIGHT;
       drawHeader(page.commands, columns, page.top);
       page.top += HEADER_HEIGHT;
-      while (rowIndex < group.rows.length && page.top + ROW_HEIGHT <= PAGE_HEIGHT - BOTTOM) {
-        drawRow(page.commands, columns, group.rows[rowIndex], page.top, rowIndex % 2 === 1);
-        page.top += ROW_HEIGHT;
+      while (rowIndex < group.rows.length) {
+        const layout = rowLayout(columns, group.rows[rowIndex]);
+        if (layout.height > PAGE_HEIGHT - 58 - GROUP_HEIGHT - HEADER_HEIGHT - BOTTOM) throw new Error("单条数据过长，请导出 Excel 查看完整内容");
+        if (page.top + layout.height > PAGE_HEIGHT - BOTTOM) break;
+        drawRow(page.commands, columns, group.rows[rowIndex], page.top, rowIndex % 2 === 1, layout);
+        page.top += layout.height;
         rowIndex += 1;
       }
       page.top += 8;
@@ -344,9 +350,10 @@ async function openPdf({ bytes, filename }) {
   }
   if (typeof wx.openDocument !== "function") throw new Error("当前微信版本无法打开 PDF，请升级微信后重试");
   const filePath = `${wx.env.USER_DATA_PATH}/${safeFilename(filename)}.pdf`;
-  await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data: bytes, success: resolve, fail: reject }));
+  const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data, success: resolve, fail: reject }));
   await wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "pdf", showMenu: true, success: resolve, fail: reject }));
   return filePath;
 }
 
-module.exports = { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf, safeFilename };
+module.exports = { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf, safeFilename, createVectorPdf: createPdfBytes };

@@ -2,7 +2,7 @@
   "use strict";
 
   // 文档同步约束：每次业务或界面变更都必须同步更新 main.tex 与 README.md。
-  const PROTOTYPE_VERSION = "0.15.31";
+  const PROTOTYPE_VERSION = "0.15.32";
   const BUSINESS_TIME_ZONE = "Asia/Shanghai";
   const RANKING_PAGE_SIZE = 10;
   const PRODUCT_SUMMARY_PAGE_SIZE = 10;
@@ -715,7 +715,7 @@
       const productLabel = productId
         ? state.rankingProducts.find((product) => product.id === productId)?.label || "指定项目"
         : "全部项目";
-      window.HqDashboardReport.downloadReport({
+      await window.HqDashboardReport.downloadReport({
         filename: `露思卓儿总部-${range.startDate}至${range.endDate}-${dimensionLabel}-${metricLabel}排名`,
         startDate: range.startDate,
         endDate: range.endDate,

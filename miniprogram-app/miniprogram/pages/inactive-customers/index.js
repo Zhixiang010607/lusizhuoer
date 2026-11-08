@@ -335,15 +335,14 @@ Page({
       const today = query.businessToday();
       const reportOptions = {
         title: "活跃预警查询结果", sheetName: "活跃预警",
-        criteria: `查询条件：核销间隔至少 ${String(this.data.minimumDays).trim()} 天｜门店范围：${this.selectedStoreName()}｜导出日期：${today}｜共 ${rows.length} 位客户`,
-        rows, groupKey: (row) => row.storeId || row.storeName, groupLabel: (row) => row.storeName,
+        criteria: `查询条件：核销间隔至少 ${String(this.data.minimumDays).trim()} 天｜门店范围：${this.selectedStoreName()}｜导出日期：${today}（北京时间）｜共 ${rows.length} 位客户`,
+        rows: rows.map((row) => ({ ...row, lastVerificationLabel: row.baselineSource === "CUSTOMER_CREATED" ? "从未核销" : query.displayDateAny(row.baselineAt, row.baseline_at) })), groupKey: (row) => row.storeId || row.storeName, groupLabel: (row) => row.storeName,
         columns: [
           { key: "categoryLabel", header: "预警分类", width: 18 },
           { key: "customerName", header: "客户", width: 22 },
           { key: "storeName", header: "门店", width: 20 },
           { key: "daysSince", header: "间隔时间（天）", width: 16, type: "number" },
-          { key: "baselineSourceLabel", header: "计算起点", width: 15 },
-          { key: "lastVerificationLabel", header: "上次核销", width: 21 }
+          { key: "lastVerificationLabel", header: "上次核销日期", width: 21 }
         ]
       };
       if (format === "pdf") reportOptions.cjkFontBytes = await loadCjkFontBytes();

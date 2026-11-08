@@ -4,12 +4,12 @@
 
 当前版本：`v142`
 
-`v142` 在本人及总部／组长已授权的老师主页概要中增加当前所属组长姓名；无有效归属时返回空字符串，只显示文字，不增加组长主页链接或跨组权限。需先执行并验收迁移093，再部署 staffAccount v102 与本函数、更新客户端；本源码包不代表已部署。
+`v142` 在本人及总部／组长已授权的老师主页概要中增加当前所属组长姓名；无有效归属时返回空字符串，只显示文字，不增加组长主页链接或跨组权限。需先执行并验收迁移093，再部署 staffAccount v104 与本函数、更新客户端；本源码包不代表已部署。
 
 
 `v141` 修正数据展示的一致性：客户查询、门店主页的活跃／封存客户列表及照片接口的客户概要中，充值显示审核通过的 `NEW` 历史总数，不再误用已扣退费的净开卡缓存；客户主页及照片概要的累计核销只显示已通过 `NORMAL`＋`SUPPLEMENT`，与单列体验分开。数据库净开卡、可退额度、余额、工单写入／审核、BLE、权限和组长范围均不变。客户业务阶段按用户最新决定改为历史已通过充值／正常核销，需先按完整备份门禁执行并验收 [迁移 092](../../database/cloudbase-console/092-README.md)；仅回填阶段列，不重算或修改工单与余额。总部／老师统计原来已经采用独立四类事件，本次不改其口径。客户主页五类业务记录另增 `historyPage`／`historyPageSize=10` 编号分页，每一类的计数、页码夹取和本页由一条 SQL 返回同一快照；保留旧客户端游标协议，先部署本函数再更新客户端，不修改历史业务记录。本源码包不代表已部署或已执行 SQL。
 
-`v140` 增加老师组长专用只读接口：`getTeamTeacherWorkspace`、`queryTeamInactiveVerificationCustomers`、`queryTeamLowBalanceCustomers`，并允许有效组长读取当前成员的打卡照片。范围从当前 UID、迁移 091 的有效组长与当前成员关系派生，不能用客户端身份、老师编号或门店筛选扩大。活跃度、余次与 customerRating v9 的评价分析共用“当前组员＋组长本人”的可信关联客户范围；活跃度在授权客户内沿用原算法读取真实服务记录；余次只读这些客户的真实余额，不拆分、修改或扣次。成员主页不接受工单详情请求，不执行月度额度重置，也不扩展其他客户／工单／照片写入权限。普通老师、门店及原总部入口保留原权限。先完整备份并执行、验收 091，再联动部署 faceRecognition v142 与 staffAccount v102，最后更新客户端。本源码包不代表已经部署。
+`v140` 增加老师组长专用只读接口：`getTeamTeacherWorkspace`、`queryTeamInactiveVerificationCustomers`、`queryTeamLowBalanceCustomers`，并允许有效组长读取当前成员的打卡照片。范围从当前 UID、迁移 091 的有效组长与当前成员关系派生，不能用客户端身份、老师编号或门店筛选扩大。活跃度、余次与 customerRating v9 的评价分析共用“当前组员＋组长本人”的可信关联客户范围；活跃度在授权客户内沿用原算法读取真实服务记录；余次只读这些客户的真实余额，不拆分、修改或扣次。成员主页不接受工单详情请求，不执行月度额度重置，也不扩展其他客户／工单／照片写入权限。普通老师、门店及原总部入口保留原权限。先完整备份并执行、验收 091，再联动部署 faceRecognition v142 与 staffAccount v104，最后更新客户端。本源码包不代表已经部署。
 
 
 `v138` 修复提交结果恢复的只读 SQL：体验额度使用记录以真实主键 `verification_id` 关联，不再读取不存在的 `usage.id`。补录恢复继续按原账号、门店、幂等编号及 SUPPLEMENT 类型核对原单，待审／驳回／通过状态均只回读，不再次提交、不清除不确定锁；正常核销仍须设备信号完整，体验核销还须真实额度使用记录。无 SQL 迁移，不改创建、审核、扣次、人脸或 BLE。实际部署与验收状态以仓库独立发布回执为准。
@@ -21,7 +21,7 @@
 `v135` 新增总部专用只读 `getHqTeacherWorkspace`：先按当前认证 UID 复核总部身份，再从老师主档解析目标；复用老师本人的有效业务归属、四类统计和分页读取，不切换为老师会话、不新增写入权限，也不执行额度月度重置。老师原 `getTeacherWorkspace` 路由仍只按本人身份读取，忽略客户端指定的老师身份。新接口不接受工单详情编号，工单链接继续走既有总部详情入口。小程序老师详情新增“老师主页”页签，先部署并核验本函数，再上传依赖新 action 的客户端。无 SQL、运行时或环境变量变更；不改核销创建、人脸、BLE、照片、扣次或审核决策。
 
 当前联动部署矩阵：`faceRecognition v142`、`verificationPhoto v13`、
-`staffAccount v102`、`teacherCreate v9`、`customerRating v9`。迁移 075—086
+`staffAccount v104`、`teacherCreate v9`、`customerRating v9`。迁移 075—086
 验收通过后再部署这些当前版本；下文出现的旧版本号只用于历史发布记录，不能作为
 本次上传包名称或运行时验收依据。当前照片打卡还必须先验收 088、089、090；完整顺序以 090-README 为准。
 
@@ -237,7 +237,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 3. 完成 046、总部封锁旧运营凭据、047 和 048 后，依次执行 `049-01` 至 `049-13`，再运行 `049-readonly-verify.sql`，全部必须为 `READY`。049 是向前迁移，不要修改或重跑生产已执行的 048。
 4. 执行迁移 050 的 7 段控制台 SQL并确认只读验收全部 `READY`，再按 053 指引退役旧老师人脸 Saga。当前 `faceRecognition v142` 不依赖迁移 051／052，也不需要老师人脸操作恢复 Timer。
 5. 完整执行迁移 054（CloudBase SQL 编辑器使用 `054-01-teacher-only-customer-face-experience.sql`），把新体验核销切换为老师账号赠送、客户人脸凭证。
-6. 将 `faceRecognition` 执行超时设为 **90 秒**；当前联动包为 `faceRecognition v142`、`verificationPhoto v13`、`staffAccount v102` 和 `teacherCreate v9`。`teacherCreate` 建议设为 **90 秒、至少 256 MB**，并配置与老师建档一致的人脸和私有照片桶变量。
+6. 将 `faceRecognition` 执行超时设为 **90 秒**；当前联动包为 `faceRecognition v142`、`verificationPhoto v13`、`staffAccount v104` 和 `teacherCreate v9`。`teacherCreate` 建议设为 **90 秒、至少 256 MB**，并配置与老师建档一致的人脸和私有照片桶变量。
 7. 完整执行迁移 055 并确认 3 行全部 `READY`，移除充值、退费、核销和体验核销中的旧老师人脸门禁；再执行 `056-01-experience-quota-column-ambiguity.sql`，确认返回 `READY`。
 8. 执行 `057-01-teacher-created-customer-access.sql`，确认字段、外键和索引 3 行全部为 `READY`。
 9. 按 `058-README.md` 执行三段 SQL，确认只读验收两行全部为 `READY`。
@@ -246,7 +246,7 @@ v99 的 `recoverBusinessSubmission` 仅允许原提交账号、原门店按同�
 12. 确认 063 的 8 行安全验收全部为 `READY`；短暂停止核销写入，执行 064。随后按 065 README 短暂停止充值、退费、核销和产品购买新建并执行 065；继续整文件执行 066。066 不登记设备，只建立短时资格和授权审计。最后在低峰期按 067 README 建立充值／退费查询索引并完成只读验收。
 13. 执行并验收 068—083，配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`，准备 `customerRating-v9.zip`。如果旧版 066 曾建立第三张设备注册表，先执行 `066-02-retire-legacy-device-registry.sql`；设备固件切换到凯撒签名且迁移 072 预留验收通过后，再部署 `faceRecognition v142` 及同轮配套函数，分别调用 `health` 核对实际版本，最后发布当前客户端。
 
-历史 v138／v98 首次启用组长的前置顺序：先完整备份并执行、验收 `database/cloudbase-console/091-README.md` 中的组长迁移，再原地部署 `deployments/staffAccount-v102.zip` 和 `deployments/faceRecognition-v142.zip`，分别确认 health 为 v102／v142，并回下载全部根文件逐一比对，最后发布配套客户端。091 不自动任命任何老师或改变既有人员／业务数据；不重复执行历史迁移，联动部署新增组长只读评价的 customerRating v9；不重新部署未变化的 verificationPhoto 或 teacherCreate，不重建函数，不改运行时或全局活体开关。首次从照片考勤之前版本升级的历史前置顺序仍见 `database/cloudbase-console/090-README.md`。
+历史 v138／v98 首次启用组长的前置顺序：先完整备份并执行、验收 `database/cloudbase-console/091-README.md` 中的组长迁移，再原地部署 `deployments/staffAccount-v104.zip` 和 `deployments/faceRecognition-v142.zip`，分别确认 health 为 v104／v142，并回下载全部根文件逐一比对，最后发布配套客户端。091 不自动任命任何老师或改变既有人员／业务数据；不重复执行历史迁移，联动部署新增组长只读评价的 customerRating v9；不重新部署未变化的 verificationPhoto 或 teacherCreate，不重建函数，不改运行时或全局活体开关。首次从照片考勤之前版本升级的历史前置顺序仍见 `database/cloudbase-console/090-README.md`。
 
 部署后测试：
 
@@ -336,4 +336,4 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 
 正式上线前还要提供客户授权记录、照片与人脸数据删除流程、访问审计，并确认腾讯云高精度静态活体服务已开通和计费。
 
-当前从已验收 faceRecognition v141／staffAccount v100 升级：须先按完整备份门禁执行并独立验收093，再部署 staffAccount v102、faceRecognition v142，核对运行版本及回下载全部根文件，最后更新客户端。不重复执行091、092。
+当前从已验收 faceRecognition v141／staffAccount v100 升级：须先按完整备份门禁执行并独立验收093，再部署 staffAccount v104、faceRecognition v142，核对运行版本及回下载全部根文件，最后更新客户端。不重复执行091、092。

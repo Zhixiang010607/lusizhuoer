@@ -94,3 +94,5 @@ page { min-height: 100%; color: #302a22; background: #f3ede2; }
   .table-scroll[data-visible-rows="9"] { height: 556px; }
   .table-scroll[data-visible-rows="10"] { height: 612px; }
 }
+
+.search-actions.single { grid-template-columns: minmax(0, 1fr); }

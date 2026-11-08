@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v102";
+const FUNCTION_VERSION = "v104";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5760,6 +5760,10 @@ async function main(event = {}, context = {}) {
   if (action === "removeProductReceiptLogo") {
     requireHq(caller);
     return { ok: true, template: await removeProductReceiptLogo(caller, event) };
+  }
+  if (action === "getHqReviewSmsPreference" || action === "setHqReviewSmsPreference") {
+    const service = require("./hq-review-sms").createHqReviewSms({ executeSql, requireHq, numericId, sqlText, fail });
+    return { ok: true, preference: await service.run(caller, event, action === "setHqReviewSmsPreference") };
   }
   if (action === "getPendingReviewCounts") {
     return { ok: true, ...(await getPendingReviewCounts(caller)) };

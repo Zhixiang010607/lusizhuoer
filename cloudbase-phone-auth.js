@@ -528,6 +528,12 @@
         storeId ? "门店状态更新失败" : "老师状态更新失败"
       );
     },
+    async getHqReviewSmsPreference({ staffAccountId }) {
+      return callStaffAccount({ action: "getHqReviewSmsPreference", staffAccountId }, "短信设置读取失败");
+    },
+    async setHqReviewSmsPreference({ staffAccountId, categories }) {
+      return callStaffAccount({ action: "setHqReviewSmsPreference", staffAccountId, categories }, "短信设置保存失败");
+    },
     async listStaff(role) {
       const data = await callStaffAccount({ action: "listStaff", role }, "人员列表读取失败");
       return data.staff || [];

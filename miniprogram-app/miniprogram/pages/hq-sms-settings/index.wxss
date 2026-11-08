@@ -1,0 +1,32 @@
+page { min-height: 100%; background: #f3ede2; color: #302a22; }
+.page { width: calc(100% - 28rpx); margin: 0 auto; padding: 24rpx 0 calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.page-heading { margin: 0 6rpx 24rpx; }
+.title { font-size: 40rpx; font-weight: 800; }
+.panel { padding: 28rpx; border: 1rpx solid #dfcfb4; border-radius: 24rpx; background: #fffaf3; }
+.person-name { display: block; font-size: 34rpx; font-weight: 800; }
+.phone, .description { display: block; margin-top: 16rpx; font-size: 28rpx; line-height: 1.6; overflow-wrap: anywhere; }
+.description { color: #7d7161; }
+.category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16rpx; margin: 28rpx 0; }
+.category-item { display: flex; align-items: center; gap: 8rpx; min-width: 0; min-height: 96rpx; padding: 12rpx; box-sizing: border-box; border: 1rpx solid #dfcfb4; border-radius: 14rpx; background: #fff; font-size: 28rpx; }
+.category-item text { white-space: nowrap; }
+.service-note { padding-top: 20rpx; border-top: 1rpx solid #eadfce; }
+.actions { display: flex; gap: 16rpx; margin-top: 28rpx; }
+.actions button { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 88rpx; margin: 0; padding: 16rpx; border-radius: 14rpx; font-size: 28rpx; line-height: 1.2; font-weight: 700; box-sizing: border-box; }
+.primary { background: #6f532e; color: #fff; }
+.secondary { background: #fff; color: #74592d; border: 1rpx solid #d8c5a3; }
+button[disabled] { background: #e7ddcd; color: #938674; }
+.message { margin-top: 24rpx; font-size: 28rpx; line-height: 1.5; color: #4f6f5d; }
+.message.error { color: #a44235; }
+@media (min-width: 700px) {
+  .page { width: calc(100% - 48px); max-width: 1120px; padding-top: 24px; }
+  .title { font-size: 28px; }
+  .page-heading { margin-bottom: 20px; }
+  .panel { padding: 24px; border-width: 1px; border-radius: 20px; }
+  .person-name { font-size: 22px; }
+  .phone, .description, .message { margin-top: 12px; font-size: 16px; }
+  .category-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+  .category-item { min-height: 64px; padding: 12px; gap: 8px; border-radius: 10px; font-size: 16px; }
+  .actions { justify-content: flex-end; margin-top: 24px; }
+  .actions button { flex: 0 1 160px; min-height: 48px; padding: 12px 20px; border-radius: 10px; font-size: 16px; }
+  .service-note { padding-top: 16px; }
+}

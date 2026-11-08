@@ -141,11 +141,6 @@ test("PDF export loads the shared font subpackage once for concurrent callers", 
   const attempts = [];
   let loadCalls = 0;
   global.wx = {
-    loadSubpackage({ name, success }) {
-      loadCalls += 1;
-      assert.equal(name, "report-font");
-      setImmediate(success);
-    },
     getFileSystemManager() {
       return {
         readCompressedFileSync({ filePath, compressionAlgorithm }) {
@@ -158,9 +153,12 @@ test("PDF export loads the shared font subpackage once for concurrent callers", 
     }
   };
   try {
+    const module = { exports: {} };
+    const asyncRequire = Object.assign(() => {}, { async: async (id) => { loadCalls++; assert.equal(id, "../packages/report-font/ready.js"); return true; } });
+    require("node:vm").runInNewContext(read("services", "grouped-table-pdf.js"), { module, require: asyncRequire, wx: global.wx, Uint8Array, ArrayBuffer });
     const [firstFont, secondFont] = await Promise.all([
-      pdfExporter.loadCjkFontBytes(),
-      pdfExporter.loadCjkFontBytes()
+      module.exports.loadCjkFontBytes(),
+      module.exports.loadCjkFontBytes()
     ]);
     assert.equal(loadCalls, 1);
     assert.equal(firstFont, secondFont);
@@ -190,8 +188,8 @@ test("all three marketing pages export complete PDF and Excel reports rather tha
   const cases = [
     {
       page: "inactive-customers",
-      labels: ["活跃预警查询结果", "预警分类", "客户", "门店", "间隔时间（天）", "计算起点", "上次核销"],
-      removed: /生日|上次项目|项目编号/
+      labels: ["活跃预警查询结果", "预警分类", "客户", "门店", "间隔时间（天）", "上次核销日期"],
+      removed: /生日|上次项目|项目编号|header: "计算起点"/
     },
     {
       page: "low-balance-customers",

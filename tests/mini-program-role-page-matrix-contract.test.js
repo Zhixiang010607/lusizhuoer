@@ -28,6 +28,7 @@ const ROLE_MATRIX = Object.freeze({
   "pages/retail-product-management/index": ["hq"],
   "pages/retail-product-create/index": ["hq"],
   "pages/hq-directory/index": ["hq"],
+  "pages/hq-sms-settings/index": ["hq"],
   "pages/store-create/index": ["hq"],
   "pages/store-detail/index": ["hq"],
   "pages/teacher-create/index": ["hq"],

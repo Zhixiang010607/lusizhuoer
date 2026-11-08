@@ -1,0 +1,17 @@
+<view class="page">
+  <view class="page-heading"><text class="title">审核短信设置</text></view>
+  <view class="panel">
+    <text class="person-name">{{name || '总部人员'}}</text>
+    <text wx:if="{{phone}}" class="phone">接收手机号：{{phone}}</text>
+    <text class="description">任何在职总部均可设置总部人员的接收项目。四项默认关闭，全部不勾选即不接收。</text>
+    <text wx:if="{{loading}}" class="description">正在读取设置…</text>
+    <checkbox-group class="category-grid" bindchange="changeCategories">
+      <label wx:for="{{categories}}" wx:key="key" class="category-item">
+        <checkbox value="{{item.key}}" checked="{{item.checked}}" color="#7d5b2d" disabled="{{loading || saving || !loaded || (!active && !item.checked)}}" /><text>{{item.label}}</text>
+      </label>
+    </checkbox-group>
+    <text class="description service-note">短信服务准备中，设置会保存，服务启用后生效。封存人员不接收提醒。</text>
+    <view wx:if="{{message}}" class="message {{error ? 'error' : ''}}">{{message}}</view>
+    <view class="actions"><button wx:if="{{!loaded && !loading}}" class="secondary" bindtap="load" disabled="{{saving}}">重新读取设置</button><button class="primary" bindtap="save" disabled="{{loading || saving || !loaded}}">{{saving ? '正在保存…' : '保存设置'}}</button></view>
+  </view>
+</view>
