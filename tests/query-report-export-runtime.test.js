@@ -6,6 +6,7 @@ function client(api={}){const module={exports:{}};let uid="hq-a";vm.runInNewCont
 const customers=n=>({exportAll:true,total:n,customers:Array.from({length:n},(_,i)=>({customerCode:String(i+1),customerName:"示例客户"+(i+1),birthDate:"1990-01-01",storeName:"示例门店",createdAt:"2026-11-07T20:00:00Z",customerStatus:"ACTIVE",customerProcessStatus:"INFORMATION_ONLY",totalRechargeCount:0,totalVerificationCount:0}))});
 function page(){return{data:{loading:false},setData(v){Object.assign(this.data,v);}};}
 function device(){const writes=[],opened=[];global.wx={env:{USER_DATA_PATH:"/isolated"},getFileSystemManager:()=>({writeFile(o){assert(o.data instanceof ArrayBuffer);writes.push({path:o.filePath,bytes:Buffer.from(o.data)});o.success({});}}),openDocument(o){opened.push(o.fileType);o.success({});}};return{writes,opened};}
+function webClient(){const window={CustomerAge:{format:()=>"36岁"}};vm.runInNewContext(fs.readFileSync(path.join(root,"query-report-export.js"),"utf8"),{window});return window.QueryReportExport;}
 function fn(file,start,end,dependencies){const source=fs.readFileSync(path.join(root,file),"utf8"),a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);const sandbox={...dependencies};vm.runInNewContext(source.slice(a,b)+`\nthis.run=${start.match(/function (\w+)/)[1]};`,sandbox);return sandbox.run;}
 const fail=(message,code)=>{throw Object.assign(Error(message),{code});},sqlText=v=>"'"+String(v).replace(/'/g,"''")+"'";
 function face(kind,rows,deny=false){const sql=[];const dependencies={activeScopedQueryCaller:async()=>{if(deny)fail("无权查询","FORBIDDEN");return{scopeMode:"store",storeId:"7"};},fail,scopedStoreClause:(_,column)=>`${column} = 7`,sqlText,optionalBusinessQueryDate:v=>v||"",scopedQueryCursorTimestamp:v=>v||"",businessQueryDatabaseId:v=>String(v),teacherBusinessAttributionSourceCondition:()=>"TRUE",databaseBoolean:Boolean,executeSql:async q=>{sql.push(q);return rows;}};
@@ -44,4 +45,29 @@ test("attendance PDF is summary-only; daily PDF has one teacher per detail page 
  const result={exportAll:true,total:3,reportDate:"2026-11-08",exportRows:[1,2,3].map(i=>({teacherId:String(i),teacherName:"示例老师"+i,phone:"1380000000"+i,completed:i<3,updatedAt:"2026-11-08T10:00:00Z",completedWork:"完成客户服务并核对记录。".repeat(75).slice(0,1000)}))};
  const model=c.documentModel("DAILY_REPORT",result),details=require(mini+'/daily-detail-report').createDetailPages(model);assert.equal(details.length,2);const report=pdf.createGroupedPdf({...model,columns:model.columns.filter(c=>c.key!=="content"),detailPages:details,cjkFontBytes:font});assert.equal(report.pages,3);
  const workbook=excel.createGroupedWorkbook({...model,sheets:[{...model,sheetName:"当天汇总",columns:model.columns.filter(c=>c.key!=="content")},{...model,sheetName:"详细内容",narrative:true}]});assert.equal(workbook.sheetCount,2);assert(Buffer.from(workbook.bytes).includes(Buffer.from('当天汇总')));assert(Buffer.from(workbook.bytes).includes(Buffer.from('详细内容')));
+});
+
+for(const type of ["RECHARGE","VERIFICATION"])for(const format of ["pdf","excel"])test(`${type} ${format} accepts repeated teacher/customer from the actual server response mapper`,async()=>{
+  const raw=Array.from({length:8},(_,i)=>({id:String(9001+i),record_code:(type==="RECHARGE"?"RC":"VR")+String(202611070057-i),original_type:type==="RECHARGE"?"NEW":"NORMAL",unit_count:1,record_status:"APPROVED",submitted_at:"2026-11-07T10:00:00Z",customer_code:"SAME-CUSTOMER",customer_name:"同一示例客户",birth_date:"1990-01-01",teacher_id:"77",teacher_name:"同一示例老师",store_id:7,store_name:"隔离门店",product_id:1,product_name:"隔离项目"}));
+  const server=face(type,raw),payload={recordType:type,statusCategory:"ALL"};
+  const result=await server.run({...payload,exportAll:true});
+  assert.equal(new Set(result.records.map(r=>r.teacherId)).size,1);assert.equal(new Set(result.records.map(r=>r.customerCode)).size,1);
+  for(const model of [client().documentModel(type,result),webClient().model(type,result)]){assert.equal(model.rows.length,8);assert.equal(new Set(model.rows.map(r=>r.number)).size,8);}
+  const d=device(),p=page(),service=client({callFace:async(action,event)=>{assert.equal(action,"queryStoreBusinessRecords");return server.run(event);}});
+  await service.exportPage(p,type,payload,{format});assert.equal(p.data.error,false);assert.equal(p.data.message,"已导出 8 条");assert.equal(d.opened.length,1);assert.equal(d.writes.length,1);
+  const duplicate={...result,records:[...result.records.slice(0,7),result.records[0]]};
+  for(const run of [()=>client().documentModel(type,duplicate),()=>webClient().model(type,duplicate)])assert.throws(run,/重复/);
+  const missing={...result,records:result.records.map((r,i)=>i? r:{...r,id:undefined})};
+  for(const run of [()=>client().documentModel(type,missing),()=>webClient().model(type,missing)])assert.throws(run,/编号缺失/);
+});
+
+test("refunds, daily rosters, customers and product lines validate only their own identity domain",()=>{
+  const c=client(),web=webClient();
+  const refund={exportAll:true,total:2,records:[1,2].map(i=>({id:String(i),teacherId:"77",customerCode:"ONE",originalType:"REFUND",recordCode:"RC"+i}))};
+  for(const model of [c.documentModel("RECHARGE",refund,{rechargeType:"REFUND"}),web.model("RECHARGE",refund,{rechargeType:"REFUND"})])assert.equal(model.rows.length,2);
+  const sameTeacherCustomers=customers(2);sameTeacherCustomers.customers.forEach(r=>{r.teacherId="77";r.id="999";});assert.equal(c.documentModel("CUSTOMER",sameTeacherCustomers).rows.length,2);
+  for(const kind of ["ATTENDANCE","DAILY_REPORT"]){const result={exportAll:true,total:2,attendanceDate:"2026-11-08",reportDate:"2026-11-08",exportRows:[1,2].map(i=>({teacherId:String(i),id:"SAME-UNRELATED-ID",customerCode:"SAME-UNRELATED-CUSTOMER"}))};assert.equal(c.documentModel(kind,result).rows.length,2);assert.equal(web.model(kind,result).rows.length,2);result.exportRows[1].teacherId="1";assert.throws(()=>c.documentModel(kind,result),/重复/);assert.throws(()=>web.model(kind,result),/重复/);}
+  const product={exportAll:true,total:2,orders:["PURCHASE","GIFT"].map(source_type=>({id:"5",source_type,source_line_id:"5",teacherId:"77",customerCode:"ONE"}))};assert.equal(c.documentModel("PRODUCT_PURCHASE",product).rows.length,2);assert.equal(web.model("PRODUCT_PURCHASE",product).rows.length,2);
+  for(const value of [undefined,null,""," ","undefined",{}]){const bad={exportAll:true,total:1,orders:[{id:"1",source_type:"GIFT",source_line_id:value}]};assert.throws(()=>c.documentModel("PRODUCT_PURCHASE",bad),/编号缺失/);assert.throws(()=>web.model("PRODUCT_PURCHASE",bad),/编号缺失/);}
+  assert.throws(()=>c.documentModel("OTHER",refund),/类型无效/);assert.throws(()=>web.model("OTHER",refund),/类型无效/);
 });

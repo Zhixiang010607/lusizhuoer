@@ -1,6 +1,6 @@
 const { requireTeamAccess } = require("../../services/teacher-team");
 const { callRating } = require("../../services/api");
-const { requireSession } = require("../../services/session");
+const { requireSession, readSession } = require("../../services/session");
 const {
   EXPORT_BATCH_SIZE,
   EXPORT_MAX_ROWS,
@@ -362,10 +362,12 @@ return {
     }
     const exportEpoch = Number(this._exportEpoch || 0) + 1;
     this._exportEpoch = exportEpoch;
+    const uid = readSession()?.uid;
+    const isCurrent = () => exportEpoch === this._exportEpoch && readSession()?.uid === uid;
     this.setData({ exporting: true, message: `正在准备导出 0 / ${expectedTotal} 单…`, error: false });
     try {
       const rows = await this.collectAllOrders(expectedTotal, exportEpoch);
-      if (exportEpoch !== this._exportEpoch) return;
+      if (!isCurrent()) return;
       const today = query.businessToday();
       const reportOptions = {
         title: "评价分析查询结果", sheetName: "评价分析",
@@ -386,12 +388,13 @@ return {
         ]
       };
       if (format === "pdf") reportOptions.cjkFontBytes = await loadCjkFontBytes();
+      if (!isCurrent()) return;
       const report = format === "pdf" ? createGroupedPdf(reportOptions) : createGroupedWorkbook(reportOptions);
-      if (format === "pdf") await openPdf({ bytes: report.bytes, filename: `评价分析-${today}` });
-      else await openWorkbook({ bytes: report.bytes, filename: `评价分析-${today}` });
-      if (exportEpoch === this._exportEpoch) this.setData({ message: `已导出 ${report.rowCount} 单的 ${format === "pdf" ? "PDF" : "Excel"}，并按 ${report.groupCount} 个门店分组`, error: false });
+      if (format === "pdf") await openPdf({ bytes: report.bytes, filename: `评价分析-${today}`, valid: isCurrent });
+      else await openWorkbook({ bytes: report.bytes, filename: `评价分析-${today}`, valid: isCurrent });
+      if (isCurrent()) this.setData({ message: `已导出 ${report.rowCount} 单的 ${format === "pdf" ? "PDF" : "Excel"}，并按 ${report.groupCount} 个门店分组`, error: false });
     } catch (error) {
-      if (exportEpoch !== this._exportEpoch) return;
+      if (!isCurrent()) return;
       const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
       this.setData({ message: cancelled ? `已取消打开 ${format === "pdf" ? "PDF" : "Excel"}` : error.message || error.errMsg || "评价分析导出失败", error: !cancelled });
     } finally {

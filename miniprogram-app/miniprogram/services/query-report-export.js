@@ -7,6 +7,23 @@ const { businessToday } = require("./query-tools");
 const excel = require("./grouped-table-export");
 const pdf = require("./grouped-table-pdf");
 const MAX_ROWS = 1000;
+const EXPORT_KINDS = new Set(["CUSTOMER", "RECHARGE", "VERIFICATION", "PRODUCT_PURCHASE", "ATTENDANCE", "DAILY_REPORT"]);
+function identityPart(value) {
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  if (typeof value === "number" && (!Number.isSafeInteger(value) || value <= 0)) return "";
+  const part = String(value).trim();
+  return part && !["undefined", "null"].includes(part) ? part : "";
+}
+function rowIdentity(kind, row) {
+  if (kind === "CUSTOMER") return identityPart(row.customerCode);
+  if (kind === "ATTENDANCE" || kind === "DAILY_REPORT") return identityPart(row.teacherId);
+  if (kind === "PRODUCT_PURCHASE") {
+    const line = identityPart(row.source_line_id);
+    return ["PURCHASE", "GIFT"].includes(row.source_type) && line ? `${row.source_type}:${line}` : "";
+  }
+  // A customer or teacher may have many valid orders; only the order owns this identity.
+  return identityPart(row.id);
+}
 const status = value => ({ACTIVE:"活跃",ARCHIVED:"已封存",PENDING:"待审核",APPROVED:"已通过",REJECTED:"已驳回",VOIDED:"已作废"})[String(value)] || "—";
 const stage = value => ({INFORMATION_ONLY:"有信息但没有充值",RECHARGED_NO_CONSUMPTION:"已充值但没有消费",RECHARGED_WITH_CONSUMPTION:"已充值并已有消费"})[value] || "—";
 const day = value => value ? formatShanghaiTimestamp(value).slice(0,10) : "—";
@@ -15,6 +32,7 @@ function duration(seconds) { if(seconds === null || seconds === undefined) retur
 function reportText(r) { return [["今日完成事项",r.completedWork],["客户项目进展",r.customerProjectProgress],["问题与支持",r.problemsAndSupport],["明日计划",r.tomorrowPlan]].filter(([,v])=>v).map(([k,v])=>`${k}：${v}`).join("\n") || "—"; }
 const col=(key,header,width,type)=>({key,header,width,type});
 function documentModel(kind, result, payload = {}, team = false) {
+  if (!EXPORT_KINDS.has(kind)) throw new Error("导出类型无效");
   let rows, columns, title;
   const number=col("number","序号",6,"number"), name=col("customerName","客户",14), age=col("age","年龄",7), state=col("status","状态",9);
   if(kind === "CUSTOMER") {
@@ -37,18 +55,26 @@ function documentModel(kind, result, payload = {}, team = false) {
   if(result.exportAll !== true || !Number.isInteger(result.total) || result.total !== rows.length) throw new Error("导出结果不完整，请重新查询后导出");
   if(!rows.length) throw new Error("当前条件没有可导出的结果");
   if(rows.length > MAX_ROWS) throw new Error("单次最多导出1000条，请缩小查询范围");
-  const ids=new Set(); rows.forEach((r,i)=>{ const id=kind === "PRODUCT_PURCHASE"?`${r.source_type}:${r.source_line_id}`:r.teacherId||r.customerCode||r.id; if(!id||ids.has(String(id)))throw new Error("导出数据重复或编号缺失，请重新查询");ids.add(String(id));r.number=i+1; });
+  const ids=new Set(); rows.forEach((r,i)=>{ const id=rowIdentity(kind,r); if(!id||ids.has(id))throw new Error("导出数据重复或编号缺失，请重新查询");ids.add(id);r.number=i+1; });
   const daily=["ATTENDANCE","DAILY_REPORT"].includes(kind);
   const criteria=`${daily?(team?"当前分配组员":"全部在职老师"):"当前查询条件"} · 共 ${rows.length} 条 · 北京时间${daily?"":` · 导出日期 ${businessToday()}`}`;
   return {title,filename:daily?title:`${businessToday()}${title}`,criteria,rows,columns,automaticWidths:true,compact:true,groupTitle:daily?"范围":"门店",...(daily?{groupKey:()=>"day",groupLabel:()=>team?"当前分配组员":"全部在职老师"}:{})};
 }
 async function fetchSnapshot(kind, payload, team=false) {
+  if (!EXPORT_KINDS.has(kind)) throw new Error("导出类型无效");
   const data={...payload,exportAll:true};
   delete data.cursorCreatedAt; delete data.cursorSubmittedAt; delete data.cursorId;
   if(kind === "CUSTOMER") return callFace("queryStoreCustomers",data);
   if(kind === "ATTENDANCE") return callStaff(team?"getTeamAttendanceTrackingDay":"getHqAttendanceTrackingDay",data);
   if(kind === "DAILY_REPORT") return callStaff(team?"getTeamDailyReportTrackingDay":"getHqDailyReportTrackingDay",data);
-  if(kind === "PRODUCT_PURCHASE") return callStaff("listRetailProductPurchaseReviews",{...data,retailProductId:data.productId||"",status:data.statusCategory === "ALL"?"":data.statusCategory||"",limit:10});
+  if(kind === "PRODUCT_PURCHASE") {
+    // The product endpoint also falls back to productId, so remove that alias.
+    const { productId, ...productData } = data;
+    const selectedProduct = String(productId || "").trim();
+    return callStaff("listRetailProductPurchaseReviews",{...productData,
+      retailProductId:selectedProduct.toUpperCase() === "ALL"?"":selectedProduct,
+      status:data.statusCategory === "ALL"?"":data.statusCategory||"",limit:10});
+  }
   return callFace("queryStoreBusinessRecords",data);
 }
 async function exportPage(page,kind,payload,{team=false,valid=()=>true,format="pdf"}={}) {
@@ -72,7 +98,7 @@ async function exportPage(page,kind,payload,{team=false,valid=()=>true,format="p
       output=pdf.createGroupedPdf({...model,columns:daily?model.columns.filter(c=>c.key!=="content"):model.columns,detailPages,cjkFontBytes:font});
     }
     if(!isCurrent()) return;
-    await (format === "excel"?excel.openWorkbook:pdf.openPdf)({...output,filename:model.filename});
+    await (format === "excel"?excel.openWorkbook:pdf.openPdf)({...output,filename:model.filename,valid:isCurrent});
     if(isCurrent()) page.setData({message:`已导出 ${model.rows.length} 条`,error:false});
   }catch(error){if(isCurrent())page.setData({message:error.message||"导出失败，请重试",error:true});}
   finally{if(!page._unloaded)page.setData({exporting:false});}

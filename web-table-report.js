@@ -28,12 +28,12 @@
       const width=columns.reduce((n,c)=>n+c.points,0),size=columns.length<=7?13:12;
       function heading(continued){
         if(section.title){text(page.cmd,section.title+(continued?"（续）":""),LEFT,page.top,15,{color:palette.gold});page.top+=26;}
-        let x=LEFT;columns.forEach(c=>{fill(page.cmd,x,page.top,c.points,32,palette.header);text(page.cmd,c.label,x+8,page.top+8,12,{width:c.points-16,right:c.number});x+=c.points;});page.top+=32;
+        let x=LEFT;columns.forEach(c=>{fill(page.cmd,x,page.top,c.points,32,palette.header);text(page.cmd,c.label,x+8,page.top+8,12,{width:c.points-16,right:true});x+=c.points;});page.top+=32;
       }
       if(page.top+88>END){pages.push(page.cmd);page=newPage();}heading(false);
       for(const row of section.rows){
         if(page.top+34>END){pages.push(page.cmd);page=newPage();heading(true);}
-        let x=LEFT;columns.forEach(c=>{text(page.cmd,String(row[c.key]??"—").replace(/[\r\n]+/g," "),x+8,page.top+10,size,{right:c.number,width:c.points-16});x+=c.points;});page.top+=34;rule(page.cmd,page.top,width);
+        let x=LEFT;columns.forEach(c=>{text(page.cmd,String(row[c.key]??"—").replace(/[\r\n]+/g," "),x+8,page.top+10,size,{right:true,width:c.points-16});x+=c.points;});page.top+=34;rule(page.cmd,page.top,width);
       }
       page.top+=23;
     }

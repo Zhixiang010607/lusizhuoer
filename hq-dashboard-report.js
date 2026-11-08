@@ -134,7 +134,7 @@
     addFillRect(commands, MARGIN, top, CONTENT_WIDTH, HEADER_HEIGHT, COLORS.pale);
     columns.forEach((column) => {
       addStrokeRect(commands, x, top, column.width, HEADER_HEIGHT);
-      addText(commands, column.label, x + 5, top + 9, 10.5, { width: column.width - 10, align: column.align || "center", color: COLORS.dark });
+      addText(commands, column.label, x + 5, top + 9, 10.5, { width: column.width - 10, align: "right", color: COLORS.dark });
       x += column.width;
     });
     rows.forEach((row, rowIndex) => {
@@ -145,7 +145,7 @@
         addStrokeRect(commands, x, rowTop, column.width, ROW_HEIGHT);
         addText(commands, row[column.key], x + 5, rowTop + 8, row.__total ? 11 : 10.5, {
           width: column.width - 10,
-          align: column.align || (column.numeric ? "right" : "left"),
+          align: "right",
           color: row.__total ? COLORS.dark : COLORS.muted
         });
         x += column.width;

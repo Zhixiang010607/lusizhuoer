@@ -149,7 +149,7 @@ function drawHeader(commands, columns, top) {
   columns.forEach((column) => {
     addFillRect(commands, x, top, column.pdfWidth, HEADER_HEIGHT, COLORS.pale);
     addStrokeRect(commands, x, top, column.pdfWidth, HEADER_HEIGHT);
-    addText(commands, column.header, x + 8, top + 8, 12, { width: column.pdfWidth - 16, align: column.type === "number" ? "right" : column.align || "left" });
+    addText(commands, column.header, x + 8, top + 8, 12, { width: column.pdfWidth - 16, align: "right" });
     x += column.pdfWidth;
   });
 }
@@ -321,7 +321,7 @@ function createGroupedPdf(options = {}) {
       drawHeader(page.commands,columns,page.top);page.top+=HEADER_HEIGHT;
       while(index<group.rows.length&&page.top+34<=PAGE_HEIGHT-BOTTOM){
         const row=group.rows[index];let x=MARGIN;
-        columns.forEach(c=>{addFillRect(page.commands,x,page.top,c.pdfWidth,34,index%2?COLORS.paleAlt:COLORS.white);addStrokeRect(page.commands,x,page.top,c.pdfWidth,34);addText(page.commands,typeof c.value === "function"?c.value(row):row[c.key],x+8,page.top+10,size,{width:c.pdfWidth-16,align:c.type === "number"?"right":c.align||"left"});x+=c.pdfWidth;});page.top+=34;index++;
+        columns.forEach(c=>{addFillRect(page.commands,x,page.top,c.pdfWidth,34,index%2?COLORS.paleAlt:COLORS.white);addStrokeRect(page.commands,x,page.top,c.pdfWidth,34);addText(page.commands,typeof c.value === "function"?c.value(row):row[c.key],x+8,page.top+10,size,{width:c.pdfWidth-16,align:"right"});x+=c.pdfWidth;});page.top+=34;index++;
       }
       if(index<group.rows.length){pages.push(page.commands);page=fresh();}
     }while(index<group.rows.length);
@@ -333,7 +333,8 @@ function createGroupedPdf(options = {}) {
 }
 
 function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }
-async function openPdf({ bytes, filename }) {
+async function openPdf({ bytes, filename, valid = () => true }) {
+  if (!valid()) return null;
   if (!(bytes instanceof Uint8Array) || !bytes.byteLength) throw new Error("PDF 内容为空");
   if (typeof wx === "undefined" || !wx.env || !wx.env.USER_DATA_PATH || typeof wx.getFileSystemManager !== "function") {
     throw new Error("当前微信版本无法写入 PDF");
@@ -342,6 +343,7 @@ async function openPdf({ bytes, filename }) {
   const filePath = `${wx.env.USER_DATA_PATH}/${safeFilename(filename)}.pdf`;
   const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data, success: resolve, fail: reject }));
+  if (!valid()) return null;
   await wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "pdf", showMenu: true, success: resolve, fail: reject }));
   return filePath;
 }

@@ -1,7 +1,6 @@
 const { callFace, callStaff } = require("../../services/api");
 const { waitForStartupSession, requireSession, getSelectedStore, signOut } = require("../../services/session");
 const dashboard = require("../../services/home-dashboard");
-const hqReport = require("../../services/hq-dashboard-report");
 
 const ROLE_META = Object.freeze({
   hq: { title: "总部数据看板", subtitle: "真实数据库统计 · 默认显示今天" },
@@ -21,8 +20,6 @@ const RANKING_METRICS = Object.freeze([
 const PAGE_SIZE = 10;
 const RANKING_PAGE_SIZE = 10;
 const PRODUCT_SUMMARY_PAGE_SIZE = 10;
-const REPORT_EXPORT_PAGE_SIZE = 500;
-const REPORT_EXPORT_MAX_ROWS = 10000;
 
 function readyRangeOptions(active) {
   return dashboard.RANGE_OPTIONS.map((item) => ({ ...item, active: item.value === active }));
@@ -122,25 +119,12 @@ function hqProductSummaryView(payload = {}) {
     })
   };
 }
-function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }
-function openPdfDocument(filePath) {
-  if (typeof wx.openDocument !== "function") return Promise.reject(new Error("当前微信版本无法打开 PDF，请升级微信后重试"));
-  return wxCall((resolve, reject) => wx.openDocument({ filePath, fileType: "pdf", showMenu: true, success: resolve, fail: reject }));
-}
-function reportTimestamp(date = new Date()) {
-  const pad = (value) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
 function hqRangePayload(period, range) {
-  return period === "ALL"
-    ? { allTime: true }
-    : { startDate: range.startDate, endDate: range.endDate };
+  return period === "ALL" ? { allTime: true } : { startDate: range.startDate, endDate: range.endDate };
 }
-
-
 const {requireTeamAccess,teacherUrl}=require("../../services/teacher-team");
-
 // Dedicated member-scoped subpage; the original teacher/HQ home stays intact.
+
 Page({
  data:{"authorized":false,"loading":false,"message":"","error":false,"session":{"role":"teacher"},"hqPeriodOptions":[{"value":"TODAY","label":"今天"},{"value":"WEEK","label":"本周"},{"value":"MONTH","label":"本月"},{"value":"QUARTER","label":"本季度"},{"value":"YEAR","label":"本年"},{"value":"ALL","label":"全部"},{"value":"CUSTOM","label":"自定义"}],"hqPeriodLabels":["今天","本周","本月","本季度","本年","全部","自定义"],"hqPeriod":"TODAY","hqPeriodIndex":0,"hqStart":"","hqEnd":"","hqMetrics":[],"hqCharts":[],"hqDimensions":[{"value":"store","label":"门店"},{"value":"teacher","label":"老师"}],"hqProjectSummaryRows":[],"hqProjectSummaryPage":{"total":0,"page":1,"pageSize":10,"totalPages":1,"previousDisabled":true,"nextDisabled":true},"hqProjectSummaryTotals":{"verification":0,"recharge":0,"experience":0,"refund":0},"hqProjectSummaryTotalsReady":false,"hqProjectSummaryLoading":true,"hqProjectSummaryError":"","hqDimensionLabels":["门店","老师"],"hqDimension":"store","hqDimensionIndex":0,"hqRankingMetrics":[{"value":"recharge","label":"充值"},{"value":"verification","label":"核销"},{"value":"experience","label":"体验"},{"value":"refund","label":"退费"}],"hqRankingMetricLabels":["充值","核销","体验","退费"],"hqRankingMetric":"recharge","hqRankingMetricIndex":0,"hqProducts":[{"id":"","label":"全部项目"}],"hqProductLabels":["全部项目"],"hqProductId":"","hqProductIndex":0,"hqRanking":[],"hqRankingVisibleRows":0,"hqRankingViewportHeight":168,"hqRankingScrollable":false,"hqRankingPage":{"total":0,"page":1,"pageSize":10,"totalPages":1,"previousDisabled":true,"nextDisabled":true},"hqRankingInput":"1","hqRankingScrollLeft":0,"hqRankingLoading":false,"hqRankingError":"","hqExporting":false,"hqLoadedAt":"—"},
 
@@ -430,76 +414,6 @@ jumpHqPage() {
   },
 retryHqRanking() { return this.loadHqRanking(this._hqRankingRetryPage || this.data.hqRankingPage.page || 1); },
 async exportHqRanking() {
-    if (this.data.loading || this.data.hqRankingLoading || this.data.hqExporting || this.data.hqRankingError) return;
-    const range = dashboard.hqRange(this.data.hqPeriod, { startDate: this.data.hqStart, endDate: this.data.hqEnd });
-    const dimension = this.data.hqDimension;
-    const rankingMetric = this.data.hqRankingMetric;
-    const productId = this.data.hqProductId;
-    const dimensionLabel = this.data.hqDimensionLabels[this.data.hqDimensionIndex] || "分类";
-    this.setData({ hqExporting: true, message: "正在读取项目汇总与完整排名…", error: false });
-    try {
-      const productRows = [];
-      let productPageNumber = 1;
-      let productTotalPages = 1;
-      do {
-        this.setData({ message: `正在读取项目汇总 ${productPageNumber} / ${productTotalPages}…`, error: false });
-        const result = await this.readTeam("getHqDashboard", {
-          mode: "product-summary", pageNumber: productPageNumber, pageSize: REPORT_EXPORT_PAGE_SIZE,
-          ...hqRangePayload(this.data.hqPeriod, range)
-        });
-        const summary = hqProductSummaryView(result);
-        if (summary.page.total > REPORT_EXPORT_MAX_ROWS) throw new Error(`项目汇总共有 ${summary.page.total} 项，单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 项`);
-        if (productRows.length + summary.rows.length > REPORT_EXPORT_MAX_ROWS) throw new Error(`单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 个项目`);
-        productTotalPages = Math.max(1, summary.page.totalPages);
-        productRows.push(...summary.rows.map((row) => ({ name: row.productName, ...row })));
-        productPageNumber += 1;
-      } while (productPageNumber <= productTotalPages);
-
-      const rankingRows = [];
-      let pageNumber = 1;
-      let totalPages = 1;
-      let rankingTotal = 0;
-      do {
-        this.setData({ message: `正在读取完整排名 ${pageNumber} / ${totalPages}…`, error: false });
-        const result = await this.readTeam("getHqDashboard", {
-          mode: "ranking", dimension, rankingMetric, productId,
-          pageNumber, pageSize: REPORT_EXPORT_PAGE_SIZE,
-          ...hqRangePayload(this.data.hqPeriod, range)
-        });
-        const ranking = result.ranking || {};
-        if (!hqRankingMatches(ranking, dimension, rankingMetric, productId)) {
-          throw new Error("小组排名服务版本过旧，请先部署 staffAccount v76");
-        }
-        const total = dashboard.count(ranking.total);
-        if (total > REPORT_EXPORT_MAX_ROWS) throw new Error(`当前${dimensionLabel}排名共有 ${total} 条；请缩小统计日期范围后再导出（单次最多 ${REPORT_EXPORT_MAX_ROWS} 条）`);
-        totalPages = Math.max(1, dashboard.count(ranking.totalPages) || Math.ceil(total / REPORT_EXPORT_PAGE_SIZE));
-        const rows = dashboard.hqRows(ranking.rows, dimension);
-        if (rankingRows.length + rows.length > REPORT_EXPORT_MAX_ROWS) throw new Error(`单次 PDF 最多绘制 ${REPORT_EXPORT_MAX_ROWS} 条排名`);
-        rankingRows.push(...rows);
-        rankingTotal = dashboard.count(ranking.rankingTotal) || rankingTotal;
-        pageNumber += 1;
-      } while (pageNumber <= totalPages);
-
-      this.setData({ message: "正在绘制矢量 PDF…", error: false });
-      const metricLabel = this.data.hqRankingMetricLabels[this.data.hqRankingMetricIndex] || "业务";
-      const productLabel = this.data.hqProductLabels[this.data.hqProductIndex] || "全部项目";
-      const reportStartDate = this.data.hqPeriod === "ALL" ? "最早记录" : range.startDate;
-      const reportEndDate = this.data.hqPeriod === "ALL" ? "今天" : range.endDate;
-      const output = hqReport.createReportPdf({
-        startDate: reportStartDate, endDate: reportEndDate, dimensionLabel,
-        metric: rankingMetric, metricLabel, productLabel, generatedAt: reportTimestamp(),
-        productRows, totals: this.data.hqProjectSummaryTotals, rankingRows, rankingTotal
-      });
-      const baseName = hqReport.safeFilename(`露思卓儿小组-${this.data.hqPeriod === "ALL" ? "全部时间" : `${range.startDate}至${range.endDate}`}-${dimensionLabel}-${metricLabel}排名`);
-      const filePath = `${wx.env.USER_DATA_PATH}/${baseName}.pdf`;
-      const bytes = output.bytes;
-      const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      await wxCall((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data: buffer, success: resolve, fail: reject }));
-      await openPdfDocument(filePath);
-      this.setData({ message: `矢量 PDF 已打开，共 ${output.pages} 页；可通过右上角菜单分享或保存。`, error: false });
-    } catch (error) {
-      const cancelled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
-      this.setData({ message: cancelled ? "已取消打开 PDF" : error.message || error.errMsg || "矢量 PDF 导出失败", error: !cancelled });
-    } finally { this.setData({ hqExporting: false }); }
+    this.setData({ message: "小组总览不支持导出，请使用打卡或日报页面的导出。", error: true });
   }
 });

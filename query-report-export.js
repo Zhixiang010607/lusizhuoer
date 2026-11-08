@@ -1,10 +1,13 @@
 (() => {
   "use strict";
   const LIMIT=1000;
+  const kinds=new Set(["CUSTOMER","RECHARGE","VERIFICATION","PRODUCT_PURCHASE","ATTENDANCE","DAILY_REPORT"]);
+  function identifier(value){if(typeof value!=="string"&&typeof value!=="number")return "";if(typeof value==="number"&&(!Number.isSafeInteger(value)||value<=0))return "";const text=String(value).trim();return text&&!['undefined','null'].includes(text)?text:"";}
   const labels={ACTIVE:"活跃",ARCHIVED:"已封存",PENDING:"待审核",APPROVED:"已通过",REJECTED:"已驳回",VOIDED:"已作废",COMPLETE:"完整打卡",CLOCK_IN_ONLY:"仅上班打卡",CLOCK_OUT_ONLY:"仅下班打卡",MISSING:"未打卡"};
   function beijing(value,clock=false){if(!value)return "—";const d=new Date(value);if(!Number.isFinite(d.getTime()))return "—";const t=new Date(d.getTime()+28800000).toISOString();return clock?t.slice(11,19):t.slice(0,10);}
   const c=(key,label,maxWidth=100,number=false)=>({key,label,maxWidth,number});
   function model(kind,result,payload={}){
+    if(!kinds.has(kind))throw Error("导出类型无效");
     let title,rows,columns;const number=c("number","序号",42,true),name=c("customer","客户",86),age=c("age","年龄",48),state=c("status","状态",66),record=c("order","工单号",128),date=c("date","提交日期",96);
     if(kind === "CUSTOMER"){
       title="客户查询";rows=(result.customers||[]).map(r=>({id:r.customerCode,store:r.storeName,customer:r.customerName,age:window.CustomerAge.format(r.birthDate),recharge:r.totalRechargeCount,verification:r.totalVerificationCount,stage:({INFORMATION_ONLY:"有信息但没有充值",RECHARGED_NO_CONSUMPTION:"已充值但没有消费",RECHARGED_WITH_CONSUMPTION:"已充值并已有消费"})[r.customerProcessStatus]||"—",date:beijing(r.createdAt),status:labels[r.customerStatus]||"—"}));
@@ -14,7 +17,7 @@
     }else if(kind === "DAILY_REPORT"){
       title=`${result.reportDate}日报情况`;rows=(result.exportRows||[]).map(r=>({id:r.teacherId,teacher:r.teacherName,phone:r.phone,completed:r.completed,updatedAt:r.updatedAt,status:r.completed?"已填写":"未填写",time:r.completed?beijing(r.updatedAt,true):"—",content:[["今日完成事项",r.completedWork],["客户项目进展",r.customerProjectProgress],["问题与支持",r.problemsAndSupport],["明日计划",r.tomorrowPlan]].filter(([,v])=>v).map(([label,v])=>`${label}：${v}`).join("\n")||"—"}));columns=[number,c("teacher","老师",90),c("phone","电话",104),state,c("time","提交时间",90),c("content","日报内容",420)];
     }else if(kind === "PRODUCT_PURCHASE"){
-      title="产品查询";rows=(result.orders||[]).map(r=>({id:`${r.source_type}:${r.source_line_id}`,store:r.store_name,order:r.record_code,source:r.source_type === "GIFT"?"充值赠送":"产品购买",customer:r.customer_name,age:window.CustomerAge.format(r.birth_date),product:r.product_name_snapshot,quantity:Number(r.unit_count),teacher:r.teacher_name||"—",date:beijing(r.submitted_at),status:labels[r.record_status]||"—"}));columns=[number,record,c("source","来源",78),name,age,c("product","产品",100),c("quantity","数量",48,true),c("teacher","老师",80),date,state];
+      title="产品查询";rows=(result.orders||[]).map(r=>({id:["GIFT","PURCHASE"].includes(r.source_type)&&identifier(r.source_line_id)?`${r.source_type}:${identifier(r.source_line_id)}`:"",store:r.store_name,order:r.record_code,source:r.source_type === "GIFT"?"充值赠送":"产品购买",customer:r.customer_name,age:window.CustomerAge.format(r.birth_date),product:r.product_name_snapshot,quantity:Number(r.unit_count),teacher:r.teacher_name||"—",date:beijing(r.submitted_at),status:labels[r.record_status]||"—"}));columns=[number,record,c("source","来源",78),name,age,c("product","产品",100),c("quantity","数量",48,true),c("teacher","老师",80),date,state];
     }else{
       title=kind === "VERIFICATION"?"核销查询":payload.rechargeType === "REFUND"?"退费查询":"充值与退费查询";
       rows=(result.records||[]).map(r=>({id:r.id,store:r.storeName,order:r.recordCode,customer:r.customerName,age:window.CustomerAge.format(r.birthDate),project:r.productName,type:kind === "VERIFICATION"?(r.originalType === "EXPERIENCE"?"体验核销":r.originalType === "SUPPLEMENT" && r.recordStatus !== "APPROVED"?"补录核销":"正常核销"):(r.originalType === "REFUND"?"退费":"充值"),quantity:r.unitCount,teacher:r.teacherName||"—",date:beijing(r.submittedAt),status:labels[r.recordStatus]||"—"}));columns=[number,record,name,age,c("project","项目",96),c("type","业务类型",84),c("quantity","次数",48,true),c("teacher","老师",80),date,state];
@@ -22,7 +25,7 @@
     if(result.exportAll !== true || !Number.isInteger(result.total) || result.total !== rows.length)throw Error("导出结果不完整，请重新查询");
     if(!rows.length)throw Error("当前条件没有可导出的结果");
     if(rows.length>LIMIT)throw Error("单次最多导出1000条，请缩小查询范围");
-    const seen=new Set();rows.forEach((r,i)=>{if(!r.id||seen.has(String(r.id)))throw Error("导出数据重复或编号缺失，请重新查询");seen.add(String(r.id));r.number=i+1;});
+    const seen=new Set();rows.forEach((r,i)=>{const id=identifier(r.id);if(!id||seen.has(id))throw Error("导出数据重复或编号缺失，请重新查询");seen.add(id);r.number=i+1;});
     const daily=kind === "ATTENDANCE"||kind === "DAILY_REPORT",sections=[];
     if(daily)sections.push({title:"全部在职老师",columns:kind === "DAILY_REPORT"?columns.filter(c=>c.key!=="content"):columns,rows});
     else{const groups=new Map();rows.forEach(r=>{const key=r.store||"未命名门店";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);});for(const [store,list]of groups)sections.push({title:`${store} · ${list.length} 条`,columns,rows:list});}

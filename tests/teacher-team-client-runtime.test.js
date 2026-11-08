@@ -65,3 +65,10 @@ test("rating query starts unselected while charts use all scores and preserve th
  query.openRatingPage({currentTarget:{dataset:{view:"charts"}}});assert.equal(h.navigation.at(-1),"/pages/rating-analysis/charts?scope=TEAM");
  const charts=h.page("pages/rating-analysis/charts.js");await charts.onLoad({scope:"TEAM"});await charts.load();assert.equal(charts.data.chartsOnly,true);assert.deepEqual(Array.from(h.calls.at(-1).payload.scores),[0,1,2,3,4,5]);assert.equal(charts.data.summary.coveragePercent,"100.0%");
 });
+
+test("leader overview refuses exports without reading data or opening files",async()=>{
+  const h=harness(),p=h.page("pages/team-dashboard/index.js");
+  p.setData({authorized:true});p.readTeam=()=>{throw Error("must not read");};
+  await p.exportHqRanking();assert.equal(h.calls.length,0);assert.equal(h.navigation.length,0);assert.equal(p.data.error,true);assert.match(p.data.message,/不支持导出/);
+  assert.doesNotMatch(read("pages/team-dashboard/index.wxml"),/bindtap="exportHqRanking"|导出完整报表/);
+});

@@ -16,7 +16,7 @@
       </view>
 
       <view class="web-panel ranking-panel">
-        <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="hq-ranking-rule">{{hqProductLabels[hqProductIndex]}} · 按{{hqDimensionLabels[hqDimensionIndex]}}的{{hqRankingMetricLabels[hqRankingMetricIndex]}}次数降序</text></view><view class="ranking-actions"><button bindtap="exportHqRanking" disabled="{{loading || hqRankingLoading || hqExporting || hqRankingError}}">{{hqExporting ? '正在导出…' : '导出完整报表 PDF'}}</button></view></view>
+        <view class="panel-heading ranking-heading"><view><text class="panel-title">完整排名</text><text class="hq-ranking-rule">{{hqProductLabels[hqProductIndex]}} · 按{{hqDimensionLabels[hqDimensionIndex]}}的{{hqRankingMetricLabels[hqRankingMetricIndex]}}次数降序</text></view></view>
         <scroll-view wx:if="{{hqRanking.length}}" class="hq-ranking-scroll" data-visible-rows="{{hqRankingVisibleRows}}" scroll-x="true" enhanced show-scrollbar="{{false}}" style="height: {{hqRankingViewportHeight}}rpx">
         <view class="hq-ranking-list">
           <view class="hq-ranking-row hq-ranking-table-head"><text>名次</text><text>{{hqDimensionLabels[hqDimensionIndex]}}</text><text>充值</text><text>核销</text><text>体验</text><text>退费</text></view>

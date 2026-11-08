@@ -334,6 +334,21 @@ async function main() {
     eq(await stage(7),"RECHARGED_WITH_CONSUMPTION","Future supplement approval updates stage through the original trigger");
     await db.exec(read("database/migrations/092_historical_customer_business_stage.sql"));
     eq(await stage(3),"RECHARGED_NO_CONSUMPTION","Reapplying stage migration is idempotent");
+    // Feed real PostgreSQL query DTOs through both actual client exporters.
+    // These contain many orders sharing the same teacher and customer IDs.
+    const miniServices=path.join(root,"miniprogram-app/miniprogram/services"),miniModule={exports:{}};
+    vm.runInNewContext(read("miniprogram-app/miniprogram/services/query-report-export.js"),{module:miniModule,require:id=>["./api","./session"].includes(id)?{}:require(path.join(miniServices,id))});
+    const webWindow={CustomerAge:{format:require(path.join(miniServices,"customer-age")).formatCustomerAge}};
+    vm.runInNewContext(read("query-report-export.js"),{window:webWindow});
+    caller={role:"hq",scopeMode:"ALL",staffId:1};
+    for(const [kind,payload]of [["RECHARGE",{rechargeType:"NEW"}],["RECHARGE",{rechargeType:"REFUND"}],["VERIFICATION",{verificationType:"ALL"}]]){
+      const wire=await face.queryStoreBusinessRecords({recordType:kind,...payload,statusCategory:"ALL",exportAll:true});
+      for(const [client,model]of [["Mini",miniModule.exports.documentModel(kind,wire,payload)],["Web",webWindow.QueryReportExport.model(kind,wire,payload)]]){
+        eq(model.rows.length,wire.records.length,`${client} complete export retains every same-person order from PostgreSQL`);
+        eq(model.rows.map(r=>r.id),wire.records.map(r=>r.id),`${client} preserves exact ordered business identities`);
+        eq(model.rows.map(r=>r.number),wire.records.map((_,i)=>i+1),`${client} export numbering does not drop repeated customers/teachers`);
+      }
+    }
     console.log(JSON.stringify({postgres:"isolated PGlite",checks,executedReadQueries,productionWrites:0},null,2));
   } finally { await db.close(); }
 }

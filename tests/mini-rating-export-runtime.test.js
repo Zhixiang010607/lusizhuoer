@@ -36,7 +36,7 @@ function page(api) {
     module,
     require(id) {
       if (id.endsWith("/api")) return api;
-      if (id.endsWith("/session")) return { requireSession: () => ({ role: "hq" }) };
+      if (id.endsWith("/session")) return { requireSession: () => ({ role: "hq" }), readSession: () => ({ uid: "synthetic-hq" }) };
       if (id.endsWith("/teacher-team")) return {};
       if (id.endsWith("/grouped-table-pdf")) return pdf;
       return require(path.join(mini, "services", path.basename(id)));
