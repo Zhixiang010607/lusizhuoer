@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-08",
+  "sourceCommit": "dcc5b8f",
+  "function": "staffAccount",
+  "version": "v107",
+  "database": {
+    "migration": "096-01-hq-review-sms-outbox.sql",
+    "executed": true,
+    "backup": {
+      "tables": 44,
+      "rows": 425,
+      "mismatchedTables": 0
+    },
+    "readonlyChecks": 6,
+    "businessAndPreferenceFingerprintsUnchanged": true,
+    "deliveryEnabled": false,
+    "outboxBackfillRows": 0
+  },
+  "code": {
+    "officialDevToolsUpload": true,
+    "rootFiles": {
+      "README.md": "41dc858cb0c2fb523be63d75c6fea5fe358dbe478f6f11d56cab3bcf5f60975b",
+      "hq-review-sms.js": "70a187c6275c282dc51d446b84091b3e91007b8e3090b6c70741ddd2afb74dd3",
+      "index.js": "6f6ff173e973fbb7a599ecfb145e3c0dd600068105c49b4a90d35d07e85f16d9",
+      "package-lock.json": "04e6818d736cdbabb02360e19c1f10c543cb41f071ed61bd25bc748fa58c6100",
+      "package.json": "36ee0c1e408d46fb354b7b967b7cf68582b5c8b8379c25201691e33dd8b7815b",
+      "review-sms-sender.js": "24a2d63f6cd57729e8b6548aa73ff96b22e2e496775015eb1bd1d02e8e66eac9",
+      "teacher-team-dashboard.js": "410969045b88fe732db9c1d604db1f232431e967e1b9a453248134efa27c416b",
+      "teacher-team.js": "48c875f9f60d1087ad7d688024835f96e2efbfe1e672c364fbe76ed3540603e1"
+    },
+    "remoteSha256Matches": true,
+    "sdkInstalled": true,
+    "ephemeralCredentialsAvailable": true
+  },
+  "timers": {
+    "reset-teacher-experience-quotas-monthly": "0 0 0 1 * * *",
+    "send-hq-review-sms": "0 * * * * * *"
+  },
+  "iam": {
+    "confirmedByUser": true,
+    "policyName": "LusizhuoerReviewSmsSendOnly",
+    "actions": [
+      "name/sms:SendSms"
+    ],
+    "attachedRole": "TCB_QcsRole",
+    "independentBrowserReadback": true,
+    "longLivedKeysCreated": false
+  },
+  "sms": {
+    "signature": "广州露思卓儿科技",
+    "signatureStatus": "resubmitted_pending",
+    "oldSignatureRetired": "露思卓儿",
+    "templatesApproved": true,
+    "actualSmsSent": 0,
+    "actualDeliveryAcceptanceTest": false
+  },
+  "tests": {
+    "nodeTests": 824,
+    "isolatedSqlChecks": 259,
+    "sdkTransportTest": "pinned SDK; one request on timeout; mocked transport; zero network"
+  },
+  "clients": {
+    "webPublished": false,
+    "miniProgramUploaded": false,
+    "reason": "server-only change; existing preferences contract compatible; user config preserved"
+  },
+  "archive": {
+    "path": "deployments/staffAccount-v107.zip",
+    "bytes": 117584,
+    "sha256": "2b111a20f69f63139e50a92d3072269902d0a780ce93151c4b9a5bea6b8ed663"
+  }
+}

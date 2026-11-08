@@ -1,0 +1,6 @@
+{
+  "FunctionName": "staffAccount",
+  "Namespace": "rusizhuoer-d9gbcsgym07651694",
+  "Triggers": "[{\"TriggerName\": \"reset-teacher-experience-quotas-monthly\", \"Type\": \"timer\", \"TriggerDesc\": \"0 0 0 1 * * *\"}, {\"TriggerName\": \"send-hq-review-sms\", \"Type\": \"timer\", \"TriggerDesc\": \"0 * * * * * *\"}]",
+  "Count": 2
+}

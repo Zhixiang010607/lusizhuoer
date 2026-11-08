@@ -7,7 +7,7 @@
 1. 用 `096-preview.sql` 只读确认环境、前置列、三类业务表、偏好及新增对象不存在；保存私有汇总。
 2. 经 `scripts/cloudbase-pg-change.js --env rusizhuoer-d9gbcsgym07651694 --label review_sms_outbox --sql database/cloudbase-console/096-01-hq-review-sms-outbox.sql --apply` 建立全public表／序列一致备份、计数一致后才执行096。不得绕过备份。
 3. 独立执行 `096-readonly-verify.sql`，六项READY；与预检比较人员、偏好、充值、核销、产品购买行指纹，确认没有业务改写。
-4. 部署并回下载核对 `staffAccount-v107.zip` 全根文件；现有其他云函数、Web和小程序不重发。保留月度额度Timer，新增 `send-hq-review-sms`，cron `0 * * * * * *`。仅平台来源、指定函数／触发器／时间及无客户端UID可执行。注意当前CLI `fn trigger create --trigger-name` 调用BatchCreateTrigger会替换整份列表，不能单独新增一项；须一次提交保留月度任务的完整两项清单，并独立回读验证两项cron。
+4. 部署并回下载核对 `staffAccount-v107.zip` 全根文件；现有其他云函数、Web和小程序不重发。保留月度额度Timer，新增 `send-hq-review-sms`，cron `0 * * * * * *`。仅平台来源、指定函数／触发器／时间及无客户端UID可执行。注意当前CLI `fn trigger create --trigger-name` 调用BatchCreateTrigger会替换整份列表，不能单独新增一项；须一次提交保留月度任务的完整两项清单，并独立回读验证两项cron。已验收的完整API请求体见 [双Timer配置](../../deployments/staffAccount-v107-timers.json)，不要用单任务命令替代。
 
 首次安装状态必须 `enabled=false, activated_at=NULL`、outbox为空；不替任何总部开启类别，不向历史待审工单补发。服务端签名固定“广州露思卓儿科技”（原733011按腾讯云建议修改后重新待审），四类无变量模板已通过：产品2769941、充值2769944、退费2769946、补录核销2769949。现有短信应用1401179904仅作为配置，不修改验证码应用设置。启动前核对其发送频控；SCF执行角色须具备`sms:SendSms`最小权限，短期凭据由平台提供，不复制长期SecretId／SecretKey。
 
