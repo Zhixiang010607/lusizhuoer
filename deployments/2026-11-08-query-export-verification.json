@@ -1,0 +1,91 @@
+{
+  "sourceCommit": "122ddd86f60a2355428a47c1df8c942b6d307213",
+  "cloudFunctions": [
+    {
+      "name": "staffAccount",
+      "version": "v105",
+      "officialExplicitPathUpload": true,
+      "healthVerified": true,
+      "downloadedFilesMatch": 6,
+      "archive": "staffAccount-v105.zip",
+      "sha256": "b1e2ca620d0f006b30bdbdc192d1d5f21a996148d3eddc6fcc98b519e2b16b9d"
+    },
+    {
+      "name": "faceRecognition",
+      "version": "v143",
+      "officialExplicitPathUpload": true,
+      "healthVerified": true,
+      "downloadedFilesMatch": 7,
+      "archive": "faceRecognition-v143.zip",
+      "sha256": "b1bddcc2e85e91ad10a7d74f8edd6b2636574e274155cc954a81744df92e2355"
+    }
+  ],
+  "web": {
+    "safe": true,
+    "verified": true,
+    "prune": false,
+    "assets": 46,
+    "publicSha256Matches": 46
+  },
+  "miniProgram": {
+    "version": "0.3.63",
+    "releaseType": "development",
+    "officialFinalReceipt": true,
+    "mainBytes": 1735057,
+    "totalBytes": 3566203,
+    "unchangedClientFiles": 249,
+    "originalProjectConfigPreserved": true,
+    "ideRestarted": false,
+    "experienceSelected": false,
+    "reviewSubmitted": false,
+    "formallyReleased": false
+  },
+  "database": {
+    "newSql": false,
+    "businessDataWrites": 0,
+    "authChanges": 0
+  },
+  "validation": {
+    "nodeTests": 756,
+    "nodePassed": 756,
+    "isolatedBusinessStatisticsChecks": 161,
+    "isolatedTeamChecks": 114,
+    "isolatedDailyChecks": 18,
+    "productQuery1000And1001BoundaryPassed": true,
+    "samplePdfs": 22,
+    "sampleWorkbooks": 20,
+    "sampleWorkbookSheets": 22,
+    "combinedSamplePdfPages": 47,
+    "nativePhoneWidths": [
+      320,
+      390,
+      430
+    ],
+    "nativeTabletWidths": [
+      768,
+      834,
+      1024
+    ],
+    "nativeLandscape": [
+      1024,
+      768
+    ],
+    "webWidths": [
+      320,
+      390,
+      834,
+      1280,
+      1440
+    ],
+    "generationBenchmark": {
+      "rows": 1000,
+      "pdfMilliseconds": 128,
+      "xlsxMilliseconds": 50,
+      "pdfPages": 84,
+      "pdfBytes": 2611087,
+      "xlsxBytes": 715830,
+      "scope": "local Node generation only; not phone/network end-to-end"
+    }
+  },
+  "releaseLimitation": "WeChat publishing-console access previously rejected by automatic site-safety review; no alternate route or bypass attempted."
+}
