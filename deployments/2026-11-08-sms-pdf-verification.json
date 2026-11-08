@@ -1,0 +1,48 @@
+{
+  "sourceCommit": "8e2b60a1342821821a571ff5ea0bca7ffa1efc13",
+  "miniProgram": {
+    "version": "0.3.62",
+    "type": "development",
+    "officialFinalReceipt": true,
+    "mainBytes": 1720648,
+    "totalBytes": 3546846,
+    "unchangedSourceFiles": 294,
+    "sourceChangedDuringUpload": [],
+    "experienceSelected": false,
+    "reviewSubmitted": false,
+    "formallyReleased": false
+  },
+  "web": {
+    "assets": 40,
+    "safe": true,
+    "verified": true,
+    "publicSha256Matches": 40
+  },
+  "cloudFunction": {
+    "name": "staffAccount",
+    "version": "v104",
+    "officialUpload": true,
+    "healthVerified": true,
+    "downloadedFilesMatch": 6,
+    "archive": "staffAccount-v104.zip",
+    "archiveSha256": "947341dd119683c706899ad47b6160ca4d5c56fa5bff7f4e871f686925ce7efc"
+  },
+  "database": {
+    "migrations": [
+      "094-01",
+      "095-01"
+    ],
+    "backupGated": true,
+    "checksReady": 8,
+    "preservedTables": 44,
+    "tableDifferences": 0,
+    "sequenceDifferences": 0,
+    "enabledPreferences": 0
+  },
+  "validation": {
+    "nodeTests": 747,
+    "isolatedPostgresChecks": 38,
+    "smsSent": 0
+  },
+  "smsSendingEnabled": false
+}
