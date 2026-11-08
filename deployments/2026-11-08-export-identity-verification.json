@@ -1,0 +1,139 @@
+{
+  "sourceCommit": "dc70f7504b4f7e73228720589dabd2c074b6e278",
+  "web": {
+    "safe": true,
+    "verified": true,
+    "prune": false,
+    "assets": 15,
+    "publicSha256Matches": 15,
+    "manifest": [
+      {
+        "file": "attendance-tracking.html",
+        "sha256": "ee4af2357032a3d684eac0c83d707fc7afbbe0d028cd70bcf02610b96600a400"
+      },
+      {
+        "file": "customer-query.html",
+        "sha256": "c8fbdd72e7f52e5a6e4e534fbd7a65ea9dac441555683801d072a141e4e544cf"
+      },
+      {
+        "file": "daily-report-tracking.html",
+        "sha256": "bbe2b4bdc9e951829043bb28628a44516127edd2903c343ee665b4c6c2fc841e"
+      },
+      {
+        "file": "hq-dashboard-report.js",
+        "sha256": "f05821efd67b99c385e006337de974d243b6fcc4da6f01278c930daac7866352"
+      },
+      {
+        "file": "inactive-customers.html",
+        "sha256": "f1ebb647910596e996e6a12be8efe77deb3752385406f530078edfbcde553b72"
+      },
+      {
+        "file": "index.html",
+        "sha256": "883d1db9c0d7956bec9eeeb403235bd596d15f46ea790a200ea1e258cfcf41a2"
+      },
+      {
+        "file": "low-balance-customers.html",
+        "sha256": "4dd1b130b0b96fba593af9f0ed6a473bd4acf6dea52510fe61f3ea1b5f5f7d0d"
+      },
+      {
+        "file": "product-query.html",
+        "sha256": "d3c2b098709ac410ee29474d4f1c8e5a4a0b3612a5d77a47d64db55368dbce93"
+      },
+      {
+        "file": "query-report-export.js",
+        "sha256": "475e0f32131c1e755c0082435e45635adfdd5c4257c9c9c3886753187d154c60"
+      },
+      {
+        "file": "rating-analysis.html",
+        "sha256": "75e42c9ff16ca35d74f21c1c900880d4b7ea8c912c25b466cac3402c5cb6b3e1"
+      },
+      {
+        "file": "rating-charts.html",
+        "sha256": "869918a762ba1006ab1a277e97ca28e76b558bbef7514a6f35171e808e96e8c5"
+      },
+      {
+        "file": "recharge-query.html",
+        "sha256": "1a58e87cee5f910f31089b11c721d292200906505c4a88c4e9d6997f6fee79c7"
+      },
+      {
+        "file": "verification-query.html",
+        "sha256": "6fa04f37e37eddfa1a7ae96ad86cb0378303f88400bd97046b9f07d45fd2db1c"
+      },
+      {
+        "file": "web-report-export.js",
+        "sha256": "bdf95cd79f195f37ae6e5d92b1ca901b0cbc8bcd77ffe62b450eaabf6b079a41"
+      },
+      {
+        "file": "web-table-report.js",
+        "sha256": "7a3f9175507ebcbb3f12eac52d5c3840d957b4f9f4cd77c3f04ec084accbfea8"
+      }
+    ]
+  },
+  "miniProgram": {
+    "version": "0.3.64",
+    "releaseType": "development",
+    "officialFinalReceipt": true,
+    "mainBytes": 1735859,
+    "totalBytes": 3563272,
+    "unchangedClientFiles": 297,
+    "originalProjectConfigPreserved": true,
+    "ideRestarted": false,
+    "experienceSelected": false,
+    "reviewSubmitted": false,
+    "formallyReleased": false
+  },
+  "backend": {
+    "cloudFunctionChanges": false,
+    "newSql": false,
+    "productionDataWrites": 0,
+    "unchangedStaffAccountVersion": "v105",
+    "unchangedFaceRecognitionVersion": "v143"
+  },
+  "validation": {
+    "nodeTests": 808,
+    "nodePassed": 808,
+    "isolatedDatabaseChecks": 179,
+    "nativePhoneWidth": 390,
+    "nativeTabletWidth": 834,
+    "sameCustomerAndTeacherOrderCount": 8,
+    "sameOrderPdfAndExcelOpened": true,
+    "productAllPdfAndExcelOpened": true,
+    "samplePdfCount": 16,
+    "renderedPdfPages": 22,
+    "sampleWorkbookCount": 14,
+    "renderedWorkbookSheets": 16,
+    "rightAlignedTables": true,
+    "preservedDailyNarrative": true
+  },
+  "sms": {
+    "signature": {
+      "name": "露思卓儿",
+      "id": "733011",
+      "observedStatus": "PENDING"
+    },
+    "templates": [
+      {
+        "category": "PRODUCT_PURCHASE",
+        "id": "2769941"
+      },
+      {
+        "category": "RECHARGE",
+        "id": "2769944"
+      },
+      {
+        "category": "REFUND",
+        "id": "2769946"
+      },
+      {
+        "category": "VERIFICATION",
+        "id": "2769949"
+      }
+    ],
+    "observedTemplateStatus": "PENDING",
+    "allSubmitted": true,
+    "actualSendingEnabled": false,
+    "preferenceChanges": false,
+    "smsSent": 0
+  },
+  "releaseLimitation": "WeChat experience-version setting previously rejected by automatic site-safety review; no bypass attempted."
+}
