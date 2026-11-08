@@ -1,0 +1,598 @@
+{
+  "environment": "rusizhuoer-d9gbcsgym07651694",
+  "sourceCommit": "3d10a5a8f53b5027210622f73c747f31e84d2aed",
+  "verifiedAt": "2026-11-08T01:25:07.351968+00:00",
+  "staticFiles": [
+    {
+      "path": "attendance-tracking.html",
+      "status": 200,
+      "bytes": 2625,
+      "sha256": "0049f733de0ada0b5fa906100167da0cf1d863fb1a7682ba39c0247c552ce39c",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "attendance-tracking.js",
+      "status": 200,
+      "bytes": 6079,
+      "sha256": "aea6e79c05e59e50ab406c8fd4dc74200201eeafcc89b8b5e4dd3af5720e0422",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "attendance.html",
+      "status": 200,
+      "bytes": 2228,
+      "sha256": "480712fe8547e53e79fa4cf1aaa8dddfbf8d6de29d89a77698bf82f373e6ef17",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "auth-ui.js",
+      "status": 200,
+      "bytes": 44599,
+      "sha256": "bdc1895d20ecf5f1c1ff518fe1516e4a4314fe2dbd72c77b8dbdb29026db0810",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "change-password.html",
+      "status": 200,
+      "bytes": 2248,
+      "sha256": "2ee819d0dc8c215b0253629aab6b27236139f53fd65be7022ef3f7cfbc823a5a",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "cloudbase-phone-auth.js",
+      "status": 200,
+      "bytes": 35940,
+      "sha256": "cf7ea87e9b400ea483e5e94f3520acb963f0e3698782a81f736566737cc15fca",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "company-portal.css",
+      "status": 200,
+      "bytes": 7641,
+      "sha256": "9c4f75dd3c5330c27d7d58b6c52a5f56dfebaa5c50f78080e03e3c1585d12851",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "customer-create.html",
+      "status": 200,
+      "bytes": 3808,
+      "sha256": "e83cb28c362efc26338566577208376e797924c666ced7c6095e7e2979cd4094",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "customer-detail.html",
+      "status": 200,
+      "bytes": 7722,
+      "sha256": "c995a98166c0c17679b38b67e6e0be906b8291d29b357039b778f75c828c4be7",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "customer-query.html",
+      "status": 200,
+      "bytes": 7713,
+      "sha256": "6f22e5052dfcaf901b520bb414c083edcdbdd7f1250f510fe5de4fa313f232e4",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "daily-report-tracking.html",
+      "status": 200,
+      "bytes": 3778,
+      "sha256": "05b6a8c5bb515cfd83d2e60399e2b4d433a93bd77a1f5fca8540771ebabc1f99",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "daily-report-tracking.js",
+      "status": 200,
+      "bytes": 8017,
+      "sha256": "40b6d23067d0a368c04232215c91e33f1ecae4005008d8a9c363f6e15fc05dd5",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "daily-report.html",
+      "status": 200,
+      "bytes": 3565,
+      "sha256": "88979a161c9628a382bf702c6197abf0cee4973c2733ffab652bee7c1cf5a7c0",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "hq-account-create.html",
+      "status": 200,
+      "bytes": 2500,
+      "sha256": "cc3e5a301d78cb5fabe7511ce272ba7c46a8c6c2ed9554bbb89692c1ff0cd875",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "hq-management.html",
+      "status": 200,
+      "bytes": 2393,
+      "sha256": "aa5c14fb59417b4fec788f929f2507ea0f7211d5f33baf29b7e177c4bc5f8d65",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "inactive-customers.html",
+      "status": 200,
+      "bytes": 2515,
+      "sha256": "0d39e5dd19e88fad7a18a6811efcc28137f010f04274eb21fc708cce3dbc3320",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "index.html",
+      "status": 200,
+      "bytes": 8559,
+      "sha256": "4a96a1e31be63c3c0e3dff10560594ec0347b20baf7f42736d41ae9ba9e6390b",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "list-row-numbers.js",
+      "status": 200,
+      "bytes": 6011,
+      "sha256": "7700be34010c205703805f2feeea5f87880badd83830c2ea2ebd1a38dead5ad6",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "login.html",
+      "status": 200,
+      "bytes": 10618,
+      "sha256": "224093cf5ff0b7d21066f5254bac94bda7e89306e7ac5749ccbe81a8d3b265f5",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "login.js",
+      "status": 200,
+      "bytes": 9305,
+      "sha256": "4bb59acaa6eb5e2e8ddec92f4ab6ae023afe4475781702cd818ff4420c335e6d",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "low-balance-customers.html",
+      "status": 200,
+      "bytes": 2495,
+      "sha256": "2483afc6f43271a0dfcc053b25daf44078480dc229bf7a8ae031845780cfd8b3",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "operational-metrics.js",
+      "status": 200,
+      "bytes": 31267,
+      "sha256": "9ad9f7f6277a175e6c7a41ebd0b4ec3a10755d46eb13d0b1e8f1d6c49b73a551",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "product-purchase-create.html",
+      "status": 200,
+      "bytes": 3480,
+      "sha256": "548451aebe375317c0dd5eff2a2bd0e42119c46ed778d8a4cdaff5dd328a15c3",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "product-purchase-review.html",
+      "status": 200,
+      "bytes": 3714,
+      "sha256": "dce0351adb49b25ec664b317a0359783f22f2ac047b42d04b5bcd492eeaf88ca",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "product-purchase-review.js",
+      "status": 200,
+      "bytes": 6179,
+      "sha256": "60453e82c57c440f43500f78ed56d788f6483bd3c5693b4a8b6f6182fa430587",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "product-query.html",
+      "status": 200,
+      "bytes": 4024,
+      "sha256": "dc687774d45b375ccf637c5f4f5c5cc9f8dc390d516b1989329b669f894edeeb",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "product-query.js",
+      "status": 200,
+      "bytes": 8025,
+      "sha256": "5f3f4c18592c85677ba3d4c4d41b42fc8ba59ef685dc1c0e2ab283ba7f1233c2",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "project-create.html",
+      "status": 200,
+      "bytes": 2303,
+      "sha256": "e06d46f3576295c9e6c64eae5605dd5e0e28d19675e86bdfd1fa8c993c92d961",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "project-detail.html",
+      "status": 200,
+      "bytes": 5020,
+      "sha256": "e11b3b4567cb850f5830cdfca9bf43baa68c4016b632d9de67d11957b70614d7",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "project-management.html",
+      "status": 200,
+      "bytes": 2950,
+      "sha256": "c1939ee57d7b6dc37ecb3d0de380ac73862353da72ddadd979368d0778c35231",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "public-project.html",
+      "status": 200,
+      "bytes": 1324,
+      "sha256": "0093a5fc7588c56f0f54d319ccaa782dcdc1fc9786f6ed88ce978bf5e18d96d7",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "rating-analysis.html",
+      "status": 200,
+      "bytes": 2754,
+      "sha256": "8aac6f7704986cb9b5cbf5bd8b3165ff7eddcc57d8c56311590087b9de510d5f",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "rating-charts.html",
+      "status": 200,
+      "bytes": 2446,
+      "sha256": "7646edd7b195ab51d8c4b85643d64b004e1dd4132b376047f5318e374e2df1e5",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "rating-charts.js",
+      "status": 200,
+      "bytes": 1924,
+      "sha256": "0a9bf848f562cfb21eceef06b1d4d78d571ebd5ce412616c2e121de6db34e105",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "rating.html",
+      "status": 200,
+      "bytes": 4347,
+      "sha256": "6f3d3a507e9472837aff5583ffb6ce3a251dd4fad1fbb266e7265553ac7eb261",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "recharge-create.html",
+      "status": 200,
+      "bytes": 4824,
+      "sha256": "aed2564e0261879dadefff41cb45ab3e4cded22435e987456185fe2d54dca79e",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "recharge-detail.html",
+      "status": 200,
+      "bytes": 5464,
+      "sha256": "6b66ab10fddbab1b0feed29fcaf20d0419ad1ba00ff26470190851df8497cd92",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "recharge-query.html",
+      "status": 200,
+      "bytes": 9661,
+      "sha256": "6fa4fce11ce3f018490f9330ed28d022b860519d7d3a4c03dae2c054d0fd5586",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "recharge-review.html",
+      "status": 200,
+      "bytes": 6095,
+      "sha256": "0dcece5956d7b8e6a97d0c6dfe9f529620a6ef0dc3c2f2feb61ff0c51a5ebf1a",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "refund-create.html",
+      "status": 200,
+      "bytes": 4129,
+      "sha256": "0c4039f9d3914c22ab498b8ad74f70ca407f923623b6945acf34aed42506b0bd",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "refund-review.html",
+      "status": 200,
+      "bytes": 5453,
+      "sha256": "52aec4cc651285d33f3443f46c1743fe86ebc29e524c46e1ddf7e58006ab19d0",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "retail-product-create.html",
+      "status": 200,
+      "bytes": 1988,
+      "sha256": "7191d3ef0963424775af2882edc1fc36cb65f652961ac282908ef547c4fa9076",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "retail-product-management.html",
+      "status": 200,
+      "bytes": 2414,
+      "sha256": "b950b32a2bf36984a00027ecec567417b102c548dece7329d6f890b83b846de3",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "staff-detail.html",
+      "status": 200,
+      "bytes": 11180,
+      "sha256": "0d7d16c270bab13c7d7a4f3350c116ebba200916e07ec2fc7bf25fb9059f5ed6",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "store-analysis.html",
+      "status": 200,
+      "bytes": 3933,
+      "sha256": "dd6d7296302c6da9e9c3f4a40adfb93d40facbc8fcaac6840268c91d99880ee8",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "store-create.html",
+      "status": 200,
+      "bytes": 3731,
+      "sha256": "57ab1c7d36d43901de0b6e2d0ea19c7bdc4df23107466caf3534e933919e4b9f",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "store-detail.html",
+      "status": 200,
+      "bytes": 9105,
+      "sha256": "dcf8e2f3f7713e591f05fe07b6f9c705c562b0181dbe40105bc534589073549a",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "store-management.html",
+      "status": 200,
+      "bytes": 4732,
+      "sha256": "a81c4398a469cc8ac505976209e74574641ce72a8a51c862bdaed235eef11ab3",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-create.html",
+      "status": 200,
+      "bytes": 5047,
+      "sha256": "42eabb1a12fa0e88cda157df087e241dac5039329c5892cc879a7a6deea7f50d",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-management.html",
+      "status": 200,
+      "bytes": 4448,
+      "sha256": "af01a0417f1c5170868d3f618958c7bf1ed7d44c3c36808ea308700d22227662",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-recharge-create.html",
+      "status": 200,
+      "bytes": 5594,
+      "sha256": "1a68850195290ae8930ce9470b7a7c2061f2bd70b835c14565ca693d016181ae",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-refund-create.html",
+      "status": 200,
+      "bytes": 4765,
+      "sha256": "812c4a8217966170801895445c8cb358c101b9a82f6d77ea1236d370b01dbf09",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-verification-create.html",
+      "status": 200,
+      "bytes": 5956,
+      "sha256": "691f7eddcb607862d890d78fbe899343e236a3ea75781d87f88d6bae28a2ff7f",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-verification-experience.html",
+      "status": 200,
+      "bytes": 6267,
+      "sha256": "2f66503c16e1f73142c06eb81f2f0cb48e1920df923747fa404a60b2a9e960ee",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-work-order-detail.html",
+      "status": 200,
+      "bytes": 2264,
+      "sha256": "c7e18607a27d7ef52ebe82fc9cd37f5f0639f3ebaea305331a4e8071a2cf0ca9",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "teacher-work-orders.html",
+      "status": 200,
+      "bytes": 7804,
+      "sha256": "3b7d4437ddb478e86196bda422a36b008d95510d0c11ba6cb4f492e06a420109",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "tracking-ui.js",
+      "status": 200,
+      "bytes": 2811,
+      "sha256": "05a02ecb21e9060ec5f983d54bd2a160abb2385c12a4e2edf91092c06aee3f5e",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "training-materials.html",
+      "status": 200,
+      "bytes": 2575,
+      "sha256": "dbe8de98ef2c3b52fc38cffc79ec3d6b8c0225c4418b01dd0abfbb5668291331",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "verification-create.html",
+      "status": 200,
+      "bytes": 5301,
+      "sha256": "46ca5405f6594952b3d9b173f6708f6d2b47b6d8300ab155bd1399d6eacbbe67",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "verification-detail.html",
+      "status": 200,
+      "bytes": 8757,
+      "sha256": "840b1c70f78aaf32382f0af5af76f34d76ed0e10a6ff8da29a0b7a8e4f2d430d",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "verification-experience.html",
+      "status": 200,
+      "bytes": 5645,
+      "sha256": "ec462a349fd8d67a4fbe66f4a043496bd063f28a046de8b1aff2241373d80b98",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "verification-query.html",
+      "status": 200,
+      "bytes": 9395,
+      "sha256": "4d5dd62b713b88eea2c1776f79a34fcc8267614a09e4dd22eff4d787e0d0f471",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "verification-review.html",
+      "status": 200,
+      "bytes": 5804,
+      "sha256": "86d315dc7ae2a4c2d9ef078cf2b7339f8585388a2ecd36f7a768bed4a5b0d964",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "web-login-presentation.js",
+      "status": 200,
+      "bytes": 329,
+      "sha256": "1af58dc07ed60a85540ddbcd75eda9b41d50f2785e09b5679798d4460950b8d3",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "web-login.css",
+      "status": 200,
+      "bytes": 7016,
+      "sha256": "09ff162deed05e863cacfd6b8e75f363ddbd08bec1a9b53fb01694319e488dde",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "web-report-export.js",
+      "status": 200,
+      "bytes": 6173,
+      "sha256": "c41d24ec5ee05273d102786128ea77bc857d54744a4481347ff38ab4370f1806",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "web-review-notifications.js",
+      "status": 200,
+      "bytes": 4742,
+      "sha256": "b227e569b638af0731045716d3b4598b3a1f542c3d268e890222254d1fbe8739",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "web-tablet-parity.css",
+      "status": 200,
+      "bytes": 55525,
+      "sha256": "5729ffc19d9f97aa1e8aeef50eb5178d5bc15eec6eb3810570845a80357b2c17",
+      "matches": true,
+      "contentDisposition": "attachment"
+    },
+    {
+      "path": "work-calendar.html",
+      "status": 200,
+      "bytes": 2911,
+      "sha256": "e16504b7205774dd23c46193b00207109b59debc859556531ca7bdff4dcfb6f8",
+      "matches": true,
+      "contentDisposition": "attachment"
+    }
+  ],
+  "allMatch": true,
+  "sql": "not needed",
+  "cloudFunctions": "unchanged",
+  "miniProgram": {
+    "version": "0.3.61",
+    "type": "development upload",
+    "officialFinalReceipt": true,
+    "sourceCommit": "3d10a5a8f53b5027210622f73c747f31e84d2aed",
+    "mainBytes": 1719044,
+    "totalBytes": 3537297,
+    "unchangedSourceFiles": 437,
+    "sourceChangedDuringUpload": [],
+    "backendSignals": [
+      {
+        "time": "2026-11-08 09:26:20.351+08:00",
+        "signals": [
+          "progressSuccess"
+        ]
+      },
+      {
+        "time": "2026-11-08 09:26:20.351+08:00",
+        "signals": [
+          "reportNewRemoteDebug"
+        ]
+      }
+    ],
+    "experienceVersion": "not set",
+    "formalRelease": "not submitted"
+  },
+  "staticHosting": {
+    "files": 69,
+    "successful": 69,
+    "failed": 0,
+    "safeBackup": true,
+    "cliVerified": true,
+    "publicByteReadback": true,
+    "cloudPathArgument": "omitted",
+    "prune": false
+  }
+}
