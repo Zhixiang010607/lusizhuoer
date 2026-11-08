@@ -422,7 +422,7 @@
         const groups=new Map();
         const formatted=exportData.map(row=>Object.fromEntries(columns.map(([key,,kind])=>[key,displayValue(row,key,kind)])));
         formatted.forEach(row=>{const name=row.storeName||"未命名门店";if(!groups.has(name))groups.set(name,[]);groups.get(name).push(row);});
-        const tableColumns=columns.filter(([key])=>key!=="storeName").map(([key,label])=>({key,label,number:["daysSince","purchasedCount","consumedCount","remainingCount","effectiveScore","storeEnvironmentScore","teacherServiceScore","overallExperienceScore"].includes(key)}));
+        const tableColumns=columns.map(([key,label])=>({key,label,number:["daysSince","purchasedCount","consumedCount","remainingCount","effectiveScore","storeEnvironmentScore","teacherServiceScore","overallExperienceScore"].includes(key)}));
         const result=window.WebTableReport.createDocument({title:document.title,criteria:`导出日期 ${businessToday()} · 北京时间 · 共 ${rows.length} 条`,sections:[...groups.entries()].map(([name,list])=>({title:`${name} · ${list.length} 条`,columns:tableColumns,rows:list}))},await window.WebTableReport.font());
         if(sessionStorage.getItem("prototypeSession")!==exportIdentity)return;
         window.WebTableReport.save(result.bytes,`${document.title}-${businessToday()}`,"pdf");

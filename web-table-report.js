@@ -19,7 +19,13 @@
   function createDocument({title,criteria,sections,detailRows=[]},fontBytes){
     if(!(fontBytes instanceof Uint8Array)||fontBytes.length<1000)throw Error("PDF 中文字体未加载");
     const pages=[];
-    const widths=sections.map(section=>section.columns.map(c=>Math.max(units(c.label)*12+24,...section.rows.map(r=>units(r[c.key])*(section.columns.length<=7?13:12)+26))));
+    const widthGroups=new Map();
+    const schema=section=>JSON.stringify(section.columns.map(c=>[c.key,c.label]));
+    for(const section of sections){
+      const key=schema(section),previous=widthGroups.get(key)||[];
+      widthGroups.set(key,section.columns.map((c,i)=>Math.max(previous[i]||0,units(c.label)*12+24,...section.rows.map(r=>units(r[c.key])*(section.columns.length<=7?13:12)+26))));
+    }
+    const widths=sections.map(section=>widthGroups.get(schema(section)));
     const pageWidth=Math.max(W,...widths.map(ws=>ws.reduce((a,b)=>a+b,0)+LEFT*2));
     function newPage(){const cmd=[];cmd.pageWidth=pageWidth;text(cmd,title,LEFT,28,20,{color:palette.gold});let top=61;wrap(criteria,AVAILABLE,11).forEach(line=>{text(cmd,line,LEFT,top,11,{color:palette.muted});top+=16;});return{cmd,top:top+15};}
     let page=newPage();

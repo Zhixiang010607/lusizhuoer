@@ -302,7 +302,8 @@ function createPdfBytes(pageCommands, cjkFontBytes) {
 
 function createGroupedPdf(options = {}) {
   const rows=Array.isArray(options.rows)?options.rows:[];
-  const source=(Array.isArray(options.columns)?options.columns:[]).filter(c=>c.key!=="storeName");
+  // Respect the caller's query columns; grouping must not silently remove a field.
+  const source=Array.isArray(options.columns)?options.columns:[];
   if(!rows.length)throw new Error("当前查询没有可导出的结果");
   if(!source.length)throw new Error("PDF 缺少列定义");
   if(rows.length>PDF_EXPORT_MAX_ROWS)throw new Error("单次最多导出1000条，请缩小查询范围");

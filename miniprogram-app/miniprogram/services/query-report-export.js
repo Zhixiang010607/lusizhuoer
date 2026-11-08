@@ -37,7 +37,7 @@ function documentModel(kind, result, payload = {}, team = false) {
   const number=col("number","序号",6,"number"), name=col("customerName","客户",14), age=col("age","年龄",7), state=col("status","状态",9);
   if(kind === "CUSTOMER") {
     title="客户查询"; rows=(result.customers || []).map(r=>({...r,age:formatCustomerAge(r.birthDate),recharge:r.totalRechargeCount,verification:r.totalVerificationCount,stage:stage(r.customerProcessStatus),status:status(r.customerStatus),date:day(r.createdAt)}));
-    columns=[number,name,age,col("recharge","累计充值",10,"number"),col("verification","正常核销",10,"number"),col("stage","业务阶段",23),col("date","建档日期",14),state];
+    columns=[number,col("customerName","姓名",14),col("recharge","充值",10,"number"),col("verification","核销",10,"number"),col("storeName","门店",20),age,col("stage","业务阶段",23),col("date","建档日期",14),col("status","客户状态",9)];
   } else if(kind === "ATTENDANCE") {
     title=`${result.attendanceDate}打卡情况`; rows=(result.exportRows || []).map(r=>({...r,status:({COMPLETE:"完整打卡",CLOCK_IN_ONLY:"仅上班打卡",CLOCK_OUT_ONLY:"仅下班打卡",MISSING:"未打卡"})[r.attendanceStatus] || "—",clockIn:time(r.clockInAt),clockOut:time(r.clockOutAt),duration:duration(r.workDurationSeconds)}));
     columns=[number,col("teacherName","老师",16),col("phone","电话",16),col("status","打卡状态",14),col("clockIn","上班时间",14),col("clockOut","下班时间",14),col("duration","工作时长",15)];
@@ -46,11 +46,13 @@ function documentModel(kind, result, payload = {}, team = false) {
     columns=[number,col("teacherName","老师",14),col("phone","电话",16),state,col("submittedAt","提交时间",12),col("content","日报内容",65)];
   } else if(kind === "PRODUCT_PURCHASE") {
     title="产品查询"; rows=(result.orders || []).map(r=>({ ...r,storeName:r.store_name,recordCode:r.record_code,source:r.source_type === "GIFT"?"充值赠送":"产品购买",customerName:r.customer_name,age:formatCustomerAge(r.birth_date),product:r.product_name_snapshot,quantity:Number(r.unit_count),teacher:r.teacher_name||"—",date:day(r.submitted_at),status:status(r.record_status)}));
-    columns=[number,col("recordCode","工单号",25),col("source","来源",12),name,age,col("product","产品",16),col("quantity","数量",8,"number"),col("teacher","老师",13),col("date","提交日期",14),state];
+    columns=[number,col("recordCode","工单号",25),name,age,col("storeName","门店",20),col("product","产品",16),col("source","来源",12),col("teacher","老师",13),col("quantity","数量",8,"number"),state,col("date","提交时间",14)];
   } else {
     title=kind === "VERIFICATION"?"核销查询":payload.rechargeType === "REFUND"?"退费查询":"充值与退费查询";
     rows=(result.records||[]).map(r=>({...r,age:formatCustomerAge(r.birthDate),type:kind === "VERIFICATION"?(r.originalType === "EXPERIENCE"?"体验核销":r.originalType === "SUPPLEMENT" && r.recordStatus !== "APPROVED"?"补录核销":"正常核销"):(r.originalType === "REFUND"?"退费":"充值"),quantity:r.unitCount,teacher:r.teacherName||"—",date:day(r.submittedAt),status:status(r.recordStatus)}));
-    columns=[number,col("recordCode","工单号",25),name,age,col("productName","项目",15),col("type","业务类型",13),col("quantity","次数",8,"number"),col("teacher","老师",13),col("date","提交日期",14),state];
+    columns=[number,col("recordCode","工单号",25),name,age,col("storeName","门店",20),col("productName","项目",15),col("type","类型",13),
+      ...(kind === "VERIFICATION"?[col("teacher","老师",13)]:[]),col("quantity","次数",8,"number"),
+      ...(kind === "VERIFICATION"?[]:[state]),col("date","提交时间",14)];
   }
   if(result.exportAll !== true || !Number.isInteger(result.total) || result.total !== rows.length) throw new Error("导出结果不完整，请重新查询后导出");
   if(!rows.length) throw new Error("当前条件没有可导出的结果");
