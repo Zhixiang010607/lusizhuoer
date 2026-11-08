@@ -1,0 +1,106 @@
+{
+  "sourceCommit": "8936cfcdd888a804912ccc20df2fb7127631a7ca",
+  "web": {
+    "assets": 14,
+    "safe": true,
+    "verified": true,
+    "prune": false,
+    "publicSha256Matches": 14,
+    "manifest": [
+      {
+        "file": "attendance-tracking.html",
+        "sha256": "be32d9cf79fe134a01620a92c25840cc37f14d36dd15d09fc3e74b9d450c7428"
+      },
+      {
+        "file": "customer-query.html",
+        "sha256": "4d88ba35103702b78a5d8c7d05b5025c9168f9b065c22e9b8c6cc42918ff4fb3"
+      },
+      {
+        "file": "daily-report-tracking.html",
+        "sha256": "d7294c7e289ed01fefeaa305f354e562d637ded3a3518805e8df7a3ae6ff759d"
+      },
+      {
+        "file": "inactive-customers.html",
+        "sha256": "323e6108cc4041523118758240661d785987a5bd7331ab904701c0ae6c58126b"
+      },
+      {
+        "file": "index.html",
+        "sha256": "8b4e2e0fb79d9f570b96c58dfbbab2d4f15276f0b18027157e7f0e5ff59132b4"
+      },
+      {
+        "file": "low-balance-customers.html",
+        "sha256": "b18b37e4d70f33b12b12f060b3ff7e3aeff78fa484d7aa676b9e2e1970b5ac40"
+      },
+      {
+        "file": "operational-metrics.js",
+        "sha256": "a655995a7beb3e8236c2021b42c660857bacde9f08931cef5a507951ad51e0e7"
+      },
+      {
+        "file": "product-query.html",
+        "sha256": "ffa1ed23100393cd61273978f59d09b92b5dbf26ca82e83d93e391f171a74d0b"
+      },
+      {
+        "file": "query-report-export.js",
+        "sha256": "6567745cc6318fff5ad51fbb816487deccc1e474ec3c87850256c59ca7ceaddd"
+      },
+      {
+        "file": "rating-analysis.html",
+        "sha256": "72655b5cb38c14b82cd9f7ebeca531f7567f9f8f50d80ee6cbe85d912129bb0c"
+      },
+      {
+        "file": "rating-charts.html",
+        "sha256": "a1f88ae0243aa03c37c4af514995406d7d71a40c518e12f51837a6020a9e7007"
+      },
+      {
+        "file": "recharge-query.html",
+        "sha256": "cae804dc719a72fda541835c957485dfe7ec3b2adabefc229b7d938b41c1fe8a"
+      },
+      {
+        "file": "verification-query.html",
+        "sha256": "59c25dffd146dc913f70a7f898a9f0e9f2679f9693707174cb7ef9bd89f32745"
+      },
+      {
+        "file": "web-table-report.js",
+        "sha256": "5c3f6ea8943f4b3585f81b5e89d1f3341be988a315c71499c49c32f35e36d231"
+      }
+    ]
+  },
+  "miniProgram": {
+    "version": "0.3.65",
+    "releaseType": "development",
+    "officialFinalReceipt": true,
+    "mainBytes": 1736048,
+    "totalBytes": 3563461,
+    "unchangedClientFiles": 297,
+    "originalProjectConfigPreserved": true,
+    "ideRestarted": false,
+    "experienceSelected": false,
+    "reviewSubmitted": false,
+    "formallyReleased": false
+  },
+  "validation": {
+    "nodeTests": 818,
+    "nodePassed": 818,
+    "addedColumnParityTests": 10,
+    "queryColumnsMatchActualScreen": true,
+    "storeIsExplicitDetailColumn": true,
+    "samePdfAndExcelColumns": true,
+    "nativePhoneWidth": 390,
+    "nativeTabletWidth": 834,
+    "phoneRechargeRows": 8,
+    "ipadCustomerRows": 4,
+    "bothFileFormatsOpened": true,
+    "samplePdfs": 22,
+    "sampleWorkbooks": 20,
+    "renderedPdfPages": 46,
+    "renderedWorkbookSheets": 22,
+    "rightAlignedTables": true,
+    "textInBounds": true
+  },
+  "backend": {
+    "cloudFunctionChanges": false,
+    "newSql": false,
+    "productionWrites": 0
+  },
+  "releaseLimitation": "WeChat experience-setting operation previously rejected by automatic site-safety review; no bypass attempted."
+}

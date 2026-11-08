@@ -6,7 +6,7 @@
 
 新增10项回归：直接从实际WXML与Web查询HTML读取表头，比较PDF／XLSX模型、真实XLSX表头与PDF门店表头输出；校验相同字段的跨组列对齐。818项完整回归通过。生成22份PDF和20份XLSX；46页PDF已渲染、文件文字边界检查通过，20份XLSX经导入渲染检查。原生手机390充值8条PDF／Excel成功；iPad834客户4条PDF／Excel成功。
 
-此次仅客户端导出与Web排版，无SQL、云函数或生产业务数据写入，不改变查询、审核、余额或核销。源码和发布回执完成后补充。
+此次仅客户端导出与Web排版，无SQL、云函数或生产业务数据写入，不改变查询、审核、余额或核销。源码8936cfcdd888a804912ccc20df2fb7127631a7ca已推送；Web14个限定文件safe／verify发布、公网字节校验全部一致。小程序0.3.65开发版取得官方最终上传回执，主包1,736,048、总包3,563,461字节；297份客户端源码及原项目配置保持不变，未重启IDE。未设体验版、提审或正式发布；微信后台体验版操作此前被自动安全审查拒绝，没有绕过。回执：deployments/2026-11-08-query-export-columns-verification.json。
 
 ![小程序充值导出保留门店](assets/2026-11-08-export-columns/mini-recharge-with-store.png)
 ![Web客户导出保留门店并对齐列](assets/2026-11-08-export-columns/web-customer-with-store.png)
