@@ -1,12 +1,12 @@
 # customerRating
 
-当前联动顺序：先按完整备份门禁执行并验收 [093封存退组](../../database/cloudbase-console/093-README.md)，再部署 staffAccount v104、faceRecognition v142，最后更新客户端。本函数代码本轮不变，无需重复部署。源码包不代表已经上线。
+当前联动顺序：先按完整备份门禁执行并验收 [093封存退组](../../database/cloudbase-console/093-README.md)，再部署 staffAccount v105、faceRecognition v143，最后更新客户端。本函数代码本轮不变，无需重复部署。源码包不代表已经上线。
 
 当前版本：`v9`
 
 客户评价独立服务。它只负责核销/体验核销完成后的评价链接签发、公开评价提交和员工端只读查询，不参与人脸验证、BLE 授权、扣次或工单状态变更。v8 固定显示并要求“门店环境、老师服务、整体体验”三项评分，即使工单没有指定业务老师，第 02 项也不得隐藏或省略；迁移 070 用表单版本保留已提交旧评价，不伪造历史老师服务分数。v7 的单语句评价分析快照、最多 1000 单完整导出、空 `RETURNING` 有界重读，以及既有永久未评价链接、一次提交和权限规则全部保留。
 
-v9 新增 `getTeamRatingAnalysisOptions`、`queryTeamRatingAnalysis`：只允许有效组长，按当前 UID 在实际 SQL 内将客户集合限定为当前成员及组长本人建档或可信已生效业务关联客户。复用既有最低分、图表单快照和十条分页；拒绝组长导出。普通老师旧 action 仍拒绝，工单评价详情权限、二维码签发、公开提交和不可变性不变。共享 `teacher-team.js` 与 faceRecognition v142 逐字一致。依赖已经验收的迁移 091；无新增 SQL 或数据回填。联动矩阵为 staffAccount v104、faceRecognition v142、customerRating v9。
+v9 新增 `getTeamRatingAnalysisOptions`、`queryTeamRatingAnalysis`：只允许有效组长，按当前 UID 在实际 SQL 内将客户集合限定为当前成员及组长本人建档或可信已生效业务关联客户。复用既有最低分、图表单快照和十条分页；拒绝组长导出。普通老师旧 action 仍拒绝，工单评价详情权限、二维码签发、公开提交和不可变性不变。共享 `teacher-team.js` 与 faceRecognition v143 逐字一致。依赖已经验收的迁移 091；无新增 SQL 或数据回填。联动矩阵为 staffAccount v105、faceRecognition v143、customerRating v9。
 
 ## 动作
 

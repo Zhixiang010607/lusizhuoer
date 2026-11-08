@@ -28,7 +28,12 @@ function customerRows(rows = []) {
 }
 
 Page({
-  data: {
+  exportFile(event) {
+    if (!this._exportPayload) return;
+    const snapshot = JSON.stringify(this._exportPayload), epoch = this._requestEpoch ?? this._epoch ?? this._dayEpoch;
+    return require("../../services/query-report-export").exportPage(this, "CUSTOMER", {...this._exportPayload}, {team:this.data.teamScope === true,format:event.currentTarget.dataset.format,valid:()=>snapshot === JSON.stringify(this._exportPayload) && epoch === (this._requestEpoch ?? this._epoch ?? this._dayEpoch)});
+  },
+  data: { exporting:false, exportReady:false,
     session: {}, loading: false, message: "", error: false, mode: "browse", tableScrollLeft: 0,
     customers: [], page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, hasMore: false, pageJump: "1",
     cursorStack: [null], nextCursor: null,
@@ -49,7 +54,7 @@ Page({
     await this.load(1);
   },
   onPullDownRefresh() { this.resetPaging(); this.load(1).finally(() => wx.stopPullDownRefresh()); },
-  onUnload() {
+  onUnload() { this._unloaded = true; this._exportPayload = null;
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
   },
@@ -110,6 +115,7 @@ Page({
     if (epoch !== this._requestEpoch) return false;
     if (result.hasMore && result.nextCursor) stack[targetPage] = result.nextCursor;
     else stack.splice(targetPage);
+    this._exportPayload = {...basePayload}; this.setData({exportReady:true});
     const summary = result.summary || {};
     const total = Number(summary.selectedTotal || 0);
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -143,6 +149,7 @@ Page({
   },
 
   invalidateRequest(changes) {
+    this._exportPayload = null; this.setData({exportReady:false});
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this.setData({ ...(changes || {}), loading: false });
   },

@@ -59,6 +59,10 @@ const { PGlite } = require(process.argv[2] || "@electric-sql/pglite");
   result = await page.requestRecords({ productId: "ALL", statusCategory: "ALL", pageSize: 10, page: 1 });
   assert.equal(result.total, 2); assert.equal(result.orders.length, 2);
   await assert.rejects(context.query({ profile: { role: "store" } }, {}), /FORBIDDEN/);
+  result=await query({exportAll:true,sourceType:"GIFT"});assert.equal(result.total,1);assert.equal(result.orders[0].source_type,"GIFT");assert.equal(result.orders[0].product_name_snapshot,"医用面膜");assert(!("review_note" in result.orders[0]));
+  await db.exec("INSERT INTO recharge_product_gifts SELECT id+1,1,888,1,1,1,1,'NEW','新增产品' FROM generate_series(1,999) id");
+  result=await query({exportAll:true,sourceType:"GIFT"});assert.equal(result.total,1000);assert.equal(new Set(result.orders.map(r=>String(r.source_line_id))).size,1000);
+  await db.exec("INSERT INTO recharge_product_gifts VALUES(1001,1,888,1,1,1,1,'NEW','新增产品')");await assert.rejects(query({exportAll:true,sourceType:"GIFT"}),/1000/);
   await db.close(); console.log(JSON.stringify({ postgres: "isolated PGlite", productionWrites: 0,
     checks: ["gift and purchase both queryable", "future catalog kind dynamically selectable", "source/product/status/store/customer/date filters", "RC/PP exact lookup", "archived product history retained", "Mini ALL adapter includes all states", "HQ-only query permission retained"] }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; });

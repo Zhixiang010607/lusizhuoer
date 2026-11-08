@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>充值查询</title>
   <link rel="stylesheet" href="styles.css?v=0.15.48">
-<link rel="stylesheet" href="list-row-numbers.css?v=1.0.0"></head>
+<link rel="stylesheet" href="list-row-numbers.css?v=1.0.0"><link rel="stylesheet" href="query-report-export.css?v=1.0.0"></head>
 <body data-query="recharge">
   <aside class="side-project-bar" aria-label="项目栏">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作台</strong><small>项目栏</small></div></div><p class="side-section-title">数据看板</p>
@@ -55,7 +55,7 @@
     <section class="panel customer-permission-banner"><strong id="recordPermissionTitle">门店范围</strong><span id="recordPermissionText">只读取当前登录门店的数据库充值单；封存客户的历史记录仍会保留。</span></section>
     <section class="panel table-card query-results store-record-results">
       <div class="panel-heading"><div><h2>充值结果</h2></div></div>
-      <div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><thead><tr><th>工单号</th><th>客户编号</th><th>客户姓名</th><th>年龄</th><th>门店</th><th>项目</th><th>申请类型</th><th>次数</th><th>提交时间</th><th>审核状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div><div class="record-query-pager" aria-label="充值结果分页"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel" aria-live="polite">第 1 页</span><label class="record-page-jump">跳至第 <input id="recordPageJumpInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" aria-label="跳转到第几页"> 页</label><button id="recordPageJumpButton" type="button">跳转</button><button id="recordNextPage" type="button">下一页</button></div>
+      <div id="queryExportBar" class="report-export-bar"><span>单次最多1000条</span><div><button type="button" class="secondary-button" data-format="pdf" disabled>导出 PDF</button><button type="button" class="secondary-button" data-format="excel" disabled>导出 Excel</button></div></div><div class="table-scroll"><table class="record-query-results-table recharge-record-results-table"><thead><tr><th>工单号</th><th>客户编号</th><th>客户姓名</th><th>年龄</th><th>门店</th><th>项目</th><th>申请类型</th><th>次数</th><th>提交时间</th><th>审核状态</th></tr></thead><tbody id="recordQueryBody"></tbody></table></div><div class="record-query-pager" aria-label="充值结果分页"><button id="recordPreviousPage" type="button">上一页</button><span id="recordPageLabel" aria-live="polite">第 1 页</span><label class="record-page-jump">跳至第 <input id="recordPageJumpInput" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" aria-label="跳转到第几页"> 页</label><button id="recordPageJumpButton" type="button">跳转</button><button id="recordNextPage" type="button">下一页</button></div>
     </section>
   </main>
 
@@ -64,6 +64,7 @@
     <section class="panel table-card query-results"><div class="panel-heading"><div><h2>充值记录</h2></div><span class="badge">充值</span></div><div class="table-scroll"><table class="record-query-results-table legacy-record-results-table"><thead><tr><th>充值编号（可查看）</th><th>客户编号</th><th>客户姓名</th><th>年龄</th><th>门店</th><th>项目</th><th>充值次数</th><th>提交时间</th><th>审核进度</th></tr></thead><tbody id="queryBody"></tbody></table></div></section>
   </main>
 
-  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.11"></script><script src="datetime.js?v=0.1.2"></script><script src="customer-age.js?v=1.0.0"></script><script src="query.js?v=0.15.14"></script><script src="auth-ui.js?v=0.21.8"></script>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.auth.js"></script><script src="https://static.cloudbase.net/cloudbase-js-sdk/3.7.1/cloudbase.functions.js"></script><script src="cloudbase-auth-config.js"></script><script src="cloudbase-phone-auth.js?v=0.20.12"></script><script src="datetime.js?v=0.1.2"></script><script src="customer-age.js?v=1.0.0"></script><script src="web-report-export.js?v=1.1.0"></script><script src="hq-dashboard-report.js?v=0.2.0"></script><script src="web-table-report.js?v=1.0.0"></script><script src="query-report-export.js?v=1.0.0"></script>
+  <script src="query.js?v=0.15.15"></script><script src="auth-ui.js?v=0.21.8"></script>
 <script src="list-row-numbers.js?v=1.0.1"></script></body>
 </html>

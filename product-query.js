@@ -44,15 +44,16 @@
       return `<tr><td>${order}</td><td>${gift?"充值赠送":"产品购买"}</td><td><a href="customer-detail.html?customerId=${encodeURIComponent(r.customer_code)}">${escape(r.customer_name)}</a></td><td>${escape(window.CustomerAge.format(r.birth_date))}</td><td>${escape(r.store_name)}</td><td>${escape(r.product_name_snapshot)}</td><td>${Number(r.unit_count || 0)} 件</td><td>${escape(r.teacher_name || "—")}</td><td>${escape(window.AppDateTime.format(r.submitted_at))}</td><td>${escape(statusLabels[r.record_status] || "—")}</td></tr>`;
     }).join("") : '<tr><td colspan="10" class="query-empty">当前条件下没有产品记录</td></tr>';
   }
+  const exportController=window.QueryReportExport.mount({kind:"PRODUCT_PURCHASE",readPayload:payload,fetch:p=>window.CloudBasePhoneAuth.queryRetailProductRecords(p),notice:message});
   async function load(target = 1, search = false) {
     if (loading) return;
     let filters; try { filters = search || !lastPayload ? payload() : {...lastPayload}; } catch(e) { message(e.message,true); return; }
-    loading = true; renderPager();
+    exportController.begin(); loading = true; renderPager();
     document.querySelectorAll("#productQueryForm input, #productQueryForm select, #productQueryForm button").forEach(n=>{n.disabled=true;});
     $("productQueryBody").innerHTML = '<tr><td colspan="10" class="query-empty">正在读取产品记录…</td></tr>'; message("");
     try {
       const result = await window.CloudBasePhoneAuth.queryRetailProductRecords({...filters,pageNumber:target});
-      rows = result.orders || []; page = Number(result.pageNumber || 1); pages = Math.max(1,Number(result.totalPages || 1)); lastPayload = filters;
+      rows = result.orders || []; page = Number(result.pageNumber || 1); pages = Math.max(1,Number(result.totalPages || 1)); lastPayload = filters; exportController.commit(filters);
       const choices = (id, values, name, label) => { const selected=$(id).value; $(id).innerHTML=`<option value="">${label}</option>`+values.map(v=>`<option value="${escape(v.id)}">${escape(v[name])}</option>`).join(""); $(id).value=selected; };
       choices("productQueryStore",(result.stores||[]).map(s=>({id:s.store_id||s.id,name:s.store_name||s.name})),"name","全部门店");
       choices("productQueryProduct",(result.products||[]).map(p=>({id:p.productId,name:p.productName+(p.productStatus==="ARCHIVED"?"（已封存）":"")})),"name","全部产品");

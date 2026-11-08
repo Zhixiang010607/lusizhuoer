@@ -36,7 +36,8 @@ function assertVectorPdf(output, client) {
   const bytes = Buffer.from(output.bytes);
   const source = bytes.toString("latin1");
   assert.equal(bytes.subarray(0, 8).toString("ascii"), "%PDF-1.4", `${client} must create a real PDF`);
-  assert.ok(output.pages >= 2, `${client} must include both summary and ranking sections`);
+  assert.ok(output.pages >= 1, `${client} must create content-driven pages`);
+  for (const heading of ["项目汇总", "完整排名"]) assert.ok(source.includes(Buffer.from(heading,"utf16le").swap16().toString("hex").toUpperCase()), `${client} includes ${heading}`);
   assert.match(source, /\/Subtype \/Type0 \/BaseFont \/STSong-Light/,
     `${client} must use a PDF CJK vector font resource`);
   assert.match(source, /\/Subtype \/Type1 \/BaseFont \/Helvetica/,

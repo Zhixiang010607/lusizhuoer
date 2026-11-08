@@ -33,7 +33,7 @@ assert.match(queryHtml, /value="PENDING">待审核<\/option><option value="APPRO
 assert.doesNotMatch(queryHtml, /value="CLOSED"|作废状态|record-col-void-status/);
 assert.match(queryHtml, /<th>审核状态<\/th>/);
 assert.doesNotMatch(queryHtml, /<th>状态<\/th>/);
-assert.match(queryHtml, /query\.js\?v=0\.15\.14/);
+assert.match(queryHtml, /query\.js\?v=0\.15\.15/);
 assert.match(queryUi, /REJECTED: "已驳回"/);
 assert.match(queryUi, /APPROVED: "审核通过"/);
 assert.doesNotMatch(queryUi, /function voidStatusTag|voidPending|作废待审核/);
@@ -76,7 +76,7 @@ assert.match(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED"\]/);
 assert.doesNotMatch(queryCloud, /\["ALL", "PENDING", "APPROVED", "REJECTED", "CLOSED"\]/);
 assert.match(queryCloud, /else if \(statusCategory === "REJECTED"\)/);
 assert.match(queryCloud, /rejected: Number\(summary\.rejected \|\| 0\)/);
-assert.match(accountCloud, /const FUNCTION_VERSION = "v104"/);
+assert.match(accountCloud, /const FUNCTION_VERSION = "v105"/);
 assert.match(accountCloud, /const ORDER_VOID_APPLICATIONS_ENABLED = false/);
 assert.doesNotMatch(accountCloud, /applicationType: "NEW"/);
 assert.match(accountCloud, /"ORDER_VOID_DISABLED"/);

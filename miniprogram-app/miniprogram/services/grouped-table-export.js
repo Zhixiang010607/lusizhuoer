@@ -133,7 +133,7 @@ function stylesXml() {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts>
-  <fonts count="4"><font><sz val="11"/><name val="Microsoft YaHei"/><color rgb="FF302A22"/></font><font><b/><sz val="11"/><name val="Microsoft YaHei"/><color rgb="FF5B4328"/></font><font><b/><sz val="18"/><name val="Microsoft YaHei"/><color rgb="FF302A22"/></font><font><b/><sz val="11"/><name val="Microsoft YaHei"/><color rgb="FFFFFDF8"/></font></fonts>
+  <fonts count="4"><font><sz val="12"/><name val="Microsoft YaHei"/><color rgb="FF302A22"/></font><font><b/><sz val="12"/><name val="Microsoft YaHei"/><color rgb="FF5B4328"/></font><font><b/><sz val="18"/><name val="Microsoft YaHei"/><color rgb="FF302A22"/></font><font><b/><sz val="12"/><name val="Microsoft YaHei"/><color rgb="FFFFFDF8"/></font></fonts>
   <fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2E2C5"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF80602F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFAF3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF8ED"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFE5D7C2"/></left><right style="thin"><color rgb="FFE5D7C2"/></right><top style="thin"><color rgb="FFE5D7C2"/></top><bottom style="thin"><color rgb="FFE5D7C2"/></bottom><diagonal/></border></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
@@ -142,7 +142,7 @@ function stylesXml() {
 </styleSheet>`;
 }
 
-function worksheetXml({ title, criteria, columns, rows, groupKey, groupLabel }) {
+function worksheetXml({ title, criteria, columns, rows, groupKey, groupLabel, groupTitle = "门店" }) {
   const groups = groupedRows(rows, groupKey, groupLabel);
   const lastColumn = columnName(columns.length - 1);
   const xmlRows = [];
@@ -157,20 +157,26 @@ function worksheetXml({ title, criteria, columns, rows, groupKey, groupLabel }) 
   for (const group of groups) {
     const groupReference = `A${rowNumber}:${lastColumn}${rowNumber}`;
     merges.push(groupReference);
-    xmlRows.push(`<row r="${rowNumber}" ht="24" customHeight="1">${inlineCell(`A${rowNumber}`, `门店：${group.label}（${group.rows.length} 条）`, 3)}</row>`);
+    xmlRows.push(`<row r="${rowNumber}" ht="24" customHeight="1">${inlineCell(`A${rowNumber}`, `${groupTitle}：${group.label}（${group.rows.length} 条）`, 3)}</row>`);
     rowNumber += 1;
     const headers = columns.map((column, index) => inlineCell(`${columnName(index)}${rowNumber}`, column.header, 4)).join("");
     xmlRows.push(`<row r="${rowNumber}" ht="24" customHeight="1">${headers}</row>`);
     rowNumber += 1;
     for (const row of group.rows) {
-      const cells = columns.map((column, index) => valueCell(
-        `${columnName(index)}${rowNumber}`,
-        typeof column.value === "function" ? column.value(row) : row[column.key],
-        column.type === "number" ? 6 : 5,
-        column.type
-      )).join("");
-      xmlRows.push(`<row r="${rowNumber}" ht="22" customHeight="1">${cells}</row>`);
-      rowNumber += 1;
+      const values=columns.map(c=>typeof c.value === "function"?c.value(row):row[c.key]);
+      const lines=values.map((value,i)=>String(value ?? "—").split(/\r?\n/).flatMap(line=>{
+        const out=[];let text="",units=0;const cap=Math.max(4,Number(columns[i].width || 16)-2);
+        for(const ch of Array.from(line)){const n=ch.codePointAt(0)>127?2:1;if(units+n>cap&&text){out.push(text);text="";units=0;}text+=ch;units+=n;}out.push(text);return out;
+      }));
+      const maxLines=Math.max(...lines.map(x=>x.length)),chunkSize=21;
+      for(let start=0;start<maxLines;start+=chunkSize){
+        const cells=columns.map((column,index)=>{
+          const value=start === 0 && column.type === "number"?values[index]:column.type === "number"?"":lines[index].length>chunkSize?lines[index].slice(start,start+chunkSize).join("\n"):start?"":values[index];
+          return valueCell(`${columnName(index)}${rowNumber}`,value,column.type === "number" && !start?6:5,start?"text":column.type);
+        }).join("");
+        const height=Math.max(28,Math.min(chunkSize,maxLines-start)*18+10);
+        xmlRows.push(`<row r="${rowNumber}" ht="${height}" customHeight="1">${cells}</row>`); rowNumber++;
+      }
     }
     xmlRows.push(`<row r="${rowNumber}" ht="9" customHeight="1"/>`);
     rowNumber += 1;
@@ -181,33 +187,46 @@ function worksheetXml({ title, criteria, columns, rows, groupKey, groupLabel }) 
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastColumn}${lastRow}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${columnXml}</cols><sheetData>${xmlRows.join("")}</sheetData><mergeCells count="${merges.length}">${merges.map((ref) => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
 }
 
+function narrativeXml(sheet) {
+  const xmlRows=[],merges=[],breaks=[];
+  let n=1;
+  function merged(value,height,style=7){merges.push(`A${n}:F${n}`);xmlRows.push(`<row r="${n}" ht="${height}" customHeight="1">${inlineCell(`A${n}`,value,style)}</row>`);n++;}
+  merged(sheet.title,32,1);merged(sheet.criteria,26,2);
+  const completed=sheet.rows.filter(row=>row.completed);
+  for(const row of completed){if(n>3)breaks.push(n-1);merged(`${row.teacherName} · ${row.phone || "未登记电话"}`,28,3);merged(`提交时间（北京时间）：${row.submittedAt}`,25,2);
+    const lines=[];for(const paragraph of String(row.content||"—").split(/\r?\n/)){let line="";for(const ch of Array.from(paragraph)){if(line&&visualUnits(line+ch)>105){lines.push(line);line=ch;}else line+=ch;}lines.push(line||" ");}
+    for(let at=0;at<lines.length;at+=20){const part=lines.slice(at,at+20);merged(part.join("\n"),part.length*18+14,7);}
+    xmlRows.push(`<row r="${n++}" ht="12" customHeight="1"/>`);
+  }
+  if(!completed.length)merged("所选日期暂无已填写日报",28,2);
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><cols><col min="1" max="6" width="18" customWidth="1"/></cols><sheetData>${xmlRows.join("")}</sheetData><mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join("")}</mergeCells><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>${breaks.length?`<rowBreaks count="${breaks.length}" manualBreakCount="${breaks.length}">${breaks.map(id=>`<brk id="${id}" min="0" max="16383" man="1"/>`).join("")}</rowBreaks>`:""}</worksheet>`;
+}
+
 function createGroupedWorkbook(options = {}) {
-  const rows = Array.isArray(options.rows) ? options.rows : [];
-  const columns = Array.isArray(options.columns) ? options.columns : [];
-  if (!rows.length) throw new Error("当前查询没有可导出的客户");
-  if (!columns.length) throw new Error("导出表格缺少列定义");
-  if (rows.length > EXPORT_MAX_ROWS) throw new Error(`当前结果有 ${rows.length} 条，单次最多导出 ${EXPORT_MAX_ROWS} 条`);
-  const sheetName = safeSheetName(options.sheetName || options.title);
-  const sheetXml = worksheetXml({
-    title: clean(options.title) || "客户查询结果",
-    criteria: clean(options.criteria) || `共 ${rows.length} 条`,
-    columns,
-    rows,
-    groupKey: typeof options.groupKey === "function" ? options.groupKey : (row) => row.storeId || row.storeName,
-    groupLabel: typeof options.groupLabel === "function" ? options.groupLabel : (row) => row.storeName
+  const definitions = Array.isArray(options.sheets) ? options.sheets : [options];
+  const sheets = definitions.map((sheet,index)=>{
+    const rows=Array.isArray(sheet.rows)?sheet.rows:[];
+    let columns=Array.isArray(sheet.columns)?sheet.columns:[];
+    if(!rows.length)throw new Error("当前查询没有可导出的结果");
+    if(!columns.length)throw new Error("导出表格缺少列定义");
+    if(rows.length>EXPORT_MAX_ROWS)throw new Error(`单次最多导出 ${EXPORT_MAX_ROWS} 条`);
+    if(sheet.automaticWidths !== false)columns=columns.map(c=>({...c,width:Math.min(255,Math.max(10,visualUnits(c.header)+3,...rows.map(r=>visualUnits(typeof c.value === "function"?c.value(r):r[c.key])+3)))}));
+    const groupKey=typeof sheet.groupKey === "function"?sheet.groupKey:r=>r.storeId||r.storeName;
+    const groupLabel=typeof sheet.groupLabel === "function"?sheet.groupLabel:r=>r.storeName;
+    return {name:safeSheetName(sheet.sheetName||sheet.title||`查询${index+1}`),rows,columns,groupKey,groupLabel,
+      xml:sheet.narrative?narrativeXml(sheet):worksheetXml({title:clean(sheet.title)||"查询结果",criteria:clean(sheet.criteria)||`共 ${rows.length} 条`,columns,rows,groupKey,groupLabel,groupTitle:sheet.groupTitle||"门店"})};
   });
-  const entries = [
-    { name: "[Content_Types].xml", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
-    { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
-    { name: "xl/workbook.xml", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="${validXmlText(sheetName)}" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="0"/></workbook>` },
-    { name: "xl/_rels/workbook.xml.rels", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
-    { name: "xl/styles.xml", data: stylesXml() },
-    { name: "xl/worksheets/sheet1.xml", data: sheetXml }
+  if(new Set(sheets.map(s=>s.name)).size!==sheets.length)throw new Error("工作表名称重复");
+  const prefix='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const entries=[
+    {name:"[Content_Types].xml",data:prefix+`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`},
+    {name:"_rels/.rels",data:prefix+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {name:"xl/workbook.xml",data:prefix+`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>${sheets.map((sheet,i)=>`<sheet name="${validXmlText(sheet.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets><calcPr calcId="0"/></workbook>`},
+    {name:"xl/_rels/workbook.xml.rels",data:prefix+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+    {name:"xl/styles.xml",data:stylesXml()},...sheets.map((sheet,i)=>({name:`xl/worksheets/sheet${i+1}.xml`,data:sheet.xml}))
   ];
-  const groups = groupedRows(rows,
-    typeof options.groupKey === "function" ? options.groupKey : (row) => row.storeId || row.storeName,
-    typeof options.groupLabel === "function" ? options.groupLabel : (row) => row.storeName);
-  return { bytes: zipStore(entries), rowCount: rows.length, groupCount: groups.length, sheetName };
+  const first=sheets[0];
+  return {bytes:zipStore(entries),rowCount:first.rows.length,groupCount:groupedRows(first.rows,first.groupKey,first.groupLabel).length,sheetName:first.name,sheetCount:sheets.length};
 }
 
 function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }

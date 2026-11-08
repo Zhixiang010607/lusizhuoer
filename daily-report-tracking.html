@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css?v=0.15.44">
   <link rel="stylesheet" href="daily-report.css?v=0.3.0">
   <link rel="stylesheet" href="daily-report-tracking.css?v=0.3.0">
-</head>
+<link rel="stylesheet" href="query-report-export.css?v=1.0.0"></head>
 <body data-daily-report-tracking>
   <aside class="side-project-bar" aria-label="工作区导航">
     <div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>日报追踪</small></div></div>
@@ -22,7 +22,7 @@
     <section class="panel tracking-date-card"><div id="dailyTrackingDateParts" class="tracking-date-parts" aria-label="选择追踪日期"></div><button id="trackingDateConfirm" type="button">确认</button><button id="trackingToday" class="secondary-button" type="button">回到今天</button></section>
 
     <section class="daily-tracking-results" aria-labelledby="trackingDateTitle">
-      <div class="daily-tracking-summary">
+      <div id="queryExportBar" class="report-export-bar"><span>单次最多1000条</span><div><button type="button" class="secondary-button" data-format="pdf" disabled>导出 PDF</button><button type="button" class="secondary-button" data-format="excel" disabled>导出 Excel</button></div></div><div class="daily-tracking-summary">
         <div><p class="eyebrow">SELECTED DATE</p><h2 id="trackingDateTitle">正在读取服务器日期…</h2></div>
         <div class="daily-tracking-counts"><span id="trackingCompletedSummary">已填写 0</span><span id="trackingIncompleteSummary">未填写 0</span></div>
       </div>
@@ -53,6 +53,7 @@
   <script src="auth-ui.js?v=0.21.8"></script>
   <script src="web-work-common.js?v=1.0.0"></script>
   <script src="tracking-ui.js?v=1.0.0"></script>
-  <script src="daily-report-tracking.js?v=0.3.0"></script>
+  <script src="customer-age.js?v=1.0.0"></script><script src="web-report-export.js?v=1.1.0"></script><script src="hq-dashboard-report.js?v=0.2.0"></script><script src="web-table-report.js?v=1.0.0"></script><script src="query-report-export.js?v=1.0.0"></script>
+  <script src="daily-report-tracking.js?v=0.3.1"></script>
 </body>
 </html>

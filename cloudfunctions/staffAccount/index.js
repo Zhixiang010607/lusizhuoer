@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v104";
+const FUNCTION_VERSION = "v105";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -1781,17 +1781,27 @@ async function getHqDailyReportTrackingDay(caller, event = {}, teamScope = null)
      SELECT context.server_today, roster.teacher_id, roster.teacher_code,
             roster.teacher_name, roster.phone,
             report.id AS report_id, report.report_date,
-            report.created_at, report.updated_at
+            report.created_at, report.updated_at${event.exportAll === true ? ", report.completed_work, report.customer_project_progress, report.problems_and_support, report.tomorrow_plan" : ""}
        FROM context
        LEFT JOIN roster ON TRUE
        LEFT JOIN public.staff_daily_reports AS report
          ON report.staff_account_id = roster.staff_account_id
         AND report.report_date = ${sqlText(reportDate)}::date
-      ORDER BY (report.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC`
+      ORDER BY (report.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC ${event.exportAll === true ? "LIMIT 1001" : ""}`
   );
   const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
   if (serverToday && reportDate > serverToday) {
     fail("未来日期尚未到达，不能追踪日报。", "DAILY_REPORT_FUTURE_DATE");
+  }
+  if (event.exportAll === true) {
+    const exportRows = rows.filter(row => row.teacher_id).map(row => ({
+      teacherId: String(row.teacher_id), teacherName: row.teacher_name, phone: row.phone,
+      completed: Boolean(row.report_id), updatedAt: row.updated_at,
+      completedWork: row.completed_work || "", customerProjectProgress: row.customer_project_progress || "",
+      problemsAndSupport: row.problems_and_support || "", tomorrowPlan: row.tomorrow_plan || ""
+    }));
+    if (exportRows.length > 1000) fail("在职老师超过1000人，单次最多导出1000条。", "EXPORT_LIMIT_EXCEEDED");
+    return { ok: true, exportAll: true, reportDate, serverToday, total: exportRows.length, exportRows };
   }
   const teachers = (rows || []).filter((row) => row.teacher_id).map(hqDailyReportTeacher);
   return {
@@ -1972,7 +1982,7 @@ async function getHqAttendanceTrackingDay(caller, event = {}, teamScope = null) 
          ON clock_out.staff_account_id = roster.staff_account_id
         AND clock_out.attendance_date = ${sqlText(attendanceDate)}::date
         AND clock_out.attendance_type = 'CLOCK_OUT'
-      ORDER BY (clock_in.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC`
+      ORDER BY (clock_in.id IS NULL) ASC, roster.teacher_name ASC, roster.teacher_id ASC ${event.exportAll === true ? "LIMIT 1001" : ""}`
   );
   const serverToday = String(rows?.[0]?.server_today || "").slice(0, 10);
   if (serverToday && attendanceDate > serverToday) fail("未来日期尚未到达，不能追踪考勤。", "ATTENDANCE_FUTURE_DATE");
@@ -2007,6 +2017,14 @@ async function getHqAttendanceTrackingDay(caller, event = {}, teamScope = null) 
         ? null : Math.max(0, Number(row.work_duration_seconds))
     };
   });
+  if (event.exportAll === true) {
+    if (teachers.length > 1000) fail("在职老师超过1000人，单次最多导出1000条。", "EXPORT_LIMIT_EXCEEDED");
+    const exportRows = teachers.map(row => ({ teacherId: row.teacherId, teacherName: row.teacherName,
+      phone: row.phone, attendanceStatus: row.attendanceStatus,
+      clockInAt: row.clockIn?.checkedInAt || null, clockOutAt: row.clockOut?.checkedInAt || null,
+      workDurationSeconds: row.workDurationSeconds }));
+    return { ok: true, exportAll: true, attendanceDate, serverToday, total: exportRows.length, exportRows };
+  }
   const completed = teachers.filter((row) => row.attendanceStatus === "COMPLETE");
   const clockInOnly = teachers.filter((row) => row.attendanceStatus === "CLOCK_IN_ONLY");
   const clockOutOnly = teachers.filter((row) => row.attendanceStatus === "CLOCK_OUT_ONLY");
@@ -3847,6 +3865,23 @@ async function listRetailProductPurchaseReviews(caller, event = {}) {
     return `WITH product_entries AS (${branches.join("\n    UNION ALL\n    ")})`;
   };
   const sourceSql = buildSourceSql(true);
+  if (event.exportAll === true) {
+    const orders = await executeSql(`${sourceSql}, bounded_entries AS (
+      SELECT * FROM product_entries ORDER BY (record_status = 'PENDING') DESC,
+        submitted_at DESC, source_type, source_line_id DESC LIMIT 1001
+    ) SELECT entry.record_id AS id, entry.source_line_id, entry.source_type,
+        entry.record_code, entry.unit_count, entry.record_status, entry.submitted_at,
+        store.store_name, customer.customer_name, customer.birth_date,
+        entry.product_name_snapshot, teacher.teacher_name
+      FROM bounded_entries entry
+      JOIN public.stores store ON store.id = entry.store_id
+      JOIN public.customers customer ON customer.id = entry.customer_id
+      LEFT JOIN public.teachers teacher ON teacher.id = entry.teacher_id
+      ORDER BY (entry.record_status = 'PENDING') DESC, entry.submitted_at DESC,
+        entry.source_type, entry.source_line_id DESC`);
+    if (orders.length > 1000) fail("匹配结果超过1000条，请缩小查询范围后导出。", "EXPORT_LIMIT_EXCEEDED");
+    return { exportAll: true, total: orders.length, orders };
+  }
   const countRows = await executeSql(
     `${sourceSql}
      SELECT COUNT(*)::bigint AS total

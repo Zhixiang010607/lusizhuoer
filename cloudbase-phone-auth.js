@@ -808,9 +808,9 @@
       return { ...data, orders: data.orders || [], stores: data.stores || [] };
     },
     // Query all product sources without changing the purchase-only review call above.
-    async queryRetailProductRecords({ storeId = "", retailProductId = "", sourceType = "", status = "", customerName = "", birthDate = "", startDate = "", endDate = "", recordCode = "", pageNumber = 1 } = {}) {
+    async queryRetailProductRecords({ storeId = "", retailProductId = "", sourceType = "", status = "", customerName = "", birthDate = "", startDate = "", endDate = "", recordCode = "", pageNumber = 1, exportAll = false } = {}) {
       return callStaffAccount(
-        { action: "listRetailProductPurchaseReviews", storeId, retailProductId, sourceType, status, customerName, birthDate, startDate, endDate, recordCode, limit: 10, pageNumber },
+        { action: "listRetailProductPurchaseReviews", storeId, retailProductId, sourceType, status, customerName, birthDate, startDate, endDate, recordCode, limit: 10, pageNumber, exportAll },
         "产品查询失败"
       );
     },

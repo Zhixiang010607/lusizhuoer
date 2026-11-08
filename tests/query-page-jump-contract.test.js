@@ -14,14 +14,14 @@ for (const page of ["recharge-query.html", "verification-query.html"]) {
   const html = read(page);
   assert.match(html, /id="recordPageJumpInput"[^>]*type="number"[^>]*min="1"[^>]*step="1"/, `${page} exposes a positive-integer page input`);
   assert.match(html, /id="recordPageJumpButton"[^>]*>跳转<\//, `${page} exposes an explicit page-jump action`);
-  assert.match(html, /query\.js\?v=0\.15\.14/, `${page} busts the record-query script cache`);
+  assert.match(html, /query\.js\?v=0\.15\.15/, `${page} busts the record-query script cache`);
   assert.match(html, /styles\.css\?v=0\.15\.48/, `${page} busts the pager-style cache`);
 }
 
 const customerPage = read("customer-query.html");
 assert.match(customerPage, /id="customerPageJumpInput"[^>]*type="number"[^>]*min="1"[^>]*step="1"/, "customer query exposes a positive-integer page input");
 assert.match(customerPage, /id="customerPageJumpButton"[^>]*>跳转<\//, "customer query exposes an explicit page-jump action");
-assert.match(customerPage, /customer-query\.js\?v=0\.15\.6/, "customer query busts its script cache");
+assert.match(customerPage, /customer-query\.js\?v=0\.15\.7/, "customer query busts its script cache");
 assert.match(customerPage, /styles\.css\?v=0\.15\.48/, "customer query busts the pager-style cache");
 
 for (const [source, prefix] of [[recordQuery, "Record"], [customerQuery, "Customer"]]) {

@@ -1,3 +1,4 @@
+@import "../../styles/report-export.wxss";
 .search-card { padding: 18rpx; }
 .search-card .card-title { margin-bottom: 12rpx; }
 .search-card .query-modes { margin-bottom: 12rpx; padding: 5rpx; }

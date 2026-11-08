@@ -29,7 +29,12 @@ function reportSections(report = {}) {
 }
 
 Page({
-  data: { teamScope:false, authorized: false, loading: true, detailLoading: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false, calendarCells: [], completed: [], incomplete: [], message: "", error: false, detailOpen: false, detailTeacher: {}, detailSections: [] },
+  exportFile(event) {
+    if (!this._exportPayload) return;
+    const snapshot = JSON.stringify(this._exportPayload), epoch = this._requestEpoch ?? this._epoch ?? this._dayEpoch;
+    return require("../../services/query-report-export").exportPage(this, "DAILY_REPORT", {...this._exportPayload}, {team:this.data.teamScope === true,format:event.currentTarget.dataset.format,valid:()=>snapshot === JSON.stringify(this._exportPayload) && epoch === (this._requestEpoch ?? this._epoch ?? this._dayEpoch)});
+  },
+  data: { exporting:false, exportReady:false, teamScope:false, authorized: false, loading: true, detailLoading: false, serverToday: "", visibleMonth: "", selectedDate: "", pendingDate: "", canNextMonth: false, calendarCells: [], completed: [], incomplete: [], message: "", error: false, detailOpen: false, detailTeacher: {}, detailSections: [] },
   async onLoad(options = {}) {
     this._unloaded = false;
     const today = localShanghaiDate();
@@ -47,7 +52,7 @@ Page({
   back() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.reLaunch({ url: "/pages/home/index" }); },
   async loadDay(reportDate) {
     if (!this.data.authorized || this._unloaded) return;
-    const epoch = this._dayEpoch = (this._dayEpoch || 0) + 1;
+    this._exportPayload = null; this.setData({exportReady:false}); const epoch = this._dayEpoch = (this._dayEpoch || 0) + 1;
     this.setData({ loading: true, completed: [], incomplete: [], message: "正在读取日报完成情况…", error: false, detailOpen: false });
     try {
       const result = this.data.teamScope ? await callStaff("getTeamDailyReportTrackingDay", { reportDate }) : await callStaff("getHqDailyReportTrackingDay", { reportDate });
@@ -55,7 +60,7 @@ Page({
       const serverToday = String(result.serverToday || this.data.serverToday);
       const selectedDate = String(result.reportDate || reportDate);
       const visibleMonth = selectedDate.slice(0, 7);
-      this.setData({ serverToday, selectedDate, pendingDate: selectedDate, visibleMonth, canNextMonth: monthShift(visibleMonth, 1) <= serverToday.slice(0, 7), calendarCells: calendarCells(visibleMonth, selectedDate, serverToday), completed: (result.completed || []).map(teacher), incomplete: (result.incomplete || []).map(teacher), message: "", error: false });
+      this._exportPayload = { reportDate: selectedDate }; this.setData({exportReady:true}); this.setData({ serverToday, selectedDate, pendingDate: selectedDate, visibleMonth, canNextMonth: monthShift(visibleMonth, 1) <= serverToday.slice(0, 7), calendarCells: calendarCells(visibleMonth, selectedDate, serverToday), completed: (result.completed || []).map(teacher), incomplete: (result.incomplete || []).map(teacher), message: "", error: false });
     } catch (error) { if (!this._unloaded && epoch === this._dayEpoch) this.setData({ message: error.message || "日报追踪读取失败", error: true, ...(this.data.teamScope?{authorized:false,completed:[],incomplete:[],detailOpen:false,detailTeacher:{},detailSections:[]}:{}) }); }
     finally { if (!this._unloaded && epoch === this._dayEpoch) this.setData({ loading: false }); }
   },

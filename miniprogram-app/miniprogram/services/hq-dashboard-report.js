@@ -20,7 +20,8 @@ function color(value) { return value.map(decimal).join(" "); }
 function pdfText(value) { let output = ""; for (const character of Array.from(clean(value, ""))) { const point = character.codePointAt(0); output += (point <= 0xffff ? point : 0x003f).toString(16).padStart(4, "0").toUpperCase(); } return `<${output || "0020"}>`; }
 function pdfAsciiText(value) { let output = ""; for (const character of Array.from(clean(value, ""))) { const point = character.codePointAt(0); output += (point >= 0x20 && point <= 0xff ? point : 0x3f).toString(16).padStart(2, "0").toUpperCase(); } return `<${output || "20"}>`; }
 function textRuns(value) { const runs = []; for (const character of Array.from(value)) { const ascii = character.codePointAt(0) <= 0xff; const previous = runs[runs.length - 1]; if (previous && previous.ascii === ascii) previous.value += character; else runs.push({ ascii, value: character }); } return runs; }
-function visualUnits(value) { return Array.from(String(value || "")).reduce((sum, character) => sum + (character.codePointAt(0) <= 0x7f ? 0.56 : 1), 0); }
+const HELVETICA_WIDTHS = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+function visualUnits(value) { return Array.from(String(value || "")).reduce((sum, character) => sum + (character.codePointAt(0) === 183 ? .278 : character.codePointAt(0) >= 32 && character.codePointAt(0) <= 126 ? HELVETICA_WIDTHS[character.codePointAt(0)-32]/1000 : 1), 0); }
 function fitted(value, width, size) { const source = clean(value); const maximum = Math.max(1, width / Math.max(1, size)); if (visualUnits(source) <= maximum) return source; let output = ""; for (const character of Array.from(source)) { if (visualUnits(`${output}${character}…`) > maximum) break; output += character; } return `${output}…`; }
 function safeFilename(value) { return clean(value, "露思卓儿总部业务统计报表").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/\s+/g, " ").slice(0, 100); }
 function addFillRect(commands, x, top, width, height, fill) { commands.push(`${color(fill)} rg ${decimal(x)} ${decimal(PAGE_HEIGHT - top - height)} ${decimal(width)} ${decimal(height)} re f`); }
@@ -48,6 +49,36 @@ function createPdfBytes(commands, fontBytes) {
   }
   return require("./grouped-table-pdf").createVectorPdf(commands, fontBytes);
 }
+function overviewPages(summaryRows, rankingRows, report) {
+  const pages=[];
+  const metadata=[`${clean(report.startDate)} 至 ${clean(report.endDate)} · 北京时间`, `${clean(report.dimensionLabel)}排名 · ${clean(report.productLabel)} · 按${clean(report.metricLabel)}次数降序`];
+  function fresh(continued=false){const commands=[];addFillRect(commands,0,0,PAGE_WIDTH,PAGE_HEIGHT,COLORS.white);addFillRect(commands,42,32,4,24,COLORS.band);addText(commands,"总部业务总览",56,29,21);metadata.forEach((v,i)=>addText(commands,v,42,66+i*18,11,{color:COLORS.muted}));return{commands,top:119};}
+  function lines(value,width){const out=[];let line="";for(const ch of Array.from(clean(value))){if(line&&visualUnits(line+ch)*13>width-20){out.push(line);line=ch;}else line+=ch;}out.push(line);return out;}
+  let page=fresh();
+  function section(title,columns,rows){
+    const tableWidth=columns.reduce((n,c)=>n+c.width,0);
+    let index=0,continuation=false;
+    do{
+      if(page.top+85>PAGE_HEIGHT-42){pages.push(page.commands);page=fresh(true);}
+      addText(page.commands,`${title}${continuation?"（续）":""}`,42,page.top,15,{color:COLORS.band});page.top+=27;
+      let x=42;columns.forEach(c=>{addFillRect(page.commands,x,page.top,c.width,32,COLORS.pale);addText(page.commands,c.label,x+8,page.top+8,12,{width:c.width-16,align:c.numeric?"right":"left"});x+=c.width;});page.top+=32;
+      while(index<rows.length){const row=rows[index],cells=columns.map(c=>lines(row[c.key],c.width));const height=Math.max(34,Math.max(...cells.map(v=>v.length))*18+16);
+        if(page.top+height>PAGE_HEIGHT-42)break;
+        if(row.__total)addFillRect(page.commands,42,page.top,tableWidth,height,COLORS.paleAlt);
+        let left=42;columns.forEach((c,i)=>{cells[i].forEach((v,j)=>addText(page.commands,v,left+8,page.top+(height-cells[i].length*18)/2+j*18,13,{width:c.width-16,align:c.numeric?"right":"left",color:COLORS.dark}));left+=c.width;});
+        page.commands.push(`${color(COLORS.line)} RG 0.4 w 42 ${decimal(PAGE_HEIGHT-page.top-height)} m ${decimal(42+tableWidth)} ${decimal(PAGE_HEIGHT-page.top-height)} l S`);
+        page.top+=height;index++;
+      }
+      if(index<rows.length){pages.push(page.commands);page=fresh(true);continuation=true;}
+    }while(index<rows.length);
+    page.top+=24;
+  }
+  const metricColumns=[{key:"verification",label:"核销",width:75,numeric:true},{key:"recharge",label:"充值",width:75,numeric:true},{key:"experience",label:"体验",width:75,numeric:true},{key:"refund",label:"退费",width:75,numeric:true}];
+  section("项目汇总",[{key:"name",label:"项目",width:185},...metricColumns],summaryRows);
+  section(`完整排名（${rankingRows.length}位）`,[{key:"rank",label:"名次",width:50,numeric:true},{key:"name",label:clean(report.dimensionLabel,"分类对象"),width:190},...metricColumns,{key:"share",label:`${clean(report.metricLabel,"业务")}占比`,width:98,numeric:true}],rankingRows.length?rankingRows:[{name:"暂无数据"}]);
+  pages.push(page.commands);return pages;
+}
+
 function createReportPdf(report = {}) {
   const productRows = Array.isArray(report.productRows) ? report.productRows : [];
   const totals = { recharge: 0, verification: 0, experience: 0, refund: 0 };
@@ -69,5 +100,5 @@ function createReportPdf(report = {}) {
   if (report.rankingTotal !== undefined && loadedRankingTotal !== number(report.rankingTotal)) {
     throw new Error("导出数据已变化，排名明细与合计不一致，请重新读取后导出。");
   }
- const summaryRows = productRows.map((row) => ({ name: clean(row.name || row.productName), verification: String(number(row.verification)), recharge: String(number(row.recharge)), experience: String(number(row.experience)), refund: String(number(row.refund)) })); summaryRows.push({ name: "合计", verification: String(number(totals.verification)), recharge: String(number(totals.recharge)), experience: String(number(totals.experience)), refund: String(number(totals.refund)), __total: true }); const metadata = { startDate: report.startDate, endDate: report.endDate, dimensionLabel: report.dimensionLabel, metricLabel: report.metricLabel, productLabel: report.productLabel, generatedAt: report.generatedAt }; const summaryColumns = [{ key: "name", label: "项目", width: CONTENT_WIDTH - 109 * 4 }, { key: "verification", label: "核销", width: 109, numeric: true }, { key: "recharge", label: "充值", width: 109, numeric: true }, { key: "experience", label: "体验", width: 109, numeric: true }, { key: "refund", label: "退费", width: 109, numeric: true }]; const rankingTotal = Math.max(1, loadedRankingTotal); const rankingRows = sourceRanking.map((row, index) => ({ rank: String(index + 1), name: clean(row.name), dimension: clean(report.dimensionLabel), recharge: String(number(row.recharge)), verification: String(number(row.verification)), experience: String(number(row.experience)), refund: String(number(row.refund)), share: `${(number(row[metric]) / rankingTotal * 100).toFixed(1)}%` })); const rankingColumns = [{ key: "rank", label: "排名", width: 50, numeric: true }, { key: "name", label: clean(report.dimensionLabel, "分类对象"), width: CONTENT_WIDTH - 50 - 68 - 67 * 4 - 134 }, { key: "dimension", label: "维度", width: 68, align: "center" }, { key: "recharge", label: "充值", width: 67, numeric: true }, { key: "verification", label: "核销", width: 67, numeric: true }, { key: "experience", label: "体验", width: 67, numeric: true }, { key: "refund", label: "退费", width: 67, numeric: true }, { key: "share", label: `${clean(report.metricLabel, "业务")}占比`, width: 134, numeric: true }]; const pages = [...tablePages("项目汇总", summaryColumns, summaryRows, metadata), ...tablePages(`完整排名 · 按${clean(report.metricLabel, "业务")}次数降序`, rankingColumns, rankingRows)]; return { bytes: createPdfBytes(pages, report.cjkFontBytes), pages: pages.length }; }
+ const summaryRows = productRows.map((row) => ({ name: clean(row.name || row.productName), verification: String(number(row.verification)), recharge: String(number(row.recharge)), experience: String(number(row.experience)), refund: String(number(row.refund)) })); summaryRows.push({ name: "合计", verification: String(number(totals.verification)), recharge: String(number(totals.recharge)), experience: String(number(totals.experience)), refund: String(number(totals.refund)), __total: true }); const metadata = { startDate: report.startDate, endDate: report.endDate, dimensionLabel: report.dimensionLabel, metricLabel: report.metricLabel, productLabel: report.productLabel, generatedAt: report.generatedAt }; const summaryColumns = [{ key: "name", label: "项目", width: CONTENT_WIDTH - 109 * 4 }, { key: "verification", label: "核销", width: 109, numeric: true }, { key: "recharge", label: "充值", width: 109, numeric: true }, { key: "experience", label: "体验", width: 109, numeric: true }, { key: "refund", label: "退费", width: 109, numeric: true }]; const rankingTotal = Math.max(1, loadedRankingTotal); const rankingRows = sourceRanking.map((row, index) => ({ rank: String(index + 1), name: clean(row.name), dimension: clean(report.dimensionLabel), recharge: String(number(row.recharge)), verification: String(number(row.verification)), experience: String(number(row.experience)), refund: String(number(row.refund)), share: `${(number(row[metric]) / rankingTotal * 100).toFixed(1)}%` })); const rankingColumns = [{ key: "rank", label: "排名", width: 50, numeric: true }, { key: "name", label: clean(report.dimensionLabel, "分类对象"), width: CONTENT_WIDTH - 50 - 68 - 67 * 4 - 134 }, { key: "dimension", label: "维度", width: 68, align: "center" }, { key: "recharge", label: "充值", width: 67, numeric: true }, { key: "verification", label: "核销", width: 67, numeric: true }, { key: "experience", label: "体验", width: 67, numeric: true }, { key: "refund", label: "退费", width: 67, numeric: true }, { key: "share", label: `${clean(report.metricLabel, "业务")}占比`, width: 134, numeric: true }]; const pages = overviewPages(summaryRows, rankingRows, report); return { bytes: createPdfBytes(pages, report.cjkFontBytes), pages: pages.length }; }
 module.exports = Object.freeze({ createReportPdf, safeFilename, loadCjkFontBytes: () => require("./grouped-table-pdf").loadCjkFontBytes() });

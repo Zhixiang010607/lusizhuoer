@@ -12,6 +12,7 @@
     </view>
 
     <view class="results">
+    <view class="report-export-bar"><text>单次最多1000条</text><view class="report-export-actions"><button class="secondary" data-format="pdf" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}" loading="{{exporting}}"><text class="button-label">导出 PDF</text></button><button class="secondary" data-format="excel" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}"><text class="button-label">导出 Excel</text></button></view></view>
       <view class="result-summary">
         <view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师日报</text></view>
         <view class="summary-counts"><text>已填写 {{completed.length}}</text><text>未填写 {{incomplete.length}}</text></view>

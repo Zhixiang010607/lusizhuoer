@@ -54,8 +54,9 @@ function textRuns(value) {
   }
   return runs;
 }
+const HELVETICA_WIDTHS = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
 function visualUnits(value) {
-  return Array.from(String(value || "")).reduce((sum, character) => sum + (character.codePointAt(0) <= 0x7f ? 0.56 : 1), 0);
+  return Array.from(String(value || "")).reduce((sum, character) => sum + (character.codePointAt(0) === 183 ? .278 : character.codePointAt(0) >= 32 && character.codePointAt(0) <= 126 ? HELVETICA_WIDTHS[character.codePointAt(0)-32]/1000 : 1), 0);
 }
 function fitted(value, width, size) {
   const source = clean(value);
@@ -69,6 +70,7 @@ function fitted(value, width, size) {
   return `${output}…`;
 }
 function wrapped(value, width, size) {
+  if (String(value || "").includes("\n")) return String(value).split(/\r?\n/).flatMap(line => wrapped(line || " ", width, size));
   const source = clean(value);
   const maximum = Math.max(1, width / Math.max(1, size));
   const lines = [];
@@ -116,7 +118,13 @@ function groupedRows(rows, groupKey, groupLabel) {
   });
   return [...groups.values()].sort((left, right) => compareText(left.label, right.label) || compareText(left.key, right.key));
 }
-function scaledColumns(columns) {
+function scaledColumns(columns, rows = [], compact = false) {
+  if (compact) {
+    const size = columns.length <= 7 ? 13 : 12;
+    const widths = columns.map(c => Math.max(visualUnits(c.header)*12+22, Math.min(Number(c.width || 16)*6, Math.max(...rows.map(r => visualUnits(typeof c.value === "function" ? c.value(r) : r[c.key])*size+20)))));
+    const ratio = Math.min(1, CONTENT_WIDTH / widths.reduce((a,b)=>a+b,0));
+    return columns.map((c,i)=>({...c,pdfWidth:widths[i]*ratio}));
+  }
   const source = columns.map((column) => ({ ...column, weight: Math.max(1, Number(column.width || 16)) }));
   const total = source.reduce((sum, column) => sum + column.weight, 0);
   return source.map((column) => ({ ...column, pdfWidth: CONTENT_WIDTH * column.weight / total }));
@@ -131,22 +139,22 @@ function startPage(title, subtitle, continuation) {
   });
   return { commands, top: 58 };
 }
-function drawGroupTitle(commands, label, count, top, continuation) {
-  addFillRect(commands, MARGIN, top, CONTENT_WIDTH, GROUP_HEIGHT, COLORS.paleAlt);
-  addStrokeRect(commands, MARGIN, top, CONTENT_WIDTH, GROUP_HEIGHT);
-  addText(commands, `门店：${label}${continuation ? "（续）" : ""}（${count} 条）`, MARGIN + 8, top + 8, 11, { width: CONTENT_WIDTH - 16, color: COLORS.band });
+function drawGroupTitle(commands, label, count, top, continuation, prefix = "门店", width = CONTENT_WIDTH) {
+  addFillRect(commands, MARGIN, top, width, GROUP_HEIGHT, COLORS.paleAlt);
+  addStrokeRect(commands, MARGIN, top, width, GROUP_HEIGHT);
+  addText(commands, `${prefix}：${label}${continuation ? "（续）" : ""}（${count} 条）`, MARGIN + 8, top + 7, 12, { width: width - 16, color: COLORS.band });
 }
 function drawHeader(commands, columns, top) {
   let x = MARGIN;
   columns.forEach((column) => {
     addFillRect(commands, x, top, column.pdfWidth, HEADER_HEIGHT, COLORS.pale);
     addStrokeRect(commands, x, top, column.pdfWidth, HEADER_HEIGHT);
-    addText(commands, column.header, x + 4, top + 9, 10, { width: column.pdfWidth - 4, align: "center" });
+    addText(commands, column.header, x + 8, top + 8, 12, { width: column.pdfWidth - 16, align: column.type === "number" ? "right" : column.align || "left" });
     x += column.pdfWidth;
   });
 }
 function rowLayout(columns, row) {
-  const size = columns.length <= 7 ? 11 : 10;
+  const size = columns.length <= 7 ? 13 : 12;
   const lineHeight = size + 4;
   const cells = columns.map((column) => wrapped(typeof column.value === "function" ? column.value(row) : row[column.key], column.pdfWidth - 16, size));
   return { size, lineHeight, cells, height: Math.max(ROW_HEIGHT, Math.max(...cells.map(lines => lines.length)) * lineHeight + 14) };
@@ -257,7 +265,7 @@ function toUnicodeCMap(mappings) {
 function createPdfBytes(pageCommands, cjkFontBytes) {
   const objects = new Map();
   const pageReferences = [];
-  pageCommands.forEach((commands, index) => addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 22, 9, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted }));
+  pageCommands.forEach((commands, index) => addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 22, 9, { width: (commands.pageWidth || PAGE_WIDTH)-MARGIN*2, align: "right", color: COLORS.muted }));
   const cjkMappings = new Map();
   pageCommands.forEach((commands) => {
     if (commands.cjkMappings) commands.cjkMappings.forEach((unicode, cid) => cjkMappings.set(cid, unicode));
@@ -273,7 +281,7 @@ function createPdfBytes(pageCommands, cjkFontBytes) {
     const pageNumber = 9 + index * 2;
     const contentNumber = pageNumber + 1;
     pageReferences.push(`${pageNumber} 0 R`);
-    objects.set(pageNumber, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 5 0 R >> >> /Contents ${contentNumber} 0 R >>`));
+    objects.set(pageNumber, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${commands.pageWidth || PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 5 0 R >> >> /Contents ${contentNumber} 0 R >>`));
     objects.set(contentNumber, streamObject(commands.join("\n")));
   });
   objects.set(2, ascii(`<< /Type /Pages /Count ${pageReferences.length} /Kids [${pageReferences.join(" ")}] >>`));
@@ -293,53 +301,35 @@ function createPdfBytes(pageCommands, cjkFontBytes) {
 }
 
 function createGroupedPdf(options = {}) {
-  const rows = Array.isArray(options.rows) ? options.rows : [];
-  // Store names already appear in each group heading; avoid a repeated narrow column.
-  const columns = scaledColumns((Array.isArray(options.columns) ? options.columns : [])
-    .filter(column => column.key !== "storeName")
-    .map(column => ({ ...column, width: column.key === "recordCode" ? 26 : column.key === "serviceTime" ? 24 : column.width })));
-  if (!rows.length) throw new Error("当前查询没有可导出的结果");
-  if (!columns.length) throw new Error("PDF 缺少列定义");
-  if (rows.length > PDF_EXPORT_MAX_ROWS) throw new Error(`当前结果有 ${rows.length} 条，单次最多导出 ${PDF_EXPORT_MAX_ROWS} 条`);
-  const cjkFontBytes = bundledCjkFontBytes(options.cjkFontBytes);
-  const groupKey = typeof options.groupKey === "function" ? options.groupKey : (row) => row.storeId || row.storeName;
-  const groupLabel = typeof options.groupLabel === "function" ? options.groupLabel : (row) => row.storeName;
-  const groups = groupedRows(rows, groupKey, groupLabel);
-  const pages = [];
-  let page = startPage(clean(options.title, "运营指标查询结果"), "按门店分组", false);
-  const criteriaLines = wrapped(clean(options.criteria, `共 ${rows.length} 条`), CONTENT_WIDTH - 8, 10);
-  criteriaLines.forEach((line, index) => {
-    addText(page.commands, line, MARGIN, page.top + index * 14, 10, { width: CONTENT_WIDTH, color: COLORS.muted });
-  });
-  page.top += criteriaLines.length * 14 + 10;
-  for (const group of groups) {
-    let rowIndex = 0;
-    do {
-      if (page.top + GROUP_HEIGHT + HEADER_HEIGHT + rowLayout(columns, group.rows[rowIndex]).height > PAGE_HEIGHT - BOTTOM) {
-        pages.push(page.commands);
-        page = startPage(clean(options.title, "运营指标查询结果"), "查询结果", true);
+  const rows=Array.isArray(options.rows)?options.rows:[];
+  const source=(Array.isArray(options.columns)?options.columns:[]).filter(c=>c.key!=="storeName");
+  if(!rows.length)throw new Error("当前查询没有可导出的结果");
+  if(!source.length)throw new Error("PDF 缺少列定义");
+  if(rows.length>PDF_EXPORT_MAX_ROWS)throw new Error("单次最多导出1000条，请缩小查询范围");
+  const size=source.length<=7?13:12;
+  const columns=source.map(c=>({...c,pdfWidth:Math.max(visualUnits(c.header)*12+24,...rows.map(r=>visualUnits(clean(typeof c.value === "function"?c.value(r):r[c.key]))*size+26))}));
+  const tableWidth=columns.reduce((n,c)=>n+c.pdfWidth,0),pageWidth=Math.max(PAGE_WIDTH,tableWidth+MARGIN*2);
+  const groupKey=typeof options.groupKey === "function"?options.groupKey:r=>r.storeId||r.storeName;
+  const groupLabel=typeof options.groupLabel === "function"?options.groupLabel:r=>r.storeName;
+  const groups=groupedRows(rows,groupKey,groupLabel),pages=[];
+  function fresh(){const commands=[];commands.pageWidth=pageWidth;addFillRect(commands,0,0,pageWidth,PAGE_HEIGHT,COLORS.white);addText(commands,clean(options.title,"查询结果"),MARGIN,25,20,{color:COLORS.band});const lines=wrapped(clean(options.criteria,`共 ${rows.length} 条`),pageWidth-MARGIN*2,11);lines.forEach((v,i)=>addText(commands,v,MARGIN,59+i*16,11,{color:COLORS.muted}));return{commands,top:67+lines.length*16};}
+  let page=fresh();
+  for(const group of groups){let index=0;
+    do{
+      if(page.top+GROUP_HEIGHT+HEADER_HEIGHT+34>PAGE_HEIGHT-BOTTOM){pages.push(page.commands);page=fresh();}
+      drawGroupTitle(page.commands,group.label,group.rows.length,page.top,index>0,options.groupTitle||"门店",tableWidth);page.top+=GROUP_HEIGHT;
+      drawHeader(page.commands,columns,page.top);page.top+=HEADER_HEIGHT;
+      while(index<group.rows.length&&page.top+34<=PAGE_HEIGHT-BOTTOM){
+        const row=group.rows[index];let x=MARGIN;
+        columns.forEach(c=>{addFillRect(page.commands,x,page.top,c.pdfWidth,34,index%2?COLORS.paleAlt:COLORS.white);addStrokeRect(page.commands,x,page.top,c.pdfWidth,34);addText(page.commands,typeof c.value === "function"?c.value(row):row[c.key],x+8,page.top+10,size,{width:c.pdfWidth-16,align:c.type === "number"?"right":c.align||"left"});x+=c.pdfWidth;});page.top+=34;index++;
       }
-      drawGroupTitle(page.commands, group.label, group.rows.length, page.top, rowIndex > 0);
-      page.top += GROUP_HEIGHT;
-      drawHeader(page.commands, columns, page.top);
-      page.top += HEADER_HEIGHT;
-      while (rowIndex < group.rows.length) {
-        const layout = rowLayout(columns, group.rows[rowIndex]);
-        if (layout.height > PAGE_HEIGHT - 58 - GROUP_HEIGHT - HEADER_HEIGHT - BOTTOM) throw new Error("单条数据过长，请导出 Excel 查看完整内容");
-        if (page.top + layout.height > PAGE_HEIGHT - BOTTOM) break;
-        drawRow(page.commands, columns, group.rows[rowIndex], page.top, rowIndex % 2 === 1, layout);
-        page.top += layout.height;
-        rowIndex += 1;
-      }
-      page.top += 8;
-      if (rowIndex < group.rows.length) {
-        pages.push(page.commands);
-        page = startPage(clean(options.title, "运营指标查询结果"), "查询结果", true);
-      }
-    } while (rowIndex < group.rows.length);
+      if(index<group.rows.length){pages.push(page.commands);page=fresh();}
+    }while(index<group.rows.length);
+    page.top+=16;
   }
-  if (page.commands.length) pages.push(page.commands);
-  return { bytes: createPdfBytes(pages, cjkFontBytes), pages: pages.length, rowCount: rows.length, groupCount: groups.length };
+  pages.push(page.commands);
+  if(Array.isArray(options.detailPages))pages.push(...options.detailPages);
+  return{bytes:createPdfBytes(pages,bundledCjkFontBytes(options.cjkFontBytes)),pages:pages.length,rowCount:rows.length,groupCount:groups.length};
 }
 
 function wxCall(invoke) { return new Promise((resolve, reject) => invoke(resolve, reject)); }
@@ -356,4 +346,4 @@ async function openPdf({ bytes, filename }) {
   return filePath;
 }
 
-module.exports = { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf, safeFilename, createVectorPdf: createPdfBytes };
+module.exports = { PDF_EXPORT_MAX_ROWS, createGroupedPdf, loadCjkFontBytes, openPdf, safeFilename, createVectorPdf: createPdfBytes, renderText: addText, fillRect: addFillRect };

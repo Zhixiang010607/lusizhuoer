@@ -7,13 +7,13 @@
   <link rel="stylesheet" href="styles.css?v=0.15.44">
   <link rel="stylesheet" href="web-attendance.css?v=1.0.2">
   <link rel="stylesheet" href="attendance-photo.css?v=1.0.1">
-</head>
+<link rel="stylesheet" href="query-report-export.css?v=1.0.0"></head>
 <body data-attendance-tracking>
   <aside class="side-project-bar" aria-label="工作区导航"><div class="side-brand"><span>HQ</span><div><strong>总部工作区</strong><small>打卡追踪</small></div></div><nav class="side-nav"></nav><div class="side-footer"></div></aside>
   <header class="topbar"><div><p class="eyebrow">ATTENDANCE TRACKING</p><h1>打卡追踪</h1><p class="subtitle">按日期查看在职老师完整、单次和未打卡情况。</p></div><div class="status"><span></span>总部只读</div></header>
   <main class="attendance-tracking-main">
     <section class="panel"><div class="attendance-date-picker"><input id="trackingAttendanceDate" type="hidden"><div id="attendanceTrackingDateParts" class="tracking-date-parts" aria-label="选择追踪日期"></div><button id="trackingAttendanceConfirm" type="button">确认</button></div><p id="attendanceTrackingMessage" class="form-message" role="status" aria-live="polite"></p></section>
-    <section class="panel"><div class="panel-heading"><div><h2 id="attendanceTrackingTitle">正在读取…</h2><p>只有上下班两次均完成才计算工作时长。</p></div></div><div id="attendanceTrackingSummary" class="tracking-summary"></div></section>
+    <section class="panel"><div class="panel-heading"><div><h2 id="attendanceTrackingTitle">正在读取…</h2><p>只有上下班两次均完成才计算工作时长。</p></div></div><div id="queryExportBar" class="report-export-bar"><span>单次最多1000条</span><div><button type="button" class="secondary-button" data-format="pdf" disabled>导出 PDF</button><button type="button" class="secondary-button" data-format="excel" disabled>导出 Excel</button></div></div><div id="attendanceTrackingSummary" class="tracking-summary"></div></section>
     <div id="attendanceTrackingGroups"></div>
   </main>
   <dialog id="attendanceTrackingDialog" class="attendance-dialog"><header><div><h2 id="attendanceDialogTitle">打卡详情</h2><p id="attendanceDialogMeta"></p></div><form method="dialog"><button class="dialog-close secondary-button" type="submit">关闭</button></form></header><div id="attendanceDialogBody" class="attendance-dialog-body"></div></dialog>
@@ -25,6 +25,7 @@
   <script src="web-work-common.js?v=1.0.0"></script>
   <script src="attendance-photo.js?v=1.0.0"></script>
   <script src="tracking-ui.js?v=1.0.0"></script>
-  <script src="attendance-tracking.js?v=1.0.3"></script>
+  <script src="customer-age.js?v=1.0.0"></script><script src="web-report-export.js?v=1.1.0"></script><script src="hq-dashboard-report.js?v=0.2.0"></script><script src="web-table-report.js?v=1.0.0"></script><script src="query-report-export.js?v=1.0.0"></script>
+  <script src="attendance-tracking.js?v=1.0.4"></script>
 </body>
 </html>

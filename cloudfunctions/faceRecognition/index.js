@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const https = require("https");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v142";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v143";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -2426,10 +2426,11 @@ async function queryStoreCustomers(event = {}) {
   if (name.length > 100) fail("客户姓名查询不能超过 100 个字符。", "BAD_REQUEST");
   if (startDate && endDate && startDate > endDate) fail("开始日期不能晚于结束日期。", "BAD_REQUEST");
 
+  const exportAll = event.exportAll === true;
   const requestedLimit = Number(event.limit);
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
-  const cursorCreatedAt = scopedQueryCursorTimestamp(event.cursorCreatedAt, "分页时间游标");
-  const cursorIdText = String(event.cursorId || "").trim();
+  const limit = exportAll ? 1000 : Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
+  const cursorCreatedAt = scopedQueryCursorTimestamp(exportAll ? "" : event.cursorCreatedAt, "分页时间游标");
+  const cursorIdText = exportAll ? "" : String(event.cursorId || "").trim();
   if (Boolean(cursorCreatedAt) !== Boolean(cursorIdText)) fail("分页游标不完整。", "BAD_REQUEST");
   const cursorId = cursorIdText ? businessQueryDatabaseId(cursorIdText, "分页客户") : "";
 
@@ -2481,7 +2482,11 @@ async function queryStoreCustomers(event = {}) {
       WHERE ${listClauses.join(" AND ")}
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT ${limit + 1}`;
-  const [rawCustomers, summaryRows] = await Promise.all([executeSql(listSql), executeSql(summarySql)]);
+  // Export is one bounded statement/snapshot, never a loop across display pages.
+  const [rawCustomers, summaryRows] = exportAll
+    ? [await executeSql(listSql), []]
+    : await Promise.all([executeSql(listSql), executeSql(summarySql)]);
+  if (exportAll && rawCustomers.length > 1000) fail("匹配结果超过1000条，请缩小查询范围后导出。", "EXPORT_LIMIT_EXCEEDED");
   const hasMore = rawCustomers.length > limit;
   const pageRows = rawCustomers.slice(0, limit);
   const last = pageRows[pageRows.length - 1];
@@ -2519,6 +2524,7 @@ async function queryStoreCustomers(event = {}) {
       createdAt: customer.created_at, storeId: String(customer.store_id),
       storeName: customer.store_name, storeCode: customer.store_code
     })),
+    ...(exportAll ? { exportAll: true, total: pageRows.length } : {}),
     hasMore,
     nextCursor: hasMore && last ? { createdAt: last.cursor_created_at, id: String(last.id) } : null
   };
@@ -2982,6 +2988,7 @@ async function queryStoreBusinessRecords(event = {}) {
   const productId = productIdText && productIdText.toUpperCase() !== "ALL"
     ? businessQueryDatabaseId(productIdText, "项目")
     : "";
+  const exportAll = event.exportAll === true;
   const requestedLimit = Number(event.limit);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 100, 1), 100);
   const numberedPage = Object.prototype.hasOwnProperty.call(event, "page")
@@ -2994,8 +3001,8 @@ async function queryStoreBusinessRecords(event = {}) {
   }
   const page = numberedPage ? requestedPage : 1;
   const pageSize = numberedPage ? requestedPageSize : limit;
-  const cursorSubmittedAt = scopedQueryCursorTimestamp(event.cursorSubmittedAt, "分页时间游标");
-  const cursorIdText = String(event.cursorId || "").trim();
+  const cursorSubmittedAt = scopedQueryCursorTimestamp(exportAll ? "" : event.cursorSubmittedAt, "分页时间游标");
+  const cursorIdText = exportAll ? "" : String(event.cursorId || "").trim();
   if (Boolean(cursorSubmittedAt) !== Boolean(cursorIdText)) fail("分页游标不完整。", "BAD_REQUEST");
   if (numberedPage && cursorSubmittedAt) fail("页码分页不能同时提交游标。", "BAD_REQUEST");
   const cursorId = cursorIdText ? businessQueryDatabaseId(cursorIdText, "分页工单") : "";
@@ -3067,8 +3074,8 @@ async function queryStoreBusinessRecords(event = {}) {
                       ${filterCustomerJoin}
                      WHERE ${listClauses.join(" AND ")}
                      ORDER BY ${alias}.submitted_at DESC, ${alias}.id DESC
-                     LIMIT ${numberedPage ? pageSize : limit + 1}
-                     ${numberedPage ? `OFFSET ${(effectivePage - 1) * pageSize}` : ""}
+                     LIMIT ${exportAll ? 1001 : numberedPage ? pageSize : limit + 1}
+                     ${!exportAll && numberedPage ? `OFFSET ${(effectivePage - 1) * pageSize}` : ""}
                    )
                    SELECT ${recordSelect},
                           c.customer_code, c.customer_name, c.birth_date,
@@ -3097,7 +3104,7 @@ async function queryStoreBusinessRecords(event = {}) {
   // A rapid filter change can otherwise leave the client briefly requesting a
   // page that existed for the previous filter, producing an avoidable error or
   // an empty result under the stress dataset.
-  const [summaryRows, productRows] = await Promise.all([
+  const [summaryRows, productRows] = exportAll ? [[], []] : await Promise.all([
     executeSql(summarySql),
     executeSql(productsSql)
   ]);
@@ -3112,8 +3119,9 @@ async function queryStoreBusinessRecords(event = {}) {
   const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
   const effectivePage = numberedPage ? Math.min(page, totalPages) : 1;
   const rawRecords = await executeSql(buildListSql(effectivePage));
-  const hasMore = numberedPage ? effectivePage < totalPages : rawRecords.length > limit;
-  const pageRows = numberedPage ? rawRecords : rawRecords.slice(0, limit);
+  if (exportAll && rawRecords.length > 1000) fail("匹配结果超过1000条，请缩小查询范围后导出。", "EXPORT_LIMIT_EXCEEDED");
+  const hasMore = exportAll ? false : numberedPage ? effectivePage < totalPages : rawRecords.length > limit;
+  const pageRows = exportAll || numberedPage ? rawRecords : rawRecords.slice(0, limit);
   const last = pageRows[pageRows.length - 1];
   return {
     ok: true,
@@ -3164,7 +3172,8 @@ async function queryStoreBusinessRecords(event = {}) {
       teacherName: record.teacher_name || "",
       hasFaceRequest: databaseBoolean(record.has_face_request)
     })),
-    total: filteredTotal,
+    total: exportAll ? pageRows.length : filteredTotal,
+    ...(exportAll ? { exportAll: true } : {}),
     page: effectivePage,
     pageSize,
     totalPages,

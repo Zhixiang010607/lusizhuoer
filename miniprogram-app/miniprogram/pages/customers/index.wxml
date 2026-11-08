@@ -41,7 +41,9 @@
   </view>
 
   <view class="card result-card">
+
     <view class="card-title"><text>客户结果</text><text class="badge">共 {{total}} 位</text></view>
+    <view class="report-export-bar"><text>单次最多1000条</text><view class="report-export-actions"><button class="secondary" data-format="pdf" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}" loading="{{exporting}}"><text class="button-label">导出 PDF</text></button><button class="secondary" data-format="excel" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}"><text class="button-label">导出 Excel</text></button></view></view>
     <view wx:if="{{loading}}" class="empty">正在读取客户…</view>
     <scroll-view wx:elif="{{customers.length}}" class="customer-table-scroll" scroll-x="true" data-visible-rows="{{customers.length > 10 ? 10 : customers.length}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="customer-table">

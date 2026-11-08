@@ -17,7 +17,7 @@ test("Web approved supplement labels match normal without replacing internal typ
    for(const row of rows){assert.equal(row.originalType,"SUPPLEMENT");assert.equal(row.recordStatus,status);assert.equal(row.originalKind,type==="recharge"?"SUPPLEMENT":status==="APPROVED"?"正常核销":"补录核销");}
   }
  }
- for(const file of ["recharge-query.html","verification-query.html"])assert.match(fs.readFileSync(require("node:path").join(root,file),"utf8"),/query\.js\?v=0\.15\.14/);
+ for(const file of ["recharge-query.html","verification-query.html"])assert.match(fs.readFileSync(require("node:path").join(root,file),"utf8"),/query\.js\?v=0\.15\.15/);
  for(const file of ["recharge-detail.html","verification-detail.html"])assert.match(fs.readFileSync(require("node:path").join(root,file),"utf8"),/business-detail\.js\?v=0\.16\.31/);
 });
 function extract(name,next){const a=cloud.indexOf(`async function ${name}(`),b=cloud.indexOf(next,a);assert(a>=0&&b>a);return cloud.slice(a,b);}

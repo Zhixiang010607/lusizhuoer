@@ -145,6 +145,12 @@ async function main() {
     caller={role:"hq",scopeMode:"ALL",staffId:1};
     const customerQuery=await face.queryStoreCustomers({limit:10});
     eq(customerQuery.customers.find(c=>c.customerCode==="QA-C-1").totalRechargeCount,20,"Customer query shows gross recharge after refund");
+    const exportedCustomers=await face.queryStoreCustomers({exportAll:true,limit:1});
+    eq(exportedCustomers.total,exportedCustomers.customers.length,"Customer export is a complete single snapshot");
+    const exportedRefunds=await face.queryStoreBusinessRecords({recordType:"RECHARGE",rechargeType:"REFUND",statusCategory:"APPROVED",exportAll:true,page:9,pageSize:10});
+    eq(exportedRefunds.records.map(r=>r.unitCount),[5],"Refund export preserves the approved unit count and ignores display page");
+    const exportedNormal=await face.queryStoreBusinessRecords({recordType:"VERIFICATION",verificationType:"NORMAL",statusCategory:"APPROVED",exportAll:true});
+    eq(exportedNormal.records.map(r=>r.originalType).sort(),["NORMAL","SUPPLEMENT"],"Normal export includes approved supplement, excludes experience");
     caller={role:"hq",scopeMode:"STORE",storeId:1,staffId:1};
     const store=await face.getStoreDashboard({customerPageSize:10});
     eq(Number(store.store.customers.find(c=>c.customer_code==="QA-C-1").total_recharge_count),20,"Store home customer list shows gross recharge after refund");

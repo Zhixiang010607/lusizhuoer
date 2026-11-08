@@ -407,9 +407,11 @@
 
   async function exportRows(format) {
     if (state.loading || !state.searched || state.total < 1 || state.total > EXPORT_LIMIT) return;
+    const exportIdentity=sessionStorage.getItem("prototypeSession");
     setBusy(true, `正在准备 ${state.total} 条完整结果…`);
     try {
       const rows = await allRows();
+      if(sessionStorage.getItem("prototypeSession")!==exportIdentity)return;
       if (rows.length !== state.total) throw new Error("完整结果数量已变化，请重新查询后导出");
       const columns = exportColumns();
       const exportData = type === "inactive" ? rows.map(row => ({ ...row, baselineAt: String(row.baselineSource).toUpperCase() === "CUSTOMER_CREATED" ? "从未核销" : row.baselineAt })) : rows;
@@ -417,10 +419,13 @@
       if (format === "excel") {
         window.WebReportExport.download(columns, exportData, `${document.title}-${businessToday()}`);
       } else {
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) throw new Error("浏览器阻止了打印窗口，请允许弹出窗口后重试");
-        printWindow.document.write(`<meta charset="utf-8"><title>${escapeHtml(document.title)}</title><style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:24px;color:#302a22}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #d8c5a3;text-align:center}th{background:#f4e7d0}h1{font-size:24px}</style><h1>${escapeHtml(document.title)}</h1><p>导出日期：${businessToday()} · 共 ${rows.length} 条</p><table><thead><tr>${columns.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr></thead><tbody>${exportData.map((row) => `<tr>${columns.map(([key,,kind]) => `<td>${escapeHtml(displayValue(row, key, kind) ?? "—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
-        printWindow.document.close(); printWindow.focus(); printWindow.print();
+        const groups=new Map();
+        const formatted=exportData.map(row=>Object.fromEntries(columns.map(([key,,kind])=>[key,displayValue(row,key,kind)])));
+        formatted.forEach(row=>{const name=row.storeName||"未命名门店";if(!groups.has(name))groups.set(name,[]);groups.get(name).push(row);});
+        const tableColumns=columns.filter(([key])=>key!=="storeName").map(([key,label])=>({key,label,number:["daysSince","purchasedCount","consumedCount","remainingCount","effectiveScore","storeEnvironmentScore","teacherServiceScore","overallExperienceScore"].includes(key)}));
+        const result=window.WebTableReport.createDocument({title:document.title,criteria:`导出日期 ${businessToday()} · 北京时间 · 共 ${rows.length} 条`,sections:[...groups.entries()].map(([name,list])=>({title:`${name} · ${list.length} 条`,columns:tableColumns,rows:list}))},await window.WebTableReport.font());
+        if(sessionStorage.getItem("prototypeSession")!==exportIdentity)return;
+        window.WebTableReport.save(result.bytes,`${document.title}-${businessToday()}`,"pdf");
       }
       setMessage(`已准备 ${rows.length} 条完整结果`);
     } catch (error) { setMessage(error?.message || "导出失败", "error"); }

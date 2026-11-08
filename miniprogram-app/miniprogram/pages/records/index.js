@@ -30,7 +30,12 @@ function dashboardFilters(options, typeOptions) {
 }
 
 Page({
-  data: {
+  exportFile(event) {
+    if (!this._exportPayload) return;
+    const snapshot = JSON.stringify(this._exportPayload), epoch = this._requestEpoch ?? this._epoch ?? this._dayEpoch;
+    return require("../../services/query-report-export").exportPage(this, this.data.recordType, {...this._exportPayload}, {team:this.data.teamScope === true,format:event.currentTarget.dataset.format,valid:()=>snapshot === JSON.stringify(this._exportPayload) && epoch === (this._requestEpoch ?? this._epoch ?? this._dayEpoch)});
+  },
+  data: { exporting:false, exportReady:false,
     session: {}, recordType: "RECHARGE", noun: "充值", loading: false, message: "", error: false,
     mode: "browse", records: [], summary: { ...EMPTY_SUMMARY }, tableScrollLeft: 0,
     page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1, pageJump: "1",
@@ -69,7 +74,7 @@ Page({
   },
 
   onPullDownRefresh() { this.load(1).finally(() => wx.stopPullDownRefresh()); },
-  onUnload() {
+  onUnload() { this._unloaded = true; this._exportPayload = null;
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this._scrollResetEpoch = Number(this._scrollResetEpoch || 0) + 1;
   },
@@ -146,6 +151,7 @@ Page({
     try {
       const result = await this.requestRecords(payload);
       if (epoch !== this._requestEpoch) return;
+      this._exportPayload = {...payload}; this.setData({exportReady:true});
       const products = (result.products || []).map((product) => ({
         productId: String(product.productId || product.retail_product_id || product.id || ""),
         label: [
@@ -180,6 +186,7 @@ Page({
   },
 
   invalidateRequest(changes) {
+    this._exportPayload = null; this.setData({exportReady:false});
     this._requestEpoch = Number(this._requestEpoch || 0) + 1;
     this.setData({ tableScrollLeft: 0, ...(changes || {}), loading: false });
   },

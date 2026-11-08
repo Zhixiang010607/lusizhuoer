@@ -1,0 +1,6 @@
+.report-export-bar {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16rpx;margin-bottom:22rpx;box-sizing:border-box;min-width:0;}
+.report-export-bar > text {font-size:24rpx;color:#807461;}
+.report-export-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14rpx;width:100%;min-width:0;}
+.report-export-actions button {display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:0;height:76rpx;margin:0;padding:0 16rpx;border:1rpx solid #dec59e;border-radius:14rpx;background:#fffaf3;color:#77582d;font-size:27rpx;line-height:1;}
+.report-export-actions button[disabled] {background:#f0ebe2;color:#a09586;}
+@media(min-width:768px){.report-export-bar{gap:12px;margin-bottom:16px}.report-export-bar > text{font-size:14px}.report-export-actions{width:272px;gap:10px}.report-export-actions button{height:42px;padding:0 16px;font-size:15px;border-radius:8px}}

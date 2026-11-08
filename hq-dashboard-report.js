@@ -65,8 +65,9 @@
     return runs;
   }
 
+  const HELVETICA_WIDTHS = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
   function visualUnits(value) {
-    return Array.from(String(value || "")).reduce((sum, character) => sum + (character.codePointAt(0) <= 0x7f ? 0.56 : 1), 0);
+    return Array.from(String(value || "")).reduce((sum, character) => sum + (character.codePointAt(0) === 183 ? .278 : character.codePointAt(0) >= 32 && character.codePointAt(0) <= 126 ? HELVETICA_WIDTHS[character.codePointAt(0)-32]/1000 : 1), 0);
   }
 
   function fitted(value, width, size) {
@@ -199,8 +200,8 @@
       const pageNumber = (embedded ? 9 : 6) + index * 2;
       const contentNumber = pageNumber + 1;
       pageReferences.push(`${pageNumber} 0 R`);
-      addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 24, 9, { width: CONTENT_WIDTH, align: "right", color: COLORS.muted });
-      objects.set(pageNumber, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 5 0 R >> >> /Contents ${contentNumber} 0 R >>`));
+      addText(commands, `第 ${index + 1} / ${pageCommands.length} 页`, MARGIN, PAGE_HEIGHT - 24, 9, { width: (commands.pageWidth || PAGE_WIDTH)-MARGIN*2, align: "right", color: COLORS.muted });
+      objects.set(pageNumber, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${commands.pageWidth || PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 5 0 R >> >> /Contents ${contentNumber} 0 R >>`));
       objects.set(contentNumber, streamObject(commands.join("\n")));
     });
     if (embedded) {
@@ -303,6 +304,14 @@
       { key: "refund", label: "退费", width: 67, numeric: true },
       { key: "share", label: `${clean(report.metricLabel, "业务")}占比`, width: 134, numeric: true }
     ];
+    if (report.cjkFontBytes) {
+      const renderer=typeof window !== "undefined"?window.WebTableReport:require("./web-table-report");
+      const metrics=[{key:"verification",label:"核销",maxWidth:75,number:true},{key:"recharge",label:"充值",maxWidth:75,number:true},{key:"experience",label:"体验",maxWidth:75,number:true},{key:"refund",label:"退费",maxWidth:75,number:true}];
+      return renderer.createDocument({title:"总部业务总览",criteria:`${clean(report.startDate)} 至 ${clean(report.endDate)} · 北京时间\n${clean(report.dimensionLabel)}排名 · ${clean(report.productLabel)} · 按${clean(report.metricLabel)}次数降序`,sections:[
+        {title:"项目汇总",columns:[{key:"name",label:"项目",maxWidth:185},...metrics],rows:summaryRows},
+        {title:`完整排名（${rankingRows.length}位）`,columns:[{key:"rank",label:"名次",maxWidth:50,number:true},{key:"name",label:clean(report.dimensionLabel,"分类对象"),maxWidth:190},...metrics,{key:"share",label:`${clean(report.metricLabel,"业务")}占比`,maxWidth:98,number:true}],rows:rankingRows.length?rankingRows:[{name:"暂无数据"}]}
+      ]},report.cjkFontBytes);
+    }
     const pages = [
       ...tablePages("项目汇总", summaryColumns, summaryRows, metadata),
       ...tablePages(`完整排名 · 按${clean(report.metricLabel, "业务")}次数降序`, rankingColumns, rankingRows)
@@ -333,7 +342,7 @@
     return { filename, bytes: output.bytes.byteLength, pages: output.pages };
   }
 
-  const api = Object.freeze({ createReportPdf, downloadReport, safeFilename });
+  const api = Object.freeze({ createReportPdf, downloadReport, safeFilename, createVectorPdf: createPdfBytes });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.HqDashboardReport = api;
 })();

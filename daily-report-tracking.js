@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.3.0";
+  const VERSION = "0.3.1";
   const $ = (id) => document.getElementById(id);
   const shanghaiDateTime = window.WebWorkCommon?.shanghaiDateTime || (() => "—");
   const state = { serverToday: "", selectedDate: "", visibleMonth: "", loading: false };
@@ -74,15 +74,16 @@
     window.WebTrackingUI.table($("trackingCompleted"), { rows: completed, head, row: card, empty: "所选日期暂无老师填写日报" });
     window.WebTrackingUI.table($("trackingIncomplete"), { rows: incomplete, head, row: card, empty: "全部在职老师均已填写" });
   }
+  const exportController=window.QueryReportExport.mount({kind:"DAILY_REPORT",readPayload:()=>({reportDate:state.selectedDate}),fetch:p=>callTracking("getHqDailyReportTrackingDay",p),notice:(t)=>{$("trackingMessage").textContent=t;}});
   async function loadDay(date) {
     if (state.loading) return;
-    setBusy(true);
+    exportController.begin(); setBusy(true);
     $("trackingDateTitle").textContent = `${formatDate(date)} · 正在读取…`;
     $("trackingMessage").textContent = "";
     try {
       const result = await callTracking("getHqDailyReportTrackingDay", { reportDate: date });
       state.serverToday = result.serverToday;
-      state.selectedDate = result.reportDate;
+      state.selectedDate = result.reportDate; exportController.commit({reportDate:state.selectedDate});
       state.visibleMonth = state.selectedDate.slice(0, 7);
       datePicker.set(state.selectedDate, state.serverToday);
       renderLists(result);

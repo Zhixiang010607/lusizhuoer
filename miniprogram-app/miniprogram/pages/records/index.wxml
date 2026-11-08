@@ -35,7 +35,9 @@
   </view>
 
   <view class="card result-card">
+
     <view class="card-title"><text>{{noun}}结果</text><text class="badge">共 {{total}} 条</text></view>
+    <view class="report-export-bar"><text>单次最多1000条</text><view class="report-export-actions"><button class="secondary" data-format="pdf" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}" loading="{{exporting}}"><text class="button-label">导出 PDF</text></button><button class="secondary" data-format="excel" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}"><text class="button-label">导出 Excel</text></button></view></view>
     <view wx:if="{{loading}}" class="empty">正在查询{{noun}}记录…</view>
     <scroll-view wx:elif="{{records.length}}" class="record-scroll" scroll-x="true" data-visible-rows="{{records.length > 10 ? 10 : records.length}}" scroll-left="{{tableScrollLeft}}" enhanced="true" show-scrollbar="{{false}}">
       <view class="record-table {{recordType === 'VERIFICATION' ? 'verification-table' : (recordType === 'PRODUCT_PURCHASE' ? 'product-purchase-table' : '')}}">

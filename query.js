@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.14";
+  const VERSION = "0.15.15";
   const type = document.body.dataset.query;
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -378,7 +378,9 @@
       });
       if (isPageJumping) setRecordPageJumpFiltersLocked(true);
     }
+    const exportController = window.QueryReportExport.mount({kind:type === "verification" ? "VERIFICATION" : "RECHARGE",readPayload:queryPayload,fetch:call,notice});
     async function load({ resetPage = true } = {}) {
+      exportController.begin();
       if (resetPage) {
         cursors = [null];
         pageIndex = 0;
@@ -391,8 +393,10 @@
       $("runRecordQuery").disabled = true;
       updateRecordPager();
       try {
-        const data = await call(queryPayload());
+        const requestedPayload = queryPayload();
+        const data = await call(requestedPayload);
         if (sequence !== requestSequence) return false;
+        exportController.commit(requestedPayload);
         rows = Array.isArray(data.records) ? data.records : [];
         const receivedSummary = data.summary || {};
         summary = {

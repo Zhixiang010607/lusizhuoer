@@ -36,13 +36,14 @@
     $("attendanceDialogBody").innerHTML = kind === "clockOut" ? punch("下班打卡", teacher.clockOut, teacher) : punch("上班打卡", teacher.clockIn, teacher);
     $("attendanceTrackingDialog").showModal();
   }
+  const exportController=window.QueryReportExport.mount({kind:"ATTENDANCE",readPayload:()=>({attendanceDate:state.date}),fetch:p=>C.call("staffAccount","getHqAttendanceTrackingDay",p),notice:(t)=>{$("attendanceTrackingMessage").textContent=t;}});
   async function load(date) {
     if (state.loading) return;
-    state.loading = true; datePicker.busy(true); $("trackingAttendanceConfirm").disabled = true;
+    exportController.begin(); state.loading = true; datePicker.busy(true); $("trackingAttendanceConfirm").disabled = true;
     $("attendanceTrackingMessage").textContent = "正在读取打卡追踪…";
     try {
       const result = await C.call("staffAccount", "getHqAttendanceTrackingDay", { attendanceDate: date });
-      state.date = result.attendanceDate; state.serverToday = result.serverToday;
+      state.date = result.attendanceDate; state.serverToday = result.serverToday; exportController.commit({attendanceDate:state.date});
       $("trackingAttendanceDate").value = state.date; $("trackingAttendanceDate").max = state.serverToday; $("trackingAttendanceDate").syncChineseDate?.();
       datePicker.set(state.date, state.serverToday);
       render(result); $("attendanceTrackingMessage").textContent = "";

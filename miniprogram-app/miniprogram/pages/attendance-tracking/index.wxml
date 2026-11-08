@@ -4,6 +4,7 @@
   <view wx:else class="tracking-layout">
     <view class="calendar-card date-query-card"><date-selector value="{{pendingDate}}" end="{{serverToday}}" disabled="{{loading}}" bindchange="chooseDate"></date-selector><button class="confirm-button" bindtap="confirmDate" disabled="{{loading}}"><text class="button-label">确认</text></button></view>
     <view class="results">
+    <view class="report-export-bar"><text>单次最多1000条</text><view class="report-export-actions"><button class="secondary" data-format="pdf" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}" loading="{{exporting}}"><text class="button-label">导出 PDF</text></button><button class="secondary" data-format="excel" bindtap="exportFile" disabled="{{loading || exporting || !exportReady}}"><text class="button-label">导出 Excel</text></button></view></view>
       <view class="result-summary"><view><text class="section-title">{{selectedDate}}</text><text class="section-note">在职老师考勤</text></view><view class="summary-counts"><text>完整打卡 {{completed.length}}</text><text>仅上班打卡 {{clockInOnly.length}}</text><text>仅下班打卡 {{clockOutOnly.length}}</text><text>未打卡 {{missing.length}}</text></view></view>
       <view wx:if="{{loading}}" class="notice-card">正在读取上下班打卡情况…</view>
       <view wx:else class="result-columns">

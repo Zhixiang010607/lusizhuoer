@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.15.6";
+  const VERSION = "0.15.7";
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -307,7 +307,9 @@
     if (isPageJumping) setCustomerPageJumpFiltersLocked(true);
   }
 
+  const exportController = window.QueryReportExport.mount({kind:"CUSTOMER",readPayload:queryPayload,fetch:call,notice});
   async function load({ resetPage = true } = {}) {
+    exportController.begin();
     if (resetPage) {
       cursors = [null];
       pageIndex = 0;
@@ -320,8 +322,10 @@
     $("runCustomerQuery").disabled = true;
     updateCustomerPager();
     try {
-      const data = await call(queryPayload());
+      const requestedPayload = queryPayload();
+      const data = await call(requestedPayload);
       if (sequence !== requestSequence) return false;
+      exportController.commit(requestedPayload);
       rows = Array.isArray(data.customers) ? data.customers : [];
       summary = { ...emptySummary(), ...(data.summary || {}) };
       hasMore = data.hasMore === true;

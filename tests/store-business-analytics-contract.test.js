@@ -215,7 +215,7 @@ includes(cloud, 'if (action === "queryStoreBusinessRecords")', "store detail que
 includes(cloud, 'r.recharge_type = ${sqlText(rechargeType)}', "store detail backend separates recharge and refund record types");
 const storeRecordQuery = cloud.slice(cloud.indexOf("async function queryStoreBusinessRecords"), cloud.indexOf("async function getStoreDashboard"));
 assert.match(storeRecordQuery, /numberedPage[\s\S]*pageSize[\s\S]*OFFSET/, "store detail backend supports numbered server pagination");
-assert.match(storeRecordQuery, /total:\s*filteredTotal[\s\S]*totalPages/, "store detail backend returns total rows and total pages");
+assert.match(storeRecordQuery, /total:\s*exportAll \? pageRows.length : filteredTotal[\s\S]*totalPages/, "store detail backend returns total rows and total pages");
 
 includes(html, 'id="storeStatusAction"', "store homepage owns the status action");
 includes(html, 'id="storeStatusMessage"', "store status operation has inline feedback");

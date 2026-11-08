@@ -1,3 +1,4 @@
+@import "../../styles/report-export.wxss";
 page { background: #f3ede2; color: #302a22; }
 .page { width: calc(100% - 40rpx); margin: 0 auto; padding: 26rpx 0 calc(42rpx + env(safe-area-inset-bottom)); }
 .page-heading, .section-heading, .result-summary, .list-heading, .detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
