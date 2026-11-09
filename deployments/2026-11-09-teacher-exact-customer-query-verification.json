@@ -1,0 +1,89 @@
+{
+  "environment": "rusizhuoer-d9gbcsgym07651694",
+  "sourceCommit": "b592524558c39c3ce233af13a1a712df06a8e13e",
+  "productionSql": "not-required",
+  "webHosting": "not-in-scope",
+  "tests": {
+    "repository": 828,
+    "isolatedPgChecks": 209,
+    "isolatedPgReadQueries": 202,
+    "manualProductionWrites": 0
+  },
+  "cloudFunctions": {
+    "faceRecognition": {
+      "version": "v144",
+      "deployed": true,
+      "downloadedCodeMatches": true,
+      "files": {
+        "README.md": "cf8c077d4a44107b979eb7020d1cdfc53520227fdeb1846e0bdca4cf7a45aa45",
+        "attendance-glyphs-LICENSE.txt": "148c524a428f4c84bcdce3717d549649d7248d382a6fefce252f38461f5470eb",
+        "attendance-glyphs.json": "bb19ed8b183a935f45b03dd69a0a12dd6bc75e01d39e4fe5911755e48ca7a835",
+        "attendance-photo.js": "82d6d2da5f381c293b46e966fad6b5adebb2cc7dea8e2b4428dd3eb3d6b76f3a",
+        "index.js": "6a3b96b38d221d6e8faa8336b6399b11e53220aac1c665ed9992a38e3c246d6a",
+        "package.json": "5456693b9a250826ddba24e9408334f6b0e2209007df31f4c9a8ef1f90b4fb2d",
+        "teacher-customer-lookup.js": "cf460134e6cc4cac86ce7f240ca4c5ef68728e0091bd25e99f5150a35f18e469",
+        "teacher-team.js": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39"
+      },
+      "zipSha256": "c976251d9353767710cffb24d5dfa7fc3220c7018b6d6334005def8bd8c8b59d",
+      "zipBytes": 116413
+    },
+    "verificationPhoto": {
+      "version": "v14",
+      "deployed": true,
+      "downloadedCodeMatches": true,
+      "files": {
+        "README.md": "a85480efb70d71a05b86038a9e1fc9aaecf045919b983bcde90f2e75c928c1d5",
+        "index.js": "8bf1c2fdc09bdc40255028dab707d471ffe30cf0039f361cb74300e46b625575",
+        "package.json": "04ffa0bcafb848d8ecf6835798ff337db53c5df5f2c1887f7a87a5d9f10f6c94",
+        "read-reliability.js": "3852c1071671e9aa71c9d5b3727a43ec2541c2464900e18c920cfdf79b19ccff",
+        "service.js": "6a3b96b38d221d6e8faa8336b6399b11e53220aac1c665ed9992a38e3c246d6a",
+        "teacher-customer-lookup.js": "cf460134e6cc4cac86ce7f240ca4c5ef68728e0091bd25e99f5150a35f18e469",
+        "teacher-team.js": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39"
+      },
+      "zipSha256": "ed2377b0caf90d81814507142df978b16455539036b2ba8f3cdb735d51267b21",
+      "zipBytes": 97304
+    },
+    "customerRating": {
+      "version": "v10",
+      "deployed": true,
+      "downloadedCodeMatches": true,
+      "files": {
+        "README.md": "3610e059651a0334f913a07cf2ec10ef6f02b19a81ff972641ed8f5192edda2a",
+        "index.js": "76c9fdc2472fac38e49a15b8e052e7aa3836c0a647a0b7f19ca00f6a5d93d6f3",
+        "package.json": "7e73a41c68e5637d65575c0f5e88ad4e0cd7b734e238832ac6a883b860650308",
+        "teacher-customer-lookup.js": "cf460134e6cc4cac86ce7f240ca4c5ef68728e0091bd25e99f5150a35f18e469",
+        "teacher-team.js": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39"
+      },
+      "zipSha256": "48c794a1e8fc38e415117e133222102e632866beb81a2ffe2ca7ce30edab3594",
+      "zipBytes": 15813
+    }
+  },
+  "miniProgram": {
+    "appId": "wxb053c1bd6c684d8b",
+    "version": "0.3.66",
+    "releaseType": "development",
+    "officialFinalReceipt": "✔ upload",
+    "mainPackageBytes": 1736319,
+    "totalPackageBytes": 3579497,
+    "experienceVersionConfirmed": false,
+    "formalReleaseConfirmed": false
+  },
+  "visualQa": {
+    "phoneWidths": [
+      320,
+      390,
+      430
+    ],
+    "tabletPortraitWidths": [
+      768,
+      834,
+      1024
+    ],
+    "tabletLandscape": [
+      1024,
+      768
+    ],
+    "data": "synthetic isolated fixtures only"
+  },
+  "sourcePushVerified": true
+}
