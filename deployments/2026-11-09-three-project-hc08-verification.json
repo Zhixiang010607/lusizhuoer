@@ -48,9 +48,35 @@
   },
   "miniProgram": {
     "version": "0.3.67",
-    "officialFinalReceipt": null,
+    "officialFinalReceipt": "✔ upload",
     "experienceVersionConfirmed": false,
-    "formalReleaseConfirmed": false
+    "formalReleaseConfirmed": false,
+    "attempts": [
+      {
+        "method": "existing DevTools CLI",
+        "finalReceipt": false,
+        "result": "official CLI Timeout code 10; no successful backend completion found"
+      },
+      {
+        "method": "verified TLS route helper after IDE work-state backup",
+        "result": "official final upload success"
+      }
+    ],
+    "appId": "wxb053c1bd6c684d8b",
+    "releaseType": "development",
+    "mainPackageBytes": 1736739,
+    "totalPackageBytes": 3579917,
+    "clientBytesUnchanged": true,
+    "userConfigUnchanged": true,
+    "ideWorkBackupFiles": 128
   },
-  "physicalDeviceAcceptance": "not-performed"
+  "physicalDeviceAcceptance": "not-performed",
+  "sourceCommit": "e0410a2152475dc30a9d9e07eba4e448592a1269",
+  "sourcePushVerified": true,
+  "retainedPrivateEvidence": [
+    "initial source hashes and Magic differential trace",
+    "IDE work-state backup manifest",
+    "failed transport receipts",
+    "official cloud-function download and root-file hashes"
+  ]
 }
