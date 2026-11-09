@@ -16,8 +16,24 @@ const BLE_GATT_PROFILES = Object.freeze({
     writeCharacteristicUuid: "FFE1",
     notifyCharacteristicUuid: "FFE1",
     preferredWriteType: "writeNoResponse"
+  }),
+  "HAIYANGZHIYUN": Object.freeze({
+    serviceUuid: "FFE0",
+    writeCharacteristicUuid: "FFE1",
+    notifyCharacteristicUuid: "FFE1",
+    preferredWriteType: "writeNoResponse"
+  }),
+  "LUSIKANGCHENG": Object.freeze({
+    serviceUuid: "FFE0",
+    writeCharacteristicUuid: "FFE1",
+    notifyCharacteristicUuid: "FFE1",
+    preferredWriteType: "writeNoResponse"
   })
 });
+
+function isHc08CompactDeviceType(value) {
+  return ["LASER-BLE", "HAIYANGZHIYUN", "LUSIKANGCHENG"].includes(String(value || "").trim().toUpperCase());
+}
 
 function normalizeGattUuid(value) {
   const compact = String(value || "").trim().toUpperCase().replace(/[{}-]/g, "");
@@ -630,7 +646,7 @@ class BleVerificationSession {
 
   async readInfo() {
     this.state("DEVICE_READING", "正在读取设备状态");
-    const compactProfile = String(this.qualification.expectedDeviceType || "").trim().toUpperCase() === "LASER-BLE";
+    const compactProfile = isHc08CompactDeviceType(this.qualification.expectedDeviceType);
     const waiting = this.waitFor(
       (payload) => {
         const legacy = ["info", "get_info_result"].includes(String(payload?.cmd || payload?.type || "").toLowerCase())
@@ -686,7 +702,7 @@ class BleVerificationSession {
   validateInfo(qr, info) {
     const expectedType = String(this.qualification.expectedDeviceType || "").trim();
     const compact = compactResponseKind(info) === "info";
-    if (compact && expectedType.toUpperCase() !== "LASER-BLE") {
+    if (compact && !isHc08CompactDeviceType(expectedType)) {
       throw bleError("BLE_DEVICE_TYPE_MISMATCH", "当前设备类型不支持精简信息回包，禁止授权。");
     }
     const id = compact
@@ -701,10 +717,12 @@ class BleVerificationSession {
     const status = compact ? info.s : info.status;
     const nonce = String(compact ? info.n : info.nonce || "").trim();
     if (id !== qr.sn) throw bleError("BLE_DEVICE_ID_MISMATCH", "蓝牙设备编号与二维码编号不一致，禁止授权。");
-    const magicSoftSkinProfile = expectedType.toUpperCase() === "LASER-BLE";
+    const magicSoftSkinProfile = isHc08CompactDeviceType(expectedType);
     const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qr.sn);
     if (magicSoftSkinProfile !== magicSoftSkinSerial) {
-      throw bleError("BLE_DEVICE_TYPE_MISMATCH", "魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。");
+      throw bleError("BLE_DEVICE_TYPE_MISMATCH", expectedType.toUpperCase() === "LASER-BLE"
+        ? "魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。"
+        : "设备编号与当前项目的设备协议不匹配，禁止授权。");
     }
     if (type.toUpperCase() !== expectedType.toUpperCase()) {
       throw bleError("BLE_DEVICE_TYPE_MISMATCH", `当前设备类型为 ${type || "未知"}，本次项目需要 ${expectedType}。`);

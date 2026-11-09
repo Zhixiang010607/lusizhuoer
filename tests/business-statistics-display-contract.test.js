@@ -3,10 +3,10 @@ const test=require("node:test"),assert=require("node:assert/strict"),fs=require(
 const root=path.resolve(__dirname,".."),read=p=>fs.readFileSync(path.join(root,p),"utf8");
 const face=read("cloudfunctions/faceRecognition/index.js");
 test("current statistics backend version and deployment instructions agree",()=>{
- assert.match(face,/PHOTO_ONLY_FUNCTION \? "v13" : "v144"/);
- assert.equal(JSON.parse(read("cloudfunctions/faceRecognition/package.json")).version,"144.0.0");
- assert.match(read("cloudfunctions/faceRecognition/README.md"),/当前版本：`v144`/);
- for(const name of ["staffAccount","customerRating","verificationPhoto"])assert.match(read(`cloudfunctions/${name}/README.md`),/faceRecognition v144/);
+ assert.match(face,/PHOTO_ONLY_FUNCTION \? "v13" : "v145"/);
+ assert.equal(JSON.parse(read("cloudfunctions/faceRecognition/package.json")).version,"145.0.0");
+ assert.match(read("cloudfunctions/faceRecognition/README.md"),/当前版本：`v145`/);
+ for(const name of ["staffAccount","customerRating","verificationPhoto"])assert.match(read(`cloudfunctions/${name}/README.md`),/faceRecognition v145/);
 });
 test("customer histories have one-snapshot counts, fixed ten rows and old-client compatibility",()=>{
  assert.match(face,/function customerHistorySql\(/);

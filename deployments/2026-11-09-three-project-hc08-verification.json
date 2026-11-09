@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-09",
+  "environment": "rusizhuoer-d9gbcsgym07651694",
+  "productionSql": "not-required",
+  "productionDatabaseWrites": 0,
+  "webHosting": "not-in-scope",
+  "tests": {
+    "repository": 844,
+    "bleProfileTests": 16,
+    "unchangedMagicWireTrace": true,
+    "unchangedSessionMethods": 20,
+    "unchangedOtherServerFunctions": 235,
+    "originalDocumentsAndUserConfigUnchanged": true
+  },
+  "cloudFunction": {
+    "version": "v145",
+    "zip": "deployments/faceRecognition-v145.zip",
+    "zipBytes": 116760,
+    "zipSha256": "ae20a6b2705ecdfd3018f6a27ff66ab6f92176c217ec8a67df3590c86947b8ae",
+    "files": {
+      "index.js": "ad4ae2e5be91b5277109e960c6ab89c903034106077de3b52699a1ce7badb9f9",
+      "teacher-team.js": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39",
+      "teacher-customer-lookup.js": "cf460134e6cc4cac86ce7f240ca4c5ef68728e0091bd25e99f5150a35f18e469",
+      "package.json": "9b7a4914be1e347067bf3495833c320ba79d8b44c5e1221399c73c4d25f9a1b9",
+      "README.md": "8825eccda8570a9fffff34d1a3b20addc81e5c649f55d7cd5bba57e95f5e2aad",
+      "attendance-photo.js": "82d6d2da5f381c293b46e966fad6b5adebb2cc7dea8e2b4428dd3eb3d6b76f3a",
+      "attendance-glyphs.json": "bb19ed8b183a935f45b03dd69a0a12dd6bc75e01d39e4fe5911755e48ca7a835",
+      "attendance-glyphs-LICENSE.txt": "148c524a428f4c84bcdce3717d549649d7248d382a6fefce252f38461f5470eb"
+    },
+    "deployed": true,
+    "downloadedCodeMatches": true,
+    "runtime": "Nodejs18.15",
+    "state": "Active",
+    "timeoutSeconds": 900,
+    "attendancePhotoProbeReady": true
+  },
+  "pdfs": {
+    "output/pdf/露思卓儿_海洋之韵_haiyangzhiyun_HC-08蓝牙交互技术文档_V1.0.pdf": {
+      "pages": 5,
+      "sha256": "34b8f829f91ad60ebab8cc1fdf260f3f1f121cacc6262beb95fc618337ab4bc7",
+      "allPagesRendered": true
+    },
+    "output/pdf/露思卓儿_露思康辰_lusikangcheng_HC-08蓝牙交互技术文档_V1.0.pdf": {
+      "pages": 5,
+      "sha256": "127bc28989ca02e9091354366e674a4c4829707ed47742eb47e73f113808f629",
+      "allPagesRendered": true
+    }
+  },
+  "miniProgram": {
+    "version": "0.3.67",
+    "officialFinalReceipt": null,
+    "experienceVersionConfirmed": false,
+    "formalReleaseConfirmed": false
+  },
+  "physicalDeviceAcceptance": "not-performed"
+}

@@ -7,7 +7,7 @@ const https = require("https");
 const { parseTeacherLookup, lookupCustomerCondition } = require("./teacher-customer-lookup");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v13" : "v144";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v13" : "v145";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4428,11 +4428,19 @@ async function requireVerificationBleSchema() {
 function verificationDeviceType(productName) {
   const normalizedProductName = String(productName || "").replace(/\s+/g, "");
   if (normalizedProductName.includes("魔法柔肤")) return "LASER-BLE";
+  if (normalizedProductName.includes("海洋之蕴") || normalizedProductName.includes("海洋之韵")
+      || normalizedProductName.toLowerCase() === "haiyangzhiyun") return "haiyangzhiyun";
+  if (normalizedProductName.includes("露思康辰")
+      || normalizedProductName.toLowerCase() === "lusikangcheng") return "lusikangcheng";
   pinyinFunction ||= require("pinyin-pro").pinyin;
   const segments = pinyinFunction(String(productName || ""), { toneType: "none", type: "array" });
   const value = segments.join("").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!value) fail("项目名称无法转换成有效设备类型，请先修正项目名称。", "BLE_DEVICE_TYPE_INVALID");
   return value.slice(0, 128);
+}
+
+function isHc08CompactDeviceType(value) {
+  return ["LASER-BLE", "HAIYANGZHIYUN", "LUSIKANGCHENG"].includes(String(value || "").trim().toUpperCase());
 }
 
 function isSupportedVerificationDeviceSerial(value) {
@@ -4875,10 +4883,12 @@ async function issueVerificationBleAuthorization(event) {
     fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
   }
   const canonicalDeviceType = String(qualification.expected_device_type);
-  const magicSoftSkinProfile = canonicalDeviceType.toUpperCase() === "LASER-BLE";
+  const magicSoftSkinProfile = isHc08CompactDeviceType(canonicalDeviceType);
   const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qrSn);
   if (magicSoftSkinProfile !== magicSoftSkinSerial) {
-    fail("魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。", "BLE_DEVICE_TYPE_MISMATCH");
+    fail(canonicalDeviceType.toUpperCase() === "LASER-BLE"
+      ? "魔法柔肤必须使用 LA 设备，其他项目不能使用 LA 设备。"
+      : "设备编号与当前项目的设备协议不匹配，禁止授权。", "BLE_DEVICE_TYPE_MISMATCH");
   }
 
   const otherLiveAuthorizationRows = await executeSql(

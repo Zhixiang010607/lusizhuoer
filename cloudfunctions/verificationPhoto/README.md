@@ -1,12 +1,14 @@
 # verificationPhoto 云函数
 
-本次 2026-11-09 客户查询联动：老师以一个在职门店＋准确完整姓名查询（无默认客户、每页10条），通过既有客户主页只读查看非本人客户、其原有工单和照片。服务端每次按当前在职账号及实际客户校验门店／姓名／客户编号；仅只读 action 采用查询上下文。原创建／有效业务关系仍独立决定备注与留言写权，照片提交人、24小时截止、审核、扣次、BLE、评价签发均不扩权。无需新 SQL。部署顺序 faceRecognition v144、verificationPhoto v14、customerRating v10，然后上传小程序；staffAccount v107 无代码更新且短信开关不变。ZIP 根必须包含 teacher-customer-lookup.js（照片包还包含由 faceRecognition/index.js 生成的 service.js）。
+本次 2026-11-09 三项目 BLE 配置只更新 faceRecognition v145 和小程序；本函数可部署代码不变，无需重新上传，也不重跑 SQL。下方客户查询说明为此前 v144 联动记录，当前兼容矩阵统一指向 faceRecognition v145。
 
-当前联动顺序：先按完整备份门禁执行并验收 [093封存退组](../../database/cloudbase-console/093-README.md)，再部署 staffAccount v107、faceRecognition v144，最后更新客户端。本轮必须重新部署本函数以支持精确客户查询中的只读照片。源码包不代表已经上线。
+本次 2026-11-09 客户查询联动：老师以一个在职门店＋准确完整姓名查询（无默认客户、每页10条），通过既有客户主页只读查看非本人客户、其原有工单和照片。服务端每次按当前在职账号及实际客户校验门店／姓名／客户编号；仅只读 action 采用查询上下文。原创建／有效业务关系仍独立决定备注与留言写权，照片提交人、24小时截止、审核、扣次、BLE、评价签发均不扩权。无需新 SQL。部署顺序 faceRecognition v145、verificationPhoto v14、customerRating v10，然后上传小程序；staffAccount v107 无代码更新且短信开关不变。ZIP 根必须包含 teacher-customer-lookup.js（照片包还包含由 faceRecognition/index.js 生成的 service.js）。
+
+当前联动顺序：先按完整备份门禁执行并验收 [093封存退组](../../database/cloudbase-console/093-README.md)，再部署 staffAccount v107、faceRecognition v145，最后更新客户端。本轮必须重新部署本函数以支持精确客户查询中的只读照片。源码包不代表已经上线。
 
 当前版本：`v14`（共享照片服务实现 `v13`）
 
-当前联动部署矩阵：`verificationPhoto v14`、`faceRecognition v144`、
+当前联动部署矩阵：`verificationPhoto v14`、`faceRecognition v145`、
 `staffAccount v107`、`teacherCreate v9`、`customerRating v10`。内部共享实现号
 `v13` 不等于 `faceRecognition` 的公开运行时版本。
 
@@ -156,11 +158,11 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 1. 确认迁移 039、046—072 已完成，旧运营账号维护动作及迁移 047、053 已验收；不得重新启用旧运营身份或旧老师人脸 Saga。
 2. 依次执行并验收迁移 073—077。旧 `reconcile-teacher-face-operations` Timer 必须保持删除，只保留老师额度月初 Timer、核销草稿清理 Timer 和补充照片上传清理 Timer。
 3. 执行并验收迁移 083，把补充照片请求和 `EXTRA` 照片边界提升到 5 MiB，同时确认 `FACE` 仍为 3 MiB。
-4. 当前联动版本为 `faceRecognition-v144.zip`、`staffAccount-v107.zip`、`teacherCreate-v9.zip` 与 `verificationPhoto-v14.zip`；分别调用 `health` 确认 `v144`、`v105`、`teacher-create-v9`、`v13`。新老师照片打卡须先按 090 指引执行完整备份、迁移和验收；staffAccount v98 保留空人脸分数。组长能力还须先按 091 指引备份、迁移和验收。此次不因矩阵变化重新部署本核销照片函数。
+4. 当前联动版本为 `faceRecognition-v145.zip`、`staffAccount-v107.zip`、`teacherCreate-v9.zip` 与 `verificationPhoto-v14.zip`；分别调用 `health` 确认 `v145`、`v107`、`teacher-create-v9`、`v14`。新老师照片打卡须先按 090 指引执行完整备份、迁移和验收；staffAccount v98 保留空人脸分数。组长能力还须先按 091 指引备份、迁移和验收。此次不因矩阵变化重新部署本核销照片函数。
 5. 当前联动函数不再读写旧 Saga；老师日常考勤不做人脸识别，客户核销和其照片仍由各自既有链路独立处理。
 6. 新建或更新函数 `verificationPhoto`，上传 `verificationPhoto-v14.zip`，配置上述环境变量、512 MB 内存和 60 秒超时。
-7. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v13"`、`sharedVersion: "v12"`、`uploadMode: "DIRECT"` 与全部就绪字段，再保存本节的 triggers-only 配置。
-8. 评价同轮还必须执行并验收 068 与 070、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v10.zip` 并确认 `health` 为 `v9` 且 `configured=true`。`verificationPhoto v14` 不读取或写入评价。
+7. 对 `verificationPhoto` 调用 `{ "action": "health" }`，确认 `version: "v14"`、`sharedVersion: "v13"`、`uploadMode: "DIRECT"` 与全部就绪字段，再保存本节的 triggers-only 配置。
+8. 评价同轮还必须执行并验收 068 与 070、配置至少 32 字节的 `CUSTOMER_RATING_SIGNING_KEY` 及实际 `rating.html` 地址 `CUSTOMER_RATING_BASE_URL`、上传 `customerRating-v10.zip` 并确认 `health` 为 `v10` 且 `configured=true`。`verificationPhoto v14` 不读取或写入评价。
 9. 只有相关函数均验证成功后，才发布包含 `rating.html` 的当前静态前端并强制刷新浏览器；不要先发前端。
 
 `verificationPhoto` 应返回类似：
@@ -169,8 +171,8 @@ SELECT id, name, public, file_size_limit, allowed_mime_types
 {
   "ok": true,
   "ready": true,
-  "version": "v13",
-  "sharedVersion": "v12",
+  "version": "v14",
+  "sharedVersion": "v13",
   "service": "verificationPhoto",
   "uploadMode": "DIRECT",
   "photoBucketId": "customer-photos",
