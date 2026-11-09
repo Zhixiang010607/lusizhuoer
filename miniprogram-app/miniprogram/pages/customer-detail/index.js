@@ -133,7 +133,7 @@ function mapMessages(rows) {
 
 Page({
   data: {
-    session: {}, canManageStatus: false, canEditNotes: false,
+    session: {}, canManageStatus: false, canEditNotes: false, canSendMessages: false, lookupMode: false,
     customerCode: "", profile: null, balances: [], retailProductSummary: [],
     retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
     recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
@@ -152,6 +152,11 @@ Page({
   onLoad(options = {}) {
     const session = requireSession(["hq", "store", "teacher"]);
     if (!session) return;
+    this._teacherLookup = null;
+    if (options.teacherLookup) {
+      try { this._teacherLookup = JSON.parse(decodeURIComponent(options.teacherLookup)); }
+      catch (_) { this.setData({ message: "客户查询参数无效，请重新查询", error: true }); return; }
+    }
     this._historyState = freshHistoryState();
     this._messageCursor = null;
     this._profileEpoch = 0;
@@ -160,11 +165,13 @@ Page({
     this.setData({
       session,
       canManageStatus: session.role === "hq" || session.role === "store",
-      canEditNotes: ["hq", "store", "teacher"].includes(session.role),
+      canEditNotes: false, canSendMessages: false, lookupMode: Boolean(this._teacherLookup),
       customerCode: decodeURIComponent(options.customerCode || "")
     });
     void this.load();
   },
+  readPayload(payload) { return this._teacherLookup ? { ...payload, teacherLookup: this._teacherLookup } : payload; },
+  lookupSuffix() { return this._teacherLookup ? `&teacherLookup=${encodeURIComponent(JSON.stringify(this._teacherLookup))}` : ""; },
   onUnload() {
     this._profileEpoch = Number(this._profileEpoch || 0) + 1;
     this._photoEpoch = Number(this._photoEpoch || 0) + 1;
@@ -181,7 +188,7 @@ Page({
     this._profileEpoch = epoch;
     this._historyState = freshHistoryState();
     this.setData({
-      loading: true, message: "", error: false,
+      loading: true, message: "", error: false, canEditNotes: false, canSendMessages: false,
       profile: null, balances: [], retailProductSummary: [], retailSummaryScrollable: false, retailSummaryViewportHeight: 68,
       recharges: [], refunds: [], verifications: [], experiences: [], productPurchases: [],
       visibleHistory: [], historyPage: 1, historyTotal: 0, historyTotalPages: 1, historyPageInput: "1", historyHasMore: false, historyLoading: false, historyScrollLeft: 0,
@@ -191,10 +198,10 @@ Page({
     });
     void this.loadPhoto();
     try {
-      const result = await callFace("getCustomerProfile", {
+      const result = await callFace("getCustomerProfile", this.readPayload({
         customerCode: this.data.customerCode,
         historyPage: 1, historyPageSize: HISTORY_LIMIT
-      });
+      }));
       if (epoch !== this._profileEpoch) return;
       const profile = mapProfile(result.customer || {});
       if (!profile.customerCode || profile.customerCode !== this.data.customerCode) {
@@ -209,6 +216,8 @@ Page({
       const notes = String(profile.notes || "");
       this.setData({
         profile,
+        canEditNotes: result.permissions?.canEditNotes === true,
+        canSendMessages: result.permissions?.canSendMessages === true,
         balances: mapBalances(result.balances),
         ...retailSummaryView(result.retailProductSummary),
         recharges: mapHistory(result.recharges, "RECHARGE"),
@@ -235,7 +244,7 @@ Page({
     this._photoEpoch = epoch;
     this.setData({ photoLoading: true, photoUrl: "", photoMessage: "正在读取客户照片…", photoError: false });
     try {
-      const result = await callFace("getCustomerPhotoUrl", { customerCode: this.data.customerCode });
+      const result = await callFace("getCustomerPhotoUrl", this.readPayload({ customerCode: this.data.customerCode }));
       if (epoch !== this._photoEpoch) return;
       if (!/^https:\/\//i.test(String(result.photoUrl || ""))) throw new Error("服务端未返回有效的照片临时地址");
       this.setData({ photoUrl: result.photoUrl, photoMessage: "", photoError: false });
@@ -344,7 +353,7 @@ Page({
         customerCode: this.data.customerCode, historyType: type,
         historyPage: nextPage, historyPageSize: HISTORY_LIMIT
       };
-      const result = await callFace("getCustomerProfile", payload);
+      const result = await callFace("getCustomerProfile", this.readPayload(payload));
       if (profileEpoch !== this._profileEpoch) return;
       const incoming = mapHistory(result[field], type);
       const page = result.history?.[field] || {};
@@ -378,8 +387,8 @@ Page({
     const code = clean(event.currentTarget.dataset.code);
     const historyType = clean(this.data.historyType || "RECHARGE").toUpperCase();
     if (historyType === "PRODUCT_PURCHASE") {
-      if (this.data.session.role !== "hq") return;
-      wx.navigateTo({ url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}` });
+      if (this.data.session.role !== "hq" && !this._teacherLookup) return;
+      wx.navigateTo({ url: `/pages/product-purchase-detail/index?recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}${this.lookupSuffix()}` });
       return;
     }
     const originalType = clean(event.currentTarget.dataset.originalType).toUpperCase();
@@ -388,7 +397,7 @@ Page({
       : (originalType === "EXPERIENCE" ? "EXPERIENCE" : originalType === "SUPPLEMENT" ? "SUPPLEMENT" : "VERIFICATION");
     const baseType = ["RECHARGE", "REFUND", "VOID"].includes(category) ? "recharge" : "verification";
     wx.navigateTo({
-      url: `/pages/order-detail/index?type=${baseType}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}`
+      url: `/pages/order-detail/index?type=${baseType}&category=${category}&recordId=${encodeURIComponent(id)}&recordCode=${encodeURIComponent(code)}${this.lookupSuffix()}`
     });
   },
 
@@ -413,7 +422,7 @@ Page({
         payload.cursorCreatedAt = cursor.createdAt;
         payload.cursorMessageId = cursor.id;
       }
-      const result = await callFace("listCustomerMessages", payload);
+      const result = await callFace("listCustomerMessages", this.readPayload(payload));
       if (epoch !== this._messageEpoch) return;
       const incoming = mapMessages(result.messages);
       const currentMessages = reset ? [] : this.data.messages;
@@ -446,7 +455,7 @@ Page({
     return messageText;
   },
   async submitMessage() {
-    if (this.data.messageSubmitting) return;
+    if (!this.data.canSendMessages || this.data.messageSubmitting) return;
     const content = String(this.data.messageText || "").replace(/\r\n?/g, "\n").trim();
     const length = Array.from(content).length;
     if (!length || length > 100) {

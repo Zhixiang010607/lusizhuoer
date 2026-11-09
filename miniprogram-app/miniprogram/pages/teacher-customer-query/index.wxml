@@ -1,0 +1,28 @@
+<view class="page">
+  <view class="page-heading"><view><text class="title">客户查询</text></view><button class="lookup-button back" bindtap="back">返回工作台</button></view>
+  <view class="panel search-panel">
+    <view class="query-grid">
+      <view class="store-field"><store-search stores="{{stores}}" selected-id="{{store.id || ''}}" loading="{{loadingStores}}" disabled="{{loading}}" bindchange="selectStore" /></view>
+      <label class="field"><text class="field-label">客户姓名</text><input maxlength="40" value="{{name}}" bindinput="inputName" placeholder="手动输入客户完整姓名" confirm-type="search" bindconfirm="search" /></label>
+      <button class="lookup-button primary" bindtap="search" loading="{{loading}}" disabled="{{loading || loadingStores}}">查询客户</button>
+    </view>
+    <text class="hint">请选择门店并输入准确姓名；非本人客户仅可查看。</text>
+    <button wx:if="{{error && !stores.length && !loadingStores}}" class="retry" bindtap="retryStores">重新读取门店</button>
+  </view>
+  <view wx:if="{{loading || searched}}" class="panel result-panel">
+    <view class="result-title"><text>客户结果</text><text class="badge">共 {{total}} 位</text></view>
+    <view wx:if="{{loading && !customers.length}}" class="notice">正在查询…</view>
+    <view wx:elif="{{!customers.length}}" class="notice">未找到姓名完全匹配的客户</view>
+    <block wx:else>
+      <scroll-view class="customer-scroll" scroll-x enhanced show-scrollbar="{{false}}" style="height: {{tableHeight ? tableHeight + 'px' : 64 + customers.length * 78 + 'rpx'}};">
+        <view class="customer-table">
+          <view class="table-row table-head"><view>序号</view><view>姓名</view><view>充值</view><view>核销</view><view>门店</view><view>年龄</view><view>业务阶段</view><view>建档日期</view><view>客户状态</view></view>
+          <view wx:for="{{customers}}" wx:key="customerCode" class="table-row"><view>{{index + 1}}</view><view class="customer-link" data-code="{{item.customerCode}}" bindtap="openCustomer">{{item.customerName}}</view><view>{{item.rechargeCount}} 次</view><view>{{item.verificationCount}} 次</view><view>{{item.storeName}}</view><view>{{item.ageLabel}}</view><view>{{item.stageLabel}}</view><view>{{item.createdLabel}}</view><view>{{item.statusLabel}}</view></view>
+        </view>
+      </scroll-view>
+      <view class="pagination"><button class="lookup-button" disabled="{{page <= 1 || loading}}" bindtap="previousPage">上一页</button><text>第 {{page}} / {{totalPages}} 页 · 共 {{total}} 位</text><button class="lookup-button" disabled="{{page >= totalPages || loading}}" bindtap="nextPage">下一页</button></view>
+      <view class="page-jump"><text>跳至第</text><input type="number" value="{{pageInput}}" bindinput="inputPage" /><text>页</text><button class="lookup-button" bindtap="jumpPage" disabled="{{loading}}">跳转</button></view>
+    </block>
+  </view>
+  <view wx:if="{{message}}" class="notice {{error ? 'error' : ''}}">{{message}}</view>
+</view>

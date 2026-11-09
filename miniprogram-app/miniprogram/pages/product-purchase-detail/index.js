@@ -1,4 +1,4 @@
-const { callStaff } = require("../../services/api");
+const { callStaff, callFace } = require("../../services/api");
 const { requireSession } = require("../../services/session");
 const { displayDateTimeAny } = require("../../services/query-tools");
 
@@ -36,8 +36,13 @@ function normalize(row = {}) {
 Page({
   data: { loading: true, message: "", recordId: "", recordCode: "", order: null },
   async onLoad(options) {
-    const session = requireSession(["hq"]);
+    const session = requireSession(["hq", "teacher"]);
     if (!session) return;
+    this._teacherLookup = null;
+    if (session.role === "teacher") {
+      try { this._teacherLookup = JSON.parse(decodeURIComponent(options.teacherLookup || "")); }
+      catch (_) { this.setData({ loading: false, message: "请从客户查询结果进入工单" }); return; }
+    }
     const recordId = text(options.recordId);
     const recordCode = text(options.recordCode).toUpperCase();
     if (!/^\d+$/.test(recordId) || !/^PP\d{14}$/.test(recordCode)) {
@@ -55,7 +60,9 @@ Page({
     this._requestEpoch = epoch;
     this.setData({ loading: true, message: "" });
     try {
-      const result = await callStaff("listRetailProductPurchaseReviews", { sourceType: "PURCHASE", purchaseCode: this.data.recordCode, limit: 1, pageNumber: 1 });
+      const result = this._teacherLookup
+        ? await callFace("getTeacherLookupProductPurchase", { teacherLookup: this._teacherLookup, recordId: this.data.recordId })
+        : await callStaff("listRetailProductPurchaseReviews", { sourceType: "PURCHASE", purchaseCode: this.data.recordCode, limit: 1, pageNumber: 1 });
       if (epoch !== this._requestEpoch) return;
       const source = (result.orders || []).find((row) => text(row.id) === this.data.recordId && text(field(row, "purchase_code", "purchaseCode")) === this.data.recordCode);
       if (!source) throw new Error("未找到该产品购买工单");

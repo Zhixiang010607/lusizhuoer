@@ -23,7 +23,7 @@ assert.match(customerHtml, /customer-profile\.js\?v=0\.15\.19/);
 const photoSource = cloud.slice(cloud.indexOf("async function getCustomerPhotoUrl"), cloud.indexOf("async function getCustomerPhotoUploadIntent"));
 assert.match(photoSource, /await activeCustomerProfileCaller\(\)/,
   "photo reads use the teacher-aware profile caller");
-assert.match(photoSource, /customerProfileScope\(caller, "c"\)/,
+assert.match(photoSource, /customerLookupReadScope\(caller, event, "c"\)/,
   "teacher photo reads remain restricted to approved normal or experience relationships");
 
 const noteSource = cloud.slice(cloud.indexOf("async function updateCustomerNotes"), cloud.indexOf("async function listCustomerMessages"));

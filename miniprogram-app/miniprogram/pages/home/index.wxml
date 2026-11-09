@@ -15,7 +15,7 @@
   </scroll-view>
   <view wx:if="{{overviewMenuOpen || businessMenuOpen || learningMenuOpen || queryMenuOpen || coreMetricsMenuOpen || managementMenuOpen || reviewMenuOpen}}" class="menu-backdrop" bindtap="closeMenus"></view>
   <view wx:if="{{overviewMenuOpen && session.role === 'teacher'}}" class="business-popover overview-popover" catchtap="noop">
-    <view class="popover-grid"><view bindtap="openTeacherOverview">工作台</view><view bindtap="openTeacherCustomers">我的客户</view><view bindtap="openDailyReport">工作日报</view><view bindtap="openAttendance">考勤打卡</view></view>
+    <view class="popover-grid"><view bindtap="openTeacherOverview">工作台</view><view bindtap="openTeacherCustomers">我的客户</view><view bindtap="openTeacherCustomerQuery">客户查询</view><view bindtap="openDailyReport">工作日报</view><view bindtap="openAttendance">考勤打卡</view></view>
   </view>
   <view wx:if="{{learningMenuOpen && session.role === 'teacher'}}" class="business-popover learning-popover" style="{{learningPopoverStyle}}" catchtap="noop">
     <view class="popover-grid"><view bindtap="openTrainingMaterials">培训学习</view></view>

@@ -4,8 +4,9 @@ const crypto = require("node:crypto");
 const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const QRCode = require("qrcode");
+const { parseTeacherLookup, lookupCustomerCondition } = require("./teacher-customer-lookup");
 
-const FUNCTION_VERSION = "v9";
+const FUNCTION_VERSION = "v10";
 const DURABLE_READ_DELAYS_MS = Object.freeze([0, 25, 75, 150, 300]);
 const RATING_ANALYSIS_EXPORT_MAX_ROWS = 1000;
 let cloudApp = null;
@@ -317,7 +318,16 @@ async function getForStaff(event) {
   const verificationId = sqlId(event.verificationId, "核销工单");
   const [staff, order] = await Promise.all([currentStaff(), orderForVerification(verificationId)]);
   if (!order) fail("核销工单不存在。", "NOT_FOUND");
-  if (!canReadRating(staff, order)) fail("无权查看该评价。", "FORBIDDEN");
+  const lookup = parseTeacherLookup(event, staff.role_code, fail);
+  let lookupAllowed = false;
+  if (lookup) {
+    const rows = await executeSql(`SELECT v.id FROM public.verification_records v
+      JOIN public.customers c ON c.id = v.customer_id
+      WHERE v.id = ${verificationId} AND ${lookupCustomerCondition(lookup, "c", sqlText)} LIMIT 1`);
+    lookupAllowed = Boolean(rows[0]);
+    if (!lookupAllowed) fail("无权查看该评价。", "FORBIDDEN");
+  }
+  if (!lookupAllowed && !canReadRating(staff, order)) fail("无权查看该评价。", "FORBIDDEN");
   const rating = await ratingForVerification(verificationId);
   const view = publicRating(rating || order);
   return {

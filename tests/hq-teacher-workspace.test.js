@@ -9,6 +9,7 @@ const fail = (message, code) => { throw Object.assign(Error(message), {code}); }
 function backend(role = "hq") {
   const queries = [];
   const context = {
+    ...require("../cloudfunctions/faceRecognition/teacher-customer-lookup"),
     fail, sqlText: x => `'${x}'`, positiveDatabaseId(x) { if (!/^[1-9]\d*$/.test(String(x))) fail("invalid", "BAD_REQUEST"); return String(x); },
     businessQueryDatabaseId: x => String(x), optionalBusinessQueryDate: x => x || "", scopedQueryCursorTimestamp: x => x || "",
     activeScopedQueryCaller: async () => ({ role }), activeTeacherCaller: async () => ({role:"teacher", teacherId:"7", teacherName:"自己"}),

@@ -68,7 +68,7 @@ test("migration 070 makes the second score mandatory for every new rating withou
 });
 
 test("customerRating v8 keeps public links signed, stable, scoped, and one-time", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v9"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v10"/);
   assert.match(cloud, /CUSTOMER_RATING_SIGNING_KEY/);
   assert.match(cloud, /缺少 CUSTOMER_RATING_BASE_URL/);
   assert.match(cloud, /Buffer\.byteLength\(value, "utf8"\) >= 32/);
@@ -209,6 +209,7 @@ test("customerRating v8 requires the second score even when the order has no ass
       }
     },
     require(name) {
+      if (name === "./teacher-customer-lookup") return require("../cloudfunctions/faceRecognition/teacher-customer-lookup");
       if (name === "node:crypto") return require("node:crypto");
       if (name === "@cloudbase/node-sdk") {
         return { init: () => ({ auth: () => ({ getUserInfo: () => ({ uid: "hq-auth-uid" }) }) }) };
@@ -226,7 +227,7 @@ test("customerRating v8 requires the second score even when the order has no ass
   vm.runInNewContext(cloud, sandbox, { filename: "cloudfunctions/customerRating/index.js" });
   const result = await module.exports.main({ action: "issueForReceipt", verificationId: "42" });
   assert.equal(result.success, true);
-  assert.equal(result.version, "v9");
+  assert.equal(result.version, "v10");
   assert.equal(result.data.alreadySubmitted, false);
   assert.equal(result.data.qrDataUrl, "data:image/png;base64,dGVzdA==");
   assert.match(result.data.url, /^https:\/\/example\.test\/rating\.html\?token=/);

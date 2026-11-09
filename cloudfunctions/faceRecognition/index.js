@@ -4,9 +4,10 @@ const cloudbase = require("@cloudbase/node-sdk");
 const CloudBaseManager = require("@cloudbase/manager-node");
 const crypto = require("crypto");
 const https = require("https");
+const { parseTeacherLookup, lookupCustomerCondition } = require("./teacher-customer-lookup");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v12" : "v143";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v13" : "v144";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -1391,6 +1392,9 @@ async function verificationPhotoContext(event, options = {}) {
          AND ${teacherCustomerAccessCondition(caller, "permitted_customer")}
     )
   )`;
+  const lookup = options.allowTeacherLookupRead ? parseTeacherLookup(event, caller.role, fail) : null;
+  if (lookup) scope = `EXISTS (SELECT 1 FROM public.customers lookup_customer
+    WHERE lookup_customer.id = v.customer_id AND ${lookupCustomerCondition(lookup, "lookup_customer", sqlText)})`;
   const rows = await executeSql(
     `SELECT v.id, v.verification_code, v.verification_type, v.store_id,
             v.teacher_id, v.submitted_by_account_id, v.submitted_at,
@@ -1409,7 +1413,7 @@ async function verificationPhotoContext(event, options = {}) {
   );
   const record = rows[0];
   if (!record) fail("未找到当前账号有权查看的核销工单。", "VERIFICATION_NOT_FOUND");
-  const canEdit = ["hq", "store", "teacher"].includes(caller.role)
+  const canEdit = !lookup && ["hq", "store", "teacher"].includes(caller.role)
     && String(record.submitted_by_account_id) === String(caller.staffId)
     && databaseBoolean(record.within_edit_window);
   return { caller, record, verificationId, canEdit };
@@ -1673,7 +1677,10 @@ function mapCustomerMessage(row) {
 async function listCustomerMessages(event) {
   const caller = await activeCustomerProfileCaller();
   const customerCodeValue = customerStatusCode(event);
-  const customer = await customerMessageCustomer(caller, customerCodeValue);
+  const customers = await executeCustomerMessageSql(`SELECT c.id FROM public.customers c
+    WHERE c.customer_code = ${sqlText(customerCodeValue)} ${customerLookupReadScope(caller, event)} LIMIT 1`);
+  const customer = customers[0];
+  if (!customer) fail("未找到有权查看的客户留言。", "CUSTOMER_NOT_FOUND");
   const options = customerMessageOptions(event);
   const cursor = options.cursorCreatedAt
     ? `AND (cm.created_at, cm.id) < (${sqlText(options.cursorCreatedAt)}::timestamptz, ${options.cursorId}::bigint)`
@@ -1848,12 +1855,65 @@ function mapCustomerProductPurchases(rows) {
   }));
 }
 
+function customerLookupReadScope(caller, event, alias = "c") {
+  const lookup = parseTeacherLookup(event, caller.role, fail);
+  if (!lookup) return customerProfileScope(caller, alias);
+  return `AND ${lookupCustomerCondition(lookup, alias, sqlText)}`;
+}
+
+async function queryTeacherCustomers(event) {
+  const caller = await activeCustomerProfileCaller();
+  if (caller.role !== "teacher") fail("只有在职老师可以使用此客户查询。", "FORBIDDEN");
+  const lookup = parseTeacherLookup(event, caller.role, fail, false);
+  if (!lookup || lookup.customerCode) fail("请选择门店并输入完整客户姓名。", "BAD_REQUEST");
+  const page = Number(event.page || 1);
+  if (!Number.isSafeInteger(page) || page < 1 || page > 100000) fail("查询页码无效。", "BAD_REQUEST");
+  const condition = lookupCustomerCondition(lookup, "c", sqlText);
+  const countRows = await executeSql(`SELECT COUNT(*) AS total FROM public.customers c WHERE ${condition}`);
+  const total = Number(countRows[0]?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / 10));
+  const effectivePage = Math.min(page, totalPages);
+  const rows = await executeSql(`SELECT c.customer_code, c.customer_name, c.birth_date,
+    c.customer_status, c.customer_process_status, c.created_at, s.store_name,
+    (SELECT COALESCE(SUM(r.unit_count), 0) FROM public.recharge_records r
+      WHERE r.customer_id = c.id AND r.recharge_type = 'NEW' AND r.record_status = 'APPROVED') AS recharge_count,
+    (SELECT COALESCE(SUM(v.unit_count), 0) FROM public.verification_records v
+      WHERE v.customer_id = c.id AND v.verification_type IN ('NORMAL', 'SUPPLEMENT') AND v.record_status = 'APPROVED') AS verification_count
+    FROM public.customers c JOIN public.stores s ON s.id = c.created_store_id
+    WHERE ${condition} ORDER BY c.created_at DESC, c.id DESC LIMIT 10 OFFSET ${(effectivePage - 1) * 10}`);
+  return { ok: true, customers: rows.map(row => ({ customerCode: row.customer_code,
+    customerName: row.customer_name, birthDate: row.birth_date, storeName: row.store_name,
+    customerStatus: row.customer_status, customerProcessStatus: row.customer_process_status, createdAt: row.created_at, rechargeCount: Number(row.recharge_count || 0),
+    verificationCount: Number(row.verification_count || 0) })), total, page: effectivePage, totalPages, pageSize: 10 };
+}
+
+async function getTeacherLookupProductPurchase(event) {
+  const caller = await activeCustomerProfileCaller();
+  const lookup = parseTeacherLookup(event, caller.role, fail);
+  if (!lookup) fail("请从客户查询结果进入工单。", "FORBIDDEN");
+  const id = businessQueryDatabaseId(event.recordId, "产品工单");
+  const rows = await executeSql(`SELECT p.id, p.purchase_code, p.record_status, p.unit_count,
+    p.product_name_snapshot, p.submitted_at, p.reviewed_at, p.message, p.review_note,
+    s.store_name, c.customer_name, t.teacher_name,
+    submitter.staff_name AS submitted_by_name, reviewer.staff_name AS reviewed_by_name
+    FROM public.retail_product_purchase_records p
+    JOIN public.customers c ON c.id = p.customer_id
+    JOIN public.stores s ON s.id = p.store_id
+    LEFT JOIN public.teachers t ON t.id = p.teacher_id
+    LEFT JOIN public.staff_accounts submitter ON submitter.id = p.submitted_by_account_id
+    LEFT JOIN public.staff_accounts reviewer ON reviewer.id = p.reviewed_by_account_id
+    WHERE p.id = ${id}::bigint AND ${lookupCustomerCondition(lookup, "c", sqlText)} LIMIT 1`);
+  if (!rows[0]) fail("未找到有权查看的产品工单。", "ORDER_NOT_FOUND");
+  return { ok: true, orders: rows, readOnly: true };
+}
+
 async function getCustomerProfile(event) {
   const caller = await activeCustomerProfileCaller();
   const customerCodeValue = customerStatusCode(event);
-  const profileScope = customerProfileScope(caller, "c");
+  const profileScope = customerLookupReadScope(caller, event, "c");
   const customerRows = await executeSql(
     `SELECT c.id, c.customer_code, c.customer_name, c.birth_date, c.notes,
+            ${caller.role === "teacher" ? teacherCustomerAccessCondition(caller, "c") : "TRUE"} AS can_edit_customer,
             c.customer_status, c.customer_process_status,
             COALESCE((
               SELECT SUM(recharge.unit_count)
@@ -2049,6 +2109,7 @@ async function getCustomerProfile(event) {
   const productPurchasePage = customerHistoryPage(productPurchaseRows, historyOptions.limit, historyOptions);
   return {
     ok: true,
+    permissions: { canEditNotes: databaseBoolean(customer.can_edit_customer), canSendMessages: databaseBoolean(customer.can_edit_customer) },
     customer: {
       customerCode: customer.customer_code, customerName: customer.customer_name,
       birthDate: customer.birth_date, notes: customer.notes || "",
@@ -2151,7 +2212,7 @@ async function getCustomerPhotoUrl(event, options = {}) {
     : await activeCustomerProfileCaller());
   const customerScope = requireActiveStoreCustomer
     ? customerStatusScope(caller, "c")
-    : customerProfileScope(caller, "c");
+    : customerLookupReadScope(caller, event, "c");
   const customerCode = String(event.customerCode || "").trim();
   if (!customerCode || customerCode.length > 96) fail("必须提供已选择客户的有效编号。", "CUSTOMER_REQUIRED");
 
@@ -2275,7 +2336,7 @@ async function getCustomerPhotoUrl(event, options = {}) {
   }
 
   const resolvedReference = `pg://${reference.bucketId}/${resolvedObjectName}`;
-  if (resolvedReference !== String(customer.profile_photo_file_id).trim()) {
+  if (!event.teacherLookup && resolvedReference !== String(customer.profile_photo_file_id).trim()) {
     try {
       await executeSql(
         `UPDATE public.customers AS c
@@ -5872,6 +5933,8 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
   // The public teacher action never accepts a target identity from event.
   const caller = hqTarget || await activeTeacherCaller();
   const options = teacherWorkspaceOptions(event);
+  const lookup = parseTeacherLookup(event, caller.role, fail);
+  if (lookup && (!options.recordId || hqTarget)) fail("请从客户工单进入详情。", "FORBIDDEN");
   const leaderRows = await executeSql(`SELECT public.teacher_team_leader_name_v93(${positiveDatabaseId(caller.teacherId, "老师")}::bigint) AS assigned_leader_name
     WHERE ${caller.teamReadScopeSql || "TRUE"}`);
   const profile = {
@@ -5889,6 +5952,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
     if (caller.teamReadScopeSql) clauses.push(caller.teamReadScopeSql);
     if (detailMode) {
       clauses.push(`${alias}.id = ${options.recordId}::bigint`);
+      if (lookup) clauses.push(`EXISTS (SELECT 1 FROM public.customers lookup_customer WHERE lookup_customer.id = ${alias}.customer_id AND ${lookupCustomerCondition(lookup, "lookup_customer", sqlText)})`);
       clauses.push(`(
         ${teacherBusinessOwnershipCondition(caller, alias)}
         OR (
@@ -5901,6 +5965,7 @@ async function getTeacherWorkspace(event = {}, hqTarget = null) {
            WHERE permitted_customer.id = ${alias}.customer_id
              AND ${teacherCustomerAccessCondition(caller, "permitted_customer")}
         )
+        ${lookup ? `OR EXISTS (SELECT 1 FROM public.customers lookup_customer WHERE lookup_customer.id = ${alias}.customer_id AND ${lookupCustomerCondition(lookup, "lookup_customer", sqlText)})` : ""}
       )`);
     } else if (legacyCombined) {
       clauses.push(`(
@@ -6885,7 +6950,7 @@ async function verifyCustomerFace(event) {
 }
 
 async function getVerificationPhotos(event) {
-  const context = await verificationPhotoContext(event);
+  const context = await verificationPhotoContext(event, { allowTeacherLookupRead: true });
   const rows = await executeSql(
     `SELECT photo_slot, photo_kind, thumbnail_object_ref, original_object_ref,
             face_subject_type, face_subject_teacher_id,
@@ -6970,7 +7035,7 @@ async function getVerificationPhotos(event) {
 }
 
 async function verificationPhotoOriginalContext(event) {
-  const context = await verificationPhotoContext(event);
+  const context = await verificationPhotoContext(event, { allowTeacherLookupRead: true });
   const slot = Number(event.slot);
   if (!Number.isInteger(slot) || slot < 0 || slot > 4) fail("核销照片位置无效。", "PHOTO_SLOT_INVALID");
   const rows = await executeSql(
@@ -7997,6 +8062,8 @@ exports.main = async (event = {}, context = {}) => {
     if (action === "getStoreBusinessAnalytics") return await getStoreBusinessAnalytics(event);
     if (action === "getHqBusinessContext") return await getHqBusinessContext();
     if (action === "getTeacherBusinessContext") return await getTeacherBusinessContext();
+    if (action === "queryTeacherCustomers") return await queryTeacherCustomers(event);
+    if (action === "getTeacherLookupProductPurchase") return await getTeacherLookupProductPurchase(event);
     if (action === "getTeacherWorkspace") return await getTeacherWorkspace(event);
     if (action === "getHqTeacherWorkspace") return await getHqTeacherWorkspace(event);
     if (action === "getTeacherBusinessCustomers") return await getTeacherBusinessCustomers(event);

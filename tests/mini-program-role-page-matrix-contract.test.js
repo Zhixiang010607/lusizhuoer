@@ -36,6 +36,7 @@ const ROLE_MATRIX = Object.freeze({
   "pages/team-operations/index": ["teacher"],
   "pages/team-dashboard/index": ["teacher"],
   "pages/teacher-customers/index": ["teacher"],
+  "pages/teacher-customer-query/index": ["teacher"],
   "pages/daily-report/index": ["teacher"],
   "pages/daily-report-tracking/index": ["hq"],
   "pages/training-materials/index": ["hq", "teacher"],
@@ -54,7 +55,7 @@ const ROLE_MATRIX = Object.freeze({
   "pages/customer-create/index": ["store", "teacher"],
   "pages/recharge/index": ["store", "teacher"],
   "pages/product-purchase/index": ["store", "teacher"],
-  "pages/product-purchase-detail/index": ["hq"],
+  "pages/product-purchase-detail/index": ["hq", "teacher"],
   "pages/verification/index": ["store", "teacher"]
 });
 

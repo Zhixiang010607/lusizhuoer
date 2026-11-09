@@ -71,7 +71,7 @@
       </scroll-view>
       <button wx:if="{{messageHasMore}}" class="secondary load-message-button" bindtap="loadMoreMessages" loading="{{messagesLoading}}" disabled="{{messagesLoading}}">加载更早留言</button>
       <button wx:if="{{messageError && !messages.length}}" class="secondary load-message-button" bindtap="retryMessages" loading="{{messagesLoading}}" disabled="{{messagesLoading}}">重试留言</button>
-      <view class="message-compose">
+      <view wx:if="{{canSendMessages}}" class="message-compose">
         <view class="message-input-wrap">
           <textarea class="textarea message-input" maxlength="100" value="{{messageText}}" bindinput="inputMessage" disabled="{{messageSubmitting}}" placeholder="输入客户留言，最多100字"></textarea>
         </view>
@@ -129,7 +129,7 @@
         <view class="record-table {{historyType === 'RECHARGE' || historyType === 'REFUND' || historyType === 'PRODUCT_PURCHASE' ? 'recharge-history' : 'compact-history'}} {{historyType === 'PRODUCT_PURCHASE' ? 'product-history' : ''}}">
           <view class="record-row table-head"><text class="list-row-number">序号</text><text>单号</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '产品' : '项目'}}</text><text>业务老师</text><text>{{historyType === 'PRODUCT_PURCHASE' ? '数量' : '次数'}}</text><text>提交时间</text><text>状态</text></view>
           <view wx:for="{{visibleHistory}}" wx:key="id" class="record-row"><text class="list-row-number">{{index + 1}}</text>
-            <text class="{{historyType === 'PRODUCT_PURCHASE' && session.role !== 'hq' ? '' : 'record-link'}}" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>
+            <text class="{{historyType === 'PRODUCT_PURCHASE' && session.role !== 'hq' && !lookupMode ? '' : 'record-link'}}" data-id="{{item.id}}" data-code="{{item.recordCode}}" data-original-type="{{item.originalType}}" bindtap="openOrder">{{item.recordCode}}</text>
             <text>{{item.productName}}</text>
             <text>{{item.teacherLabel}}</text>
             <text>{{item.unitLabel}}</text>

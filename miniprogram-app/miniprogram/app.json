@@ -14,6 +14,7 @@
     { "root": "pages/team-operations", "pages": ["index"] },
     { "root": "pages/team-dashboard", "pages": ["index"] },
     { "root": "pages/teacher-customers", "pages": ["index"] },
+    { "root": "pages/teacher-customer-query", "pages": ["index"] },
     { "root": "pages/daily-report", "pages": ["index"] },
     { "root": "pages/daily-report-tracking", "pages": ["index"] },
     { "root": "pages/training-materials", "pages": ["index"] },

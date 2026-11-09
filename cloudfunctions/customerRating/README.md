@@ -1,12 +1,14 @@
 # customerRating
 
-当前联动顺序：先按完整备份门禁执行并验收 [093封存退组](../../database/cloudbase-console/093-README.md)，再部署 staffAccount v107、faceRecognition v143，最后更新客户端。本函数代码本轮不变，无需重复部署。源码包不代表已经上线。
+本次 2026-11-09 客户查询联动：老师以一个在职门店＋准确完整姓名查询（无默认客户、每页10条），通过既有客户主页只读查看非本人客户、其原有工单和照片。服务端每次按当前在职账号及实际客户校验门店／姓名／客户编号；仅只读 action 采用查询上下文。原创建／有效业务关系仍独立决定备注与留言写权，照片提交人、24小时截止、审核、扣次、BLE、评价签发均不扩权。无需新 SQL。部署顺序 faceRecognition v144、verificationPhoto v14、customerRating v10，然后上传小程序；staffAccount v107 无代码更新且短信开关不变。ZIP 根必须包含 teacher-customer-lookup.js（照片包还包含由 faceRecognition/index.js 生成的 service.js）。
 
-当前版本：`v9`
+当前联动顺序：先按完整备份门禁执行并验收 [093封存退组](../../database/cloudbase-console/093-README.md)，再部署 staffAccount v107、faceRecognition v144，最后更新客户端。本函数代码本轮不变，无需重复部署。源码包不代表已经上线。
+
+当前版本：`v10`
 
 客户评价独立服务。它只负责核销/体验核销完成后的评价链接签发、公开评价提交和员工端只读查询，不参与人脸验证、BLE 授权、扣次或工单状态变更。v8 固定显示并要求“门店环境、老师服务、整体体验”三项评分，即使工单没有指定业务老师，第 02 项也不得隐藏或省略；迁移 070 用表单版本保留已提交旧评价，不伪造历史老师服务分数。v7 的单语句评价分析快照、最多 1000 单完整导出、空 `RETURNING` 有界重读，以及既有永久未评价链接、一次提交和权限规则全部保留。
 
-v9 新增 `getTeamRatingAnalysisOptions`、`queryTeamRatingAnalysis`：只允许有效组长，按当前 UID 在实际 SQL 内将客户集合限定为当前成员及组长本人建档或可信已生效业务关联客户。复用既有最低分、图表单快照和十条分页；拒绝组长导出。普通老师旧 action 仍拒绝，工单评价详情权限、二维码签发、公开提交和不可变性不变。共享 `teacher-team.js` 与 faceRecognition v143 逐字一致。依赖已经验收的迁移 091；无新增 SQL 或数据回填。联动矩阵为 staffAccount v107、faceRecognition v143、customerRating v9。
+v9 新增 `getTeamRatingAnalysisOptions`、`queryTeamRatingAnalysis`：只允许有效组长，按当前 UID 在实际 SQL 内将客户集合限定为当前成员及组长本人建档或可信已生效业务关联客户。复用既有最低分、图表单快照和十条分页；拒绝组长导出。普通老师旧 action 仍拒绝，工单评价详情权限、二维码签发、公开提交和不可变性不变。共享 `teacher-team.js` 与 faceRecognition v144 逐字一致。依赖已经验收的迁移 091；无新增 SQL 或数据回填。联动矩阵为 staffAccount v107、faceRecognition v144、customerRating v10。
 
 ## 动作
 
@@ -28,6 +30,6 @@ CloudBase 控制台必须开启“匿名登录”，并让匿名角色具备云�
 
 部署前先确认迁移 068 已验收，再执行迁移 070 及其只读验收。部署后调用 `{ "action": "health" }`，确认返回版本 `v9` 且 `configured=true`；随后分别用门店、老师、总部和未登录客户完成权限回归，并确认总部与所属门店可签发、老师不可签发，无业务老师的二维码仍显示并强制填写第 02 项，评价分析的门店范围、最低分归档与完整导出快照正确。
 
-部署 ZIP：`deployments/customerRating-v9.zip`。
+部署 ZIP：`deployments/customerRating-v10.zip`。
 
 ZIP 根目录包含 index.js、teacher-team.js、package.json、README.md；保留当前运行时、依赖安装、签名密钥、匿名公开评价调用安全规则和页面地址。

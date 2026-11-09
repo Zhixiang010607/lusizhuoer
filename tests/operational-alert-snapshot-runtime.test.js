@@ -74,6 +74,7 @@ function runtime() {
     process: { env: { CLOUDBASE_ENV_ID: "test-env" } },
     setTimeout, clearTimeout, setInterval, clearInterval,
     require(name) {
+      if (name === "./teacher-customer-lookup") return require("../cloudfunctions/faceRecognition/teacher-customer-lookup");
       if (name === "crypto") return require("node:crypto");
       if (name === "https") return require("node:https");
       if (name === "@cloudbase/node-sdk") {

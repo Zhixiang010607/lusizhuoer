@@ -17,7 +17,7 @@ const pageWxml = read("miniprogram-app/miniprogram/pages/rating-analysis/index.w
 const pageWxss = read("miniprogram-app/miniprogram/pages/rating-analysis/index.wxss");
 
 test("rating analysis classifies each eligible order by its lowest score and reserves zero for unrated", () => {
-  assert.match(cloud, /const FUNCTION_VERSION = "v9"/);
+  assert.match(cloud, /const FUNCTION_VERSION = "v10"/);
   assert.match(cloud, /WHEN r\.rating_status = 'SUBMITTED' AND r\.submitted_at IS NOT NULL[\s\S]*THEN LEAST\(r\.store_environment_score, r\.overall_experience_score,[\s\S]*COALESCE\(r\.teacher_service_score, 5\)\)[\s\S]*ELSE 0/);
   assert.match(cloud, /vr\.record_status = 'APPROVED'/);
   assert.match(cloud, /vr\.verification_type IN \('NORMAL', 'EXPERIENCE'\)/);
@@ -76,6 +76,7 @@ test("HQ runtime returns full-scope pies while a score combination filters only 
     Buffer, URL, console: { error() {} }, exports: module.exports, module,
     process: { env: { CLOUDBASE_ENV_ID: "test-env" } }, setTimeout,
     require(name) {
+      if (name === "./teacher-customer-lookup") return require("../cloudfunctions/faceRecognition/teacher-customer-lookup");
       if (name === "node:crypto") return require("node:crypto");
       if (name === "@cloudbase/node-sdk") return { init: () => ({ auth: () => ({ getUserInfo: () => ({ uid: "hq-auth-uid" }) }) }) };
       if (name === "@cloudbase/manager-node") return { init: () => ({ database: { executePGSql } }) };
@@ -89,7 +90,7 @@ test("HQ runtime returns full-scope pies while a score combination filters only 
     startDate: "2026-09-01", endDate: "2026-09-03", scores: [0, 4], pageNumber: 1, pageSize: 20
   });
   assert.equal(result.success, true);
-  assert.equal(result.version, "v9");
+  assert.equal(result.version, "v10");
   assert.deepEqual(Array.from(result.data.selectedScores), [0, 4]);
   assert.deepEqual(Array.from(result.data.summary.scoreCounts), [5, 1, 2, 3, 4, 5]);
   assert.equal(result.data.summary.total, 20);

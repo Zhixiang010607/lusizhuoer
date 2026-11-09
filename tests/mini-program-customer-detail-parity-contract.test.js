@@ -17,7 +17,7 @@ test("mini customer profile paginates every business history at ten rows", () =>
   assert.match(js, /Object\.keys\(HISTORY_FIELDS\)\.map/);
   for (const field of ["historyType: type", "historyPage: nextPage", "historyPageSize: HISTORY_LIMIT"]) assert.ok(js.includes(field));
   assert.doesNotMatch(js, /cursorStack|payload\.cursorSubmittedAt/);
-  assert.match(js, /callFace\("listCustomerMessages", payload\)/);
+  assert.match(js, /callFace\("listCustomerMessages", this\.readPayload\(payload\)\)/);
   assert.match(js, /messageLimit: MESSAGE_LIMIT/);
   assert.match(js, /cursorCreatedAt/);
   assert.match(js, /cursorMessageId/);
@@ -40,7 +40,7 @@ test("notes, customer status, recent dates, and photo failures retain role bound
     assert.match(wxml, new RegExp(`bindtap="${handler}"`));
   }
   assert.match(js, /canManageStatus: session\.role === "hq" \|\| session\.role === "store"/);
-  assert.match(js, /canEditNotes: \["hq", "store", "teacher"\]\.includes\(session\.role\)/);
+  assert.match(js, /canEditNotes: result\.permissions\?\.canEditNotes === true/);
   assert.match(js, /callFace\("updateCustomerStatus"/);
   assert.match(js, /savedStatus !== targetStatus/);
   assert.match(wxml, /最近充值/);

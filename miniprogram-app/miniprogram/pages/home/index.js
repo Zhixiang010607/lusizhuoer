@@ -595,6 +595,11 @@ Page({
     if (this.data.session.role === "teacher") this.closeMenus({ overviewMenuOpen: !this.data.overviewMenuOpen });
   },
   openTeacherOverview() { this.closeMenus(); wx.pageScrollTo({ scrollTop: 0, duration: 220 }); },
+  openTeacherCustomerQuery() {
+    if (this.data.session.role !== "teacher") return;
+    this.closeMenus();
+    wx.navigateTo({ url: "/pages/teacher-customer-query/index" });
+  },
   openTeacherCustomers() {
     if (this.data.session.role !== "teacher") return;
     this.closeMenus();

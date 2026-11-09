@@ -80,7 +80,7 @@ async function main() {
     await db.exec("CREATE FUNCTION public.teacher_team_leader_name_v93(bigint) RETURNS text LANGUAGE sql STABLE AS $$SELECT ''::text$$");
     const faceSource = read("cloudfunctions/faceRecognition/index.js"), staffSource = read("cloudfunctions/staffAccount/index.js");
     let caller = { role: "hq", scopeMode: "ALL", staffId: 1 };
-    const face = vm.createContext({ Number,String,Object,Math,Date,Set,Map,JSON,sqlText,fail,
+    const face = vm.createContext({ ...require("../cloudfunctions/faceRecognition/teacher-customer-lookup"), Number,String,Object,Math,Date,Set,Map,JSON,sqlText,fail,
       positiveDatabaseId:numericId,businessQueryDatabaseId:numericId,validDate:value=>value,
       activeScopedQueryCaller:async()=>caller,activeTeacherCaller:async()=>caller,
       getStoreBindingLayout:async()=>"stores",customerStatusSql:sqlText,
@@ -349,6 +349,57 @@ async function main() {
         eq(model.rows.map(r=>r.number),wire.records.map((_,i)=>i+1),`${client} export numbering does not drop repeated customers/teachers`);
       }
     }
+    // Exact teacher lookup grants read access, never customer ownership or write rights.
+    await db.exec(`UPDATE stores SET store_status='ACTIVE' WHERE id=1;
+      ALTER TABLE staff_accounts ADD COLUMN staff_name TEXT;
+      CREATE TABLE customer_messages(id BIGINT,customer_id BIGINT,author_role TEXT,author_name_snapshot TEXT,message_content TEXT,created_at TIMESTAMPTZ);
+      INSERT INTO customers(id,customer_code,customer_name,birth_date,created_store_id,created_by_account_id)
+        SELECT 10000+n,'QA-LOOKUP-'||n,'同名客户','1990-01-01',1,2 FROM generate_series(1,21)n;
+      INSERT INTO customers(id,customer_code,customer_name,created_store_id,created_by_account_id) VALUES
+        (10030,'QA-OWN','本人客户',1,11),(10031,'QA-OTHER-STORE','同名客户',2,2),(10032,'QA-WILDCARD','%_',1,2);
+      INSERT INTO verification_records(id,verification_code,verification_type,store_id,teacher_id,customer_id,product_id,unit_count,record_status,submitted_by_account_id,submitted_at)
+        VALUES(10001,'QA-LOOKUP-V','SUPPLEMENT',1,2,10001,1,1,'PENDING',12,NOW()),
+          (10002,'QA-OTHER-V','SUPPLEMENT',1,2,10002,1,1,'PENDING',12,NOW());
+      INSERT INTO retail_product_purchase_records(id,purchase_code,customer_id,store_id,retail_product_id,product_name_snapshot,unit_count,record_status)
+        VALUES(10001,'PP20261109000001',10001,1,1,'示例产品',2,'PENDING');
+      INSERT INTO customer_messages VALUES(10001,10001,'hq','合成总部','历史留言',NOW());`);
+    face.executeCustomerMessageSql=query;
+    face.activeVerificationPhotoCaller=async()=>caller;
+    vm.runInContext(part(faceSource,"async function verificationPhotoContext(","function teacherBusinessAttributionSourceCondition("),face);
+    vm.runInContext(part(faceSource,"async function findCustomerForNotes(","function customerHistoryOptions("),face);
+    caller={role:"teacher",teacherId:"1",staffId:11};
+    const teacherLookup={storeId:"1",customerName:"同名客户"};
+    eq((await face.queryTeacherCustomers({teacherLookup,page:1})).customers.length,10,"exact lookup first page is ten rows");
+    eq((await face.queryTeacherCustomers({teacherLookup,page:2})).customers.length,10,"exact lookup second page is ten rows");
+    eq((await face.queryTeacherCustomers({teacherLookup,page:3})).customers.length,1,"exact lookup final page shrinks");
+    eq((await face.queryTeacherCustomers({teacherLookup,page:99})).page,3,"page bounds clamp to current result count");
+    for(const customerName of ["同名","同名%","' OR TRUE --"])
+      eq((await face.queryTeacherCustomers({teacherLookup:{...teacherLookup,customerName}})).total,0,"partial names and injection do not match");
+    eq((await face.queryTeacherCustomers({teacherLookup:{...teacherLookup,customerName:"%_"}})).total,1,"wildcard characters are literal names");
+    eq((await face.queryTeacherCustomers({teacherLookup:{...teacherLookup,storeId:"2"}})).total,1,"same name is restricted to selected store");
+    await rejects(()=>face.queryTeacherCustomers({}),/请选择门店/);
+    await rejects(()=>face.queryTeacherCustomers({teacherLookup:{customerName:"同名客户"}}),/请选择门店/);
+    const selected={...teacherLookup,customerCode:"QA-LOOKUP-1"};
+    const foreign=await face.getCustomerProfile({customerCode:"QA-LOOKUP-1",teacherLookup:selected,historyPageSize:10});
+    eq(foreign.permissions,{canEditNotes:false,canSendMessages:false},"foreign full homepage is read only");
+    eq(foreign.verifications[0].verificationCode,"QA-LOOKUP-V","foreign homepage contains original business history");
+    eq((await face.listCustomerMessages({customerCode:"QA-LOOKUP-1",teacherLookup:selected})).messages[0].content,"历史留言","foreign chat remains readable");
+    eq((await face.getCustomerProfile({customerCode:"QA-OWN",historyPageSize:10})).permissions,{canEditNotes:true,canSendMessages:true},"own customer retains original editing permission");
+    eq((await face.getTeacherWorkspace({recordType:"VERIFICATION",recordId:"10001",teacherLookup:selected})).record.recordCode,"QA-LOOKUP-V","foreign order detail read is explicitly authorized");
+    await rejects(()=>face.getTeacherWorkspace({recordType:"VERIFICATION",recordId:"10002",teacherLookup:selected}),/未找到/);
+    await rejects(()=>face.getTeacherWorkspace({recordType:"VERIFICATION",teacherLookup:selected}),/请从客户工单/);
+    eq((await face.getTeacherLookupProductPurchase({recordId:"10001",teacherLookup:selected})).orders[0].product_name_snapshot,"示例产品","purchase details use exact same customer scope");
+    eq((await face.verificationPhotoContext({recordId:"10001",teacherLookup:selected},{allowTeacherLookupRead:true})).canEdit,false,"read lookup grants no photo upload flag");
+    await rejects(()=>face.verificationPhotoContext({recordId:"10001",teacherLookup:selected}),/未找到/);
+    await rejects(()=>face.verificationPhotoContext({recordId:"10002",teacherLookup:selected},{allowTeacherLookupRead:true}),/未找到/);
+    await rejects(()=>face.getCustomerProfile({customerCode:"QA-LOOKUP-2",teacherLookup:selected}),/未找到/);
+    await rejects(()=>face.updateCustomerNotes({customerCode:"QA-LOOKUP-1",teacherLookup:selected,notes:"不得写入"}),/未找到/);
+    await rejects(()=>face.addCustomerMessage({customerCode:"QA-LOOKUP-1",teacherLookup:selected,content:"不得写入"}),/未找到/);
+    await rejects(()=>face.getCustomerProfile({customerCode:"QA-LOOKUP-1"}),/未找到/);
+    await db.exec("UPDATE stores SET store_status='ARCHIVED' WHERE id=1");
+    eq((await face.queryTeacherCustomers({teacherLookup})).total,0,"archived stores cannot be queried");
+    await rejects(()=>face.getCustomerProfile({customerCode:"QA-LOOKUP-1",teacherLookup:selected}),/未找到/);
+    for(const role of ["hq","store"]){caller={role,staffId:1};await rejects(()=>face.queryTeacherCustomers({teacherLookup}),/只有在职老师/);}
     console.log(JSON.stringify({postgres:"isolated PGlite",checks,executedReadQueries,productionWrites:0},null,2));
   } finally { await db.close(); }
 }

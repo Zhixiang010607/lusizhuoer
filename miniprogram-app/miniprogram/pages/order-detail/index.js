@@ -570,6 +570,11 @@ Page({
   onLoad(options) {
     const session = requireSession();
     if (!session) return;
+    this._teacherLookup = null;
+    if (options.teacherLookup) {
+      try { this._teacherLookup = JSON.parse(decodeURIComponent(options.teacherLookup)); }
+      catch (_) { this.setData({ loading: false, message: "客户查询参数无效，请重新进入", error: true }); return; }
+    }
     const baseType = String(options.type || "recharge").toUpperCase() === "VERIFICATION" ? "VERIFICATION" : "RECHARGE";
     const category = clean(options.category || baseType).toUpperCase();
     const routeKind = exactOrderKind(baseType, category === "EXPERIENCE" || category === "REFUND" ? category : "");
@@ -595,6 +600,7 @@ Page({
     this.load();
   },
 
+  readPayload(payload) { return this._teacherLookup ? { ...payload, teacherLookup: this._teacherLookup } : payload; },
   onShow() {
     if (this.data.order?.id) this.applyPendingPhotoTasks();
     void photoUploadQueue.resume({ retryFailed: true });
@@ -643,7 +649,7 @@ Page({
     // exact route identity below has been verified, so this removes a serial
     // network round trip without weakening the order or photo boundary.
     const photoManifestFlight = verification && request.recordId
-      ? Promise.resolve().then(() => callPhoto("getVerificationPhotos", { recordId: request.recordId }))
+      ? Promise.resolve().then(() => callPhoto("getVerificationPhotos", this.readPayload({ recordId: request.recordId })))
         .then((result) => ({ ok: true, result }), (error) => ({ ok: false, error }))
       : null;
     try {
@@ -653,7 +659,7 @@ Page({
         // SUPPLEMENT is an exact detail/acknowledgement type, not a workspace tab.
         // Keep that route identity while reading the existing verification family.
         const recordType = routeIdentity.category === "SUPPLEMENT" ? "VERIFICATION" : routeIdentity.category;
-        const result = await callFace("getTeacherWorkspace", { recordType, recordId: request.recordId });
+        const result = await callFace("getTeacherWorkspace", this.readPayload({ recordType, recordId: request.recordId }));
         order = normalizeTeacherOrder(result.record, request.baseType);
       } else {
         const result = await callStaff("listReviewOrders", {
@@ -774,7 +780,7 @@ Page({
     try {
       const outcome = prefetchedManifest
         ? await prefetchedManifest
-        : { ok: true, result: await callPhoto("getVerificationPhotos", { recordId: this.data.order.id }) };
+        : { ok: true, result: await callPhoto("getVerificationPhotos", this.readPayload({ recordId: this.data.order.id })) };
       if (!outcome.ok) throw outcome.error;
       const result = outcome.result;
       this.applyPhotoManifest(result);
@@ -807,7 +813,7 @@ Page({
       return true;
     }
     try {
-      const result = await callRating("getForStaff", { verificationId: recordId });
+      const result = await callRating("getForStaff", this.readPayload({ verificationId: recordId }));
       if (clean(this.data.order?.id) !== recordId) return false;
       this.setData({ rating: normalizeCustomerRating(result), ratingLoading: false, ratingError: "", ratingRestricted: false });
       return true;
@@ -921,7 +927,7 @@ Page({
     this._photoRetrySequence.set(slot, sequence);
     this.updatePhotoSlot(slot, { retrying: true, retryError: "" });
     try {
-      const result = await callPhoto("getVerificationPhotoThumbnailData", { recordId: orderId, slot });
+      const result = await callPhoto("getVerificationPhotoThumbnailData", this.readPayload({ recordId: orderId, slot }));
       if (Number(result.slot) !== slot) throw new Error("缩略图位置与请求不一致");
       const image = jpegDataUrl(result.imageBase64, result.bytes);
       this.ensureOriginalPhotoState();
@@ -989,7 +995,7 @@ Page({
   async originalPhotoSource(slot, recordId) {
     const photo = this.data.photos.find((item) => Number(item.slot) === Number(slot));
     if (!photo?.declared) throw new Error("该照片位置尚未上传");
-    const result = await callPhoto("getVerificationPhotoOriginalUrl", { recordId, slot });
+    const result = await callPhoto("getVerificationPhotoOriginalUrl", this.readPayload({ recordId, slot }));
     if (result.slot !== undefined && Number(result.slot) !== Number(slot)) throw new Error("原图位置与请求不一致");
     const source = clean(result.photoUrl);
     const expectedBytes = Number(result.originalBytes || photo.originalBytes || 0);
@@ -999,11 +1005,11 @@ Page({
   },
 
   async originalPhotoInlineSource(slot, recordId) {
-    const result = await callPhoto("getVerificationPhotoExportData", {
+    const result = await callPhoto("getVerificationPhotoExportData", this.readPayload({
       recordId,
       slot,
       requestId: requestId(slot)
-    });
+    }));
     if (result.slot !== undefined && Number(result.slot) !== Number(slot)) throw new Error("原图位置与请求不一致");
     const image = jpegDataUrl(result.imageBase64, result.bytes);
     return { source: "", buffer: image.buffer, expectedBytes: image.bytes };
@@ -1699,7 +1705,7 @@ Page({
   exportImage() { return this.exportOrder("image"); },
 
   openCustomer() {
-    if (this.data.order?.customerCode) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(this.data.order.customerCode)}` });
+    if (this.data.order?.customerCode) wx.navigateTo({ url: `/pages/customer-detail/index?customerCode=${encodeURIComponent(this.data.order.customerCode)}${this._teacherLookup ? "&teacherLookup=" + encodeURIComponent(JSON.stringify(this._teacherLookup)) : ""}` });
   },
   openFact(event) { if (event.currentTarget.dataset.label === "客户") this.openCustomer(); }
 });
