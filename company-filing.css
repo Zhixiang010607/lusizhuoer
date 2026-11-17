@@ -1,0 +1,47 @@
+/* Public website filing link. Keep the existing six-screen phone presentation. */
+.company-filing {
+  position: fixed;
+  z-index: 11;
+  right: 0;
+  bottom: 8px;
+  left: 250px;
+  text-align: center;
+  pointer-events: none;
+}
+.company-filing a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  color: #74592d;
+  background: #fffaf3eb;
+  font: 12px/1.5 system-ui, sans-serif;
+  text-decoration: none;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.company-filing a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.company-filing a:focus-visible { outline: 2px solid #a98243; outline-offset: 2px; }
+.company-login-view .company-filing { left: 0; }
+.public-project-page .company-filing {
+  position: static;
+  grid-column: 1 / -1;
+  padding: 12px 16px;
+}
+@media (min-width: 651px) and (max-width: 1000px) {
+  .company-filing { left: 210px; }
+}
+@media (max-width: 650px) {
+  .company-filing { left: 0; bottom: env(safe-area-inset-bottom); }
+  .company-filing a { font-size: 11px; }
+  .company-phone-slides .company-phone-footer { bottom: 25px; }
+  .company-phone-slides .company-section {
+    padding-bottom: calc(83px + env(safe-area-inset-bottom));
+  }
+  .company-phone-login .company-content { padding-bottom: 64px !important; }
+  .public-project-page .company-filing {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: #fffaf3;
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "date": "2026-11-17",
+  "domain": "lusizhuoer.com",
+  "website": "https://lusizhuoer.com/",
+  "icp": "粤ICP备2026129868号-2",
+  "environment": "rusizhuoer-d9gbcsgym07651694",
+  "cname": "lusizhuoer.com.tcbaccess.tencentcloudbase.com",
+  "indexDocument": "login.html",
+  "explicitBusinessIndexPreserved": true,
+  "http": {
+    "status": 307,
+    "location": "https://lusizhuoer.com/?transport=direct",
+    "server": "tcbgw"
+  },
+  "tls": {
+    "hostname": "lusizhuoer.com",
+    "verification": "system trust and hostname verified",
+    "notBefore": "Nov  7 12:00:00 2026 GMT",
+    "notAfter": "Feb  5 11:59:59 2027 GMT",
+    "subjectAltName": [
+      [
+        "DNS",
+        "lusizhuoer.com"
+      ],
+      [
+        "DNS",
+        "www.lusizhuoer.com"
+      ]
+    ]
+  },
+  "upload": {
+    "totalFiles": 3,
+    "successCount": 3,
+    "failedCount": 0,
+    "verified": true
+  },
+  "publicReadback": [
+    {
+      "path": "company-filing.css",
+      "status": 200,
+      "bytes": 1449,
+      "sha256": "1067664f6c48a2dde3f9c481acf8d150bdaf77366c00f989f31826a71c77aca3",
+      "matchesSource": true,
+      "contentType": "text/css",
+      "contentDisposition": null
+    },
+    {
+      "path": "login.html",
+      "status": 200,
+      "bytes": 10851,
+      "sha256": "367ee739c699f2dbce0ab2aef3c0bad0c7a7aa501400f1e8c136c18894c11aee",
+      "matchesSource": true,
+      "contentType": "text/html",
+      "contentDisposition": null
+    },
+    {
+      "path": "public-project.html",
+      "status": 200,
+      "bytes": 1562,
+      "sha256": "041a7104ad415e6c5a12295b1948b7a52aba0725a22e0025e975a9f4e50bfbd7",
+      "matchesSource": true,
+      "contentType": "text/html",
+      "contentDisposition": null
+    },
+    {
+      "path": "index.html",
+      "status": 200,
+      "bytes": 8611,
+      "sha256": "8b4e2e0fb79d9f570b96c58dfbbab2d4f15276f0b18027157e7f0e5ff59132b4",
+      "matchesSource": true,
+      "contentType": "text/html",
+      "contentDisposition": null
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "matchesLogin": true,
+      "containsFiling": true
+    }
+  ],
+  "tests": {
+    "regressionPassed": 844,
+    "javascriptSyntaxChecked": 360,
+    "syntaxFailures": 0,
+    "webChecksAfterFinalLayoutPassed": true
+  },
+  "responsiveViewports": [
+    {
+      "width": 320,
+      "height": 568
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "width": 1424,
+      "height": 655
+    }
+  ],
+  "policeFiling": "deferred by user, not completed",
+  "www": "not bound: personal plan custom-domain quota; no upgrade purchased",
+  "scope": "public Web footer and domain/hosting configuration only; no SQL, cloud-function or Mini Program release"
+}
