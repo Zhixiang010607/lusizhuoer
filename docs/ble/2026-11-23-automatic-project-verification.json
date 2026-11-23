@@ -1,0 +1,104 @@
+{
+  "date": "2026-11-23",
+  "sourceCommit": "0e983a7d5a96d07e0e668d83bdef178b6c2bf8bd",
+  "function": "faceRecognition",
+  "runtimeVersion": "v146",
+  "runtimeHealthOk": true,
+  "node": "18.15.0",
+  "photoProbeReady": true,
+  "archive": "deployments/faceRecognition-v146.zip",
+  "archiveSha256": "ebf6e840e1565d0715ea36b24a314db36e8af736b1f50134cff0c64ceb01af10",
+  "deployedRootFiles": [
+    {
+      "file": "README.md",
+      "sha256": "6b32263128d57213ff4b6cd9e163374930d241e3b937157ebb96c75fa4ae3a0a",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "attendance-glyphs-LICENSE.txt",
+      "sha256": "148c524a428f4c84bcdce3717d549649d7248d382a6fefce252f38461f5470eb",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "attendance-glyphs.json",
+      "sha256": "bb19ed8b183a935f45b03dd69a0a12dd6bc75e01d39e4fe5911755e48ca7a835",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "attendance-photo.js",
+      "sha256": "82d6d2da5f381c293b46e966fad6b5adebb2cc7dea8e2b4428dd3eb3d6b76f3a",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "index.js",
+      "sha256": "6a9426e5ef7a44ccd43ef05880e9f1a9a935dbba1ca7486ec0d617e2ee3f92c6",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "package.json",
+      "sha256": "0d5b7dc6ae3b5889e0b9dda7027c88378e783b8d6d8e58d3c15933dbb08c749a",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "teacher-customer-lookup.js",
+      "sha256": "cf460134e6cc4cac86ce7f240ca4c5ef68728e0091bd25e99f5150a35f18e469",
+      "matchesDeployedAndZip": true
+    },
+    {
+      "file": "teacher-team.js",
+      "sha256": "701d44e5a57efc7d49b1a3db115cdb396fef0aafef6def5893f42290463d7f39",
+      "matchesDeployedAndZip": true
+    }
+  ],
+  "preservation": {
+    "originalGattProfilesByteIdentical": true,
+    "originalClientTypePredicateByteIdentical": true,
+    "originalServerTypePredicateByteIdentical": true,
+    "projectTypeGenerationByteIdentical": true,
+    "existingServerFunctions": 238,
+    "existingServerFunctionsChanged": [
+      "issueVerificationBleAuthorization"
+    ],
+    "existingClientMethods": 23,
+    "existingClientMethodsChanged": [
+      "discoverProtocol",
+      "readInfo",
+      "validateInfo"
+    ],
+    "authorizationBodyByteIdenticalExceptTypeSelection": true
+  },
+  "testsPassed": 850,
+  "syntaxChecked": 361,
+  "realGeneratedTypes": [
+    {
+      "name": "测试项目",
+      "type": "ceshixiangmu",
+      "automatic": true
+    },
+    {
+      "name": "新项目二",
+      "type": "xinxiangmuer",
+      "automatic": true
+    },
+    {
+      "name": "未来项目2027",
+      "type": "weilaixiangmu2027",
+      "automatic": true
+    },
+    {
+      "name": "Future项目5",
+      "type": "futurexiangmu5",
+      "automatic": true
+    }
+  ],
+  "miniProgram": {
+    "requestedVersion": "0.3.68",
+    "status": "upload blocked by expired WeChat DevTools login",
+    "officialFinalUploadReceipt": false,
+    "isolatedStageFiles": 301,
+    "stageUnchanged": true,
+    "untrackedUserImageExcluded": true
+  },
+  "sql": "not needed; no production business data written",
+  "web": "unchanged"
+}

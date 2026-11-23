@@ -25,3 +25,9 @@
 先核验并部署 `faceRecognition v146`，再上传包含此改动的小程序。ZIP 为 `deployments/faceRecognition-v146.zip`，只有八个函数根文件；运行时、package、README 当前版本和 ZIP 名称一致。其余四个函数只更新联动文档，不重新部署代码。
 
 不需要 SQL、数据库迁移、设备注册表、环境变量或 UI 改动；不改变 Web 客户端。实际运行时和小程序上传回执分别补记，不以源码或 ZIP 代替部署验收。
+
+## 2026-11-23 实际部署回执
+
+faceRecognition v146 已原地部署；health 返回 ok=true、v146，照片合成探针 ready=true，运行时仍为 Node 18.15.0／Linux x64。官方回下载八个根文件均与源码及 ZIP 逐字节一致，部署前 v145 的八个根文件也已独立备份并核对旧源码。官方开发者工具的云函数通道因登录票据失效失败后，使用 CloudBase CLI 3.9.4 的明确函数目录、独立配置与直接 ZIP 代码更新；提前检查实际打包路径，未上传仓库根目录，未改函数配置或环境变量。失败和成功回执均私下保留。
+
+小程序 0.3.68 未上传成功：普通 islogin=true 不能证明业务票据仍有效，实际上传返回需要重新登录（code 10）。已请用户恢复登录；独立暂存目录 301 文件上传前后保持一致，原 IDE 的未保存编辑与用户 project.config.json 保留，未重启，未包含用户的 Untitled.png。尚无官方最终 upload 回执，不能宣称手机端已更新、体验版或正式发布。核验摘要见 [JSON](2026-11-23-automatic-project-verification.json)。
