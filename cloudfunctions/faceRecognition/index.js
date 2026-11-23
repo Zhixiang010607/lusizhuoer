@@ -7,7 +7,7 @@ const https = require("https");
 const { parseTeacherLookup, lookupCustomerCondition } = require("./teacher-customer-lookup");
 
 const PHOTO_ONLY_FUNCTION = String(process.env.VERIFICATION_PHOTO_ONLY_FUNCTION || "").trim() === "1";
-const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v13" : "v145";
+const FUNCTION_VERSION = PHOTO_ONLY_FUNCTION ? "v13" : "v146";
 const OPERATIONAL_EXPORT_MAX_ROWS = 1000;
 const CLEANUP_TIMER_TRIGGER_NAME = PHOTO_ONLY_FUNCTION
   ? "cleanup-verification-photo-uploads-hourly"
@@ -4443,6 +4443,13 @@ function isHc08CompactDeviceType(value) {
   return ["LASER-BLE", "HAIYANGZHIYUN", "LUSIKANGCHENG"].includes(String(value || "").trim().toUpperCase());
 }
 
+// Keep the original three-type predicate unchanged. Only server-generated
+// future project type names enter this additional, identical HC-08 contract.
+function isAutomaticHc08DeviceType(value) {
+  const type = String(value || "").trim();
+  return !isHc08CompactDeviceType(type) && /^[a-z0-9]{1,128}$/i.test(type);
+}
+
 function isSupportedVerificationDeviceSerial(value) {
   const serial = String(value || "").trim().toUpperCase();
   return /^LA[0-9A-F]{12}$/.test(serial) || /^NCM[0-9A-F]{11}$/.test(serial);
@@ -4883,7 +4890,7 @@ async function issueVerificationBleAuthorization(event) {
     fail(`设备类型不匹配：本次需要 ${qualification.expected_device_type}。`, "BLE_DEVICE_TYPE_MISMATCH");
   }
   const canonicalDeviceType = String(qualification.expected_device_type);
-  const magicSoftSkinProfile = isHc08CompactDeviceType(canonicalDeviceType);
+  const magicSoftSkinProfile = isHc08CompactDeviceType(canonicalDeviceType) || isAutomaticHc08DeviceType(canonicalDeviceType);
   const magicSoftSkinSerial = /^LA[0-9A-F]{12}$/.test(qrSn);
   if (magicSoftSkinProfile !== magicSoftSkinSerial) {
     fail(canonicalDeviceType.toUpperCase() === "LASER-BLE"

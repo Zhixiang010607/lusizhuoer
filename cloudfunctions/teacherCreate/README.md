@@ -1,5 +1,7 @@
 # teacherCreate v9
 
+2026-11-23 新增项目自动沿用 HC-08：当前联动为 `faceRecognition v146`、`verificationPhoto v14`、`staffAccount v107`、`teacherCreate v9`、`customerRating v10`。从已验收 v145 升级只部署 faceRecognition v146，再更新小程序；无新增 SQL，不重跑历史迁移，不重新上传其余四个函数，不改运行时、环境变量或业务权限。源码包不代表已经部署。以下旧日期的说明是历史功能记录，不是本次升级步骤。
+
 老师账号创建与考勤人脸录入的独立同步云函数。上传 ZIP 的根目录直接包含
 `index.js`、`package.json` 和本 README，在 CloudBase 控制台选择“本地上传并安装依赖”。
 

@@ -1,0 +1,8 @@
+{
+  "baseline": "faceRecognition v145 / mini 0.3.67",
+  "normalizedWireAndServerCallSha256": {
+    "LASER-BLE": "741ff1a92c8396dfca0e9772d9d88c8b19f7586ef326a0299e33b4985325292a",
+    "haiyangzhiyun": "741ff1a92c8396dfca0e9772d9d88c8b19f7586ef326a0299e33b4985325292a",
+    "lusikangcheng": "741ff1a92c8396dfca0e9772d9d88c8b19f7586ef326a0299e33b4985325292a"
+  }
+}
