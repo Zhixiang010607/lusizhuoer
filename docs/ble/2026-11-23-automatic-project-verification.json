@@ -93,11 +93,35 @@
   ],
   "miniProgram": {
     "requestedVersion": "0.3.68",
-    "status": "upload blocked by expired WeChat DevTools login",
+    "status": "development upload completed; official SDK backend terminal verified after CLI timeout",
     "officialFinalUploadReceipt": false,
     "isolatedStageFiles": 301,
     "stageUnchanged": true,
-    "untrackedUserImageExcluded": true
+    "untrackedUserImageExcluded": true,
+    "officialBackendFinalVerified": true,
+    "officialBackendSuccessAt": "2026-11-23T19:12:25.046+08:00",
+    "officialBackendEvents": [
+      "doUpload:await",
+      "parseError",
+      "progressSuccess",
+      "reportNewRemoteDebug",
+      "uploadFile completed"
+    ],
+    "finalUploadTaskDurationMs": 1588744,
+    "compiledMainPackageBytes": null,
+    "compiledTotalPackageBytes": null,
+    "packageSizeNote": "CLI disconnected before info-output; compiled sizes unavailable and not inferred from old uploads",
+    "localUncompiledCodeAnalysis": {
+      "main": "4.79 MB",
+      "total": "6.67 MB",
+      "files": 272
+    },
+    "sourceFilesMatch": true,
+    "experienceVersion": "not independently verified",
+    "reviewSubmission": "not performed",
+    "formalRelease": "not performed",
+    "hardwareIntegration": "not independently verified",
+    "transportNote": "failed login and timeout receipts retained privately; stale proxy occupied the helper port during route-switch attempts; no TLS validation bypass; no retry while final task result was unknown"
   },
   "sql": "not needed; no production business data written",
   "web": "unchanged"
