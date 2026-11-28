@@ -1,5 +1,7 @@
 # customerRating
 
+2026-11-28 短信Timer诊断联动：`staffAccount v108`（`staffAccount-v108.zip`）、`faceRecognition v146`、`verificationPhoto v14`、`teacherCreate v9`、`customerRating v10`。本轮仅staffAccount增加身份诊断，部署状态见docs/reviews/2026-11-28-review-sms-delivery-audit.md；不重传本函数、不执行SQL、不改权限或客户端。以下较早日期及v107的记录属于已部署历史，不能据此重跑迁移或覆盖两个现有Timer。
+
 2026-11-23 新增项目自动沿用 HC-08：当前联动为 `faceRecognition v146`、`verificationPhoto v14`、`staffAccount v107`、`teacherCreate v9`、`customerRating v10`。从已验收 v145 升级只部署 faceRecognition v146，再更新小程序；无新增 SQL，不重跑历史迁移，不重新上传其余四个函数，不改运行时、环境变量或业务权限。源码包不代表已经部署。以下旧日期的说明是历史功能记录，不是本次升级步骤。
 
 历史记录：本次 2026-11-09 三项目 BLE 配置只更新 faceRecognition v145 和小程序；本函数可部署代码不变，无需重新上传，也不重跑 SQL。下方客户查询说明为此前 v144 联动记录，当时兼容矩阵统一指向 faceRecognition v145。

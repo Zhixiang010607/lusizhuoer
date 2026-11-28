@@ -1,5 +1,7 @@
 # faceRecognition 云函数
 
+2026-11-28 短信Timer诊断联动：`staffAccount v108`（`staffAccount-v108.zip`）、`faceRecognition v146`、`verificationPhoto v14`、`teacherCreate v9`、`customerRating v10`。本轮仅staffAccount增加身份诊断，部署状态见docs/reviews/2026-11-28-review-sms-delivery-audit.md；不重传本函数、不执行SQL、不改权限或客户端。以下较早日期及v107的记录属于已部署历史，不能据此重跑迁移或覆盖两个现有Timer。
+
 2026-11-23 新增项目自动沿用 HC-08：当前联动为 `faceRecognition v146`、`verificationPhoto v14`、`staffAccount v107`、`teacherCreate v9`、`customerRating v10`。从已验收 v145 升级只部署 faceRecognition v146，再更新小程序；无新增 SQL，不重跑历史迁移，不重新上传其余四个函数，不改运行时、环境变量或业务权限。源码包不代表已经部署。以下旧日期的说明是历史功能记录，不是本次升级步骤。 原三个项目的类型映射、固定 GATT 与三类型判断原字节保留；独立新增自动组，自动拼音类型沿用 LA／LA-、FFE0／FFE1、精简 q=1/2/3、20 字节分片和原凯撒／授权／扣次实现。旧的非自动类型完整协议兼容路径保留。交付包 `deployments/faceRecognition-v146.zip`，ZIP 根 README 和 health 必须同时为 v146。
 
 历史记录：2026-11-09 三项目 HC-08 配置：`v145` 仅为海洋之蕴／海洋之韵新增 `haiyangzhiyun`、为露思康辰新增 `lusikangcheng` 固定类型，复用魔法柔肤现有 `LASER-BLE` 交互。三者采用相同 LA 编号／LA- 广播名、FFE0／FFE1、精简 q=1/2/3、20 字节分片与凯撒算法；原魔法柔肤配置、授权次数预留、30 秒授权、状态 2 后落单和防重实现不变。没有新 SQL，不重建函数、不改环境变量。先部署并核验 `faceRecognition-v145.zip`，再更新小程序；其他四个函数没有可部署代码变化，不重复上传。设备端两份独立 PDF 见 `docs/ble/2026-11-09-three-project-hc08.md`。

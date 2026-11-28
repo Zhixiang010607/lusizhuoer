@@ -10,7 +10,7 @@ const crypto = require("node:crypto");
 const ROLES = new Set(["hq", "store", "teacher"]);
 // Change this whenever the function contract changes. It is intentionally
 // non-sensitive and lets the CloudBase console confirm the deployed source.
-const FUNCTION_VERSION = "v107";
+const FUNCTION_VERSION = "v108";
 // Keep every synchronous dashboard response well below CloudBase's 6 MB
 // response-body limit.  The overview returns summary metrics and these small
 // chart samples; the ranking endpoint returns one bounded page at a time.
@@ -5031,13 +5031,19 @@ async function getHqDashboard(event = {}) {
   return { ok: true, version: FUNCTION_VERSION, mode, ...payload };
 }
 
-function requireTeacherExperienceTimerControlPlaneCaller() {
+function requireTeacherExperienceTimerControlPlaneCaller(timerDiagnostic) {
   let identity;
   try {
     identity = getAuth().getUserInfo();
   } catch (_) {
+    if (timerDiagnostic) require("./timer-guard-diagnostics").recordTimerGuardDiagnostic({
+      ...timerDiagnostic, identityReadOk: false, version: FUNCTION_VERSION
+    });
     fail("无法验证体验额度定时任务来源。", "UNTRUSTED_TIMER_EVENT");
   }
+  if (timerDiagnostic) require("./timer-guard-diagnostics").recordTimerGuardDiagnostic({
+    ...timerDiagnostic, identity, identityReadOk: true, version: FUNCTION_VERSION
+  });
   if (String(identity?.uid || "").trim()) {
     fail("普通客户端不能执行体验额度月度重置。", "FORBIDDEN");
   }
@@ -5498,7 +5504,8 @@ async function getTrainingMaterialAccess(caller, event) {
 }
 
 function reviewSmsSenderService() {
-  return require("./review-sms-sender").createReviewSmsSender({executeSql,sqlText,requireControlPlane:requireTeacherExperienceTimerControlPlaneCaller});
+  return require("./review-sms-sender").createReviewSmsSender({executeSql,sqlText,
+    requireControlPlane: (event, context) => requireTeacherExperienceTimerControlPlaneCaller({event, context})});
 }
 
 async function main(event = {}, context = {}) {

@@ -1,12 +1,18 @@
 # staffAccount 云函数
 
+2026-11-28 **v108** 仅增加短信Timer身份诊断。保持原TRIGGER_SRC／函数名／触发器名／事件时间校验、SDK身份读取和非空UID否决，保留月度额度路径原行为。不修订权限或SQL，不新建发送入口、不发送验收短信、不修改接收偏好。SDK 3.18.3的getUserInfo每次读取运行时上下文，不能把缓存auth对象当作缓存UID；诊断用于区分当次身份来源，不作为绕过鉴权的依据。部署验证状态见docs/reviews/2026-11-28-review-sms-delivery-audit.md。
+
+诊断仅在短信路径通过现有Timer外层校验后执行：记录固定决策枚举、SDK／process.env／当前context中UID是否存在、来源／函数／环境匹配布尔值、context格式和事件时间有效性／两分钟内标记。绝不输出UID、手机号、request_id、任意action值、环境值、凭据或完整事件；日志失败不改变原鉴权决定。允许和拒绝仍按同一个原SDK UID判断，context字段只用于观察、绝不覆盖或授权。
+
+097已于2026-11-28备份启用；签名、四模板、套餐、通知报备及无数量频控已由控制台确认，Auth验证码使用独立default通道。此次不重跑094—097，不改总开关或四类偏好。仅原地部署`staffAccount-v108.zip`，核对health v108和全部九个根文件回下载；保留两个Timer、运行时和环境变量，不重传其他函数或客户端。取得新证据前，不宣称四类真实业务端到端或手机送达通过。
+
 2026-11-23 新增项目自动沿用 HC-08：当前联动为 `faceRecognition v146`、`verificationPhoto v14`、`staffAccount v107`、`teacherCreate v9`、`customerRating v10`。从已验收 v145 升级只部署 faceRecognition v146，再更新小程序；无新增 SQL，不重跑历史迁移，不重新上传其余四个函数，不改运行时、环境变量或业务权限。源码包不代表已经部署。以下旧日期的说明是历史功能记录，不是本次升级步骤。
 
 历史记录：本次 2026-11-09 三项目 BLE 配置只更新 faceRecognition v145 和小程序；本函数可部署代码不变，无需重新上传，也不重跑 SQL。下方客户查询说明为此前 v144 联动记录，当时兼容矩阵统一指向 faceRecognition v145。
 
-096已按完整备份门禁执行并验收，本版不再执行SQL。原地部署 staffAccount v107，核对运行时及所有根文件回下载。仅本函数有代码变更，不重传其他函数、Web或小程序；发送总开关保持关闭，签名可用、执行角色权限和实际收信验收完成前不能宣称短信上线。094／095已执行，不重复。
+历史v107发布说明（开关与签名状态已被下述2026-11-28记录取代）：096已按完整备份门禁执行并验收，本版不再执行SQL。原地部署 staffAccount v107，核对运行时及所有根文件回下载。仅本函数有代码变更，不重传其他函数、Web或小程序；发送总开关保持关闭，签名可用、执行角色权限和实际收信验收完成前不能宣称短信上线。094／095已执行，不重复。
 
-当前版本：`v107`
+当前版本：`v108`
 
 本版只读导出：产品查询同时包含购买和充值赠送；总部及当前有效组长的每日考勤／日报读取支持 exportAll=true，单次最多1000条，组长仍仅限当前分配成员。日报在同一条查询读取正文，避免逐人请求；产品按来源＋明细行识别，不按父工单合并。无新 SQL。
 
@@ -24,7 +30,7 @@
 
 `v98` 配合照片打卡，只把考勤只读响应中的 NULL 人脸分数原样返回 NULL，不再转换成 0 分；历史真实分数不变。不改查询权限、日报、培训发布、审核或核销。2026-11-01 已按 090 指引备份、迁移、验收并与 faceRecognition v137 一起部署。2026-11-05 的 faceRecognition v138 只修复结果恢复读取，不需重新部署本函数或重跑迁移。
 
-当前联动部署矩阵：`staffAccount v107`、`faceRecognition v146`、
+当前联动部署矩阵：`staffAccount v108`、`faceRecognition v146`、
 `verificationPhoto v14`、`teacherCreate v9`、`customerRating v10`。迁移 075—086
 验收通过后再部署当前版本；照片打卡还须先按 090 指引完整备份、迁移和验收（既有 087 不重复执行）。下文较旧版本号属于历史说明。
 
@@ -86,7 +92,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 迁移 051／052 的旧表、函数和历史记录不再是本函数的运行依赖。旧 Saga 的退役
 已由迁移 053 完成；该迁移会物理删除旧操作表与六个私有函数，不影响老师及
-业务历史。当前联动版本为 `staffAccount v107`／`faceRecognition v146`／
+业务历史。当前联动版本为 `staffAccount v108`／`faceRecognition v146`／
 `verificationPhoto v14`／`teacherCreate v9`。
 
 ## 保留能力
@@ -142,7 +148,7 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 微信小程序快捷登录也不为 `staffAccount` 新增 AppSecret 或自定义登录私钥环境变量。微信小程序 AppSecret 只配置在 CloudBase 身份源的服务端设置中，不得进入小程序、云函数环境变量、README、ZIP、日志或截图。
 
-## 审核通知发送（v107；队列自v106引入）
+## 审核通知发送（v108；队列自v106引入）
 
 096创建私有发送状态与outbox，默认关闭；只为启用后新提交、且该类已选择接收的在职总部生成通知。不回填历史积压，不读取客户／工单备注进入短信。四模板：产品2769941、充值2769944、退费2769946、补录核销2769949；签名内容固定“广州露思卓儿科技”。复用现有短信应用1401179904，不改登录验证码配置；正式启用前必须核对该应用的频控满足实际通知量。
 
@@ -150,13 +156,13 @@ Saga，不保留旧发布兼容入口，也不读取或写入 `teacher_face_oper
 
 唯一键、数据库锁及租约保护并发；发出前持久写入SENDING，确认腾讯云单收件回执后记ACCEPTED（仅平台受理，不等于手机送达）。网络超时、异常回执或中断记UNKNOWN，不自动重发；确定拒绝记REJECTED。尚未发出的过期租约可恢复，过期、已审核、封存、关掉该类或换手机号的任务取消。通知失败不改变工单审核、扣次或余额；不增加客户端发送action，不使用SessionContext充当平台幂等键。
 
-v107按腾讯云驳回建议，将原签名申请733011由“露思卓儿”改为“广州露思卓儿科技”；四正文模板ID不变。原申请重新待审，未批准及报备可用前保持发送关闭。
+历史v107按腾讯云驳回建议，将原签名申请733011由“露思卓儿”改为“广州露思卓儿科技”；四正文模板ID不变。原申请重新待审，未批准及报备可用前保持发送关闭。
 
 `health.reviewSmsDeliveryReady`只表示数据库开关与运行时短期凭据齐全；签名／运营商报备、发送权限、频控和实际送达必须另行验收后才启用。096首次执行后该值必须为false。现有Web／小程序四类设置接口兼容，无需发布客户端。
 
 ## 月度额度 Timer
 
-本函数保留老师体验额度月度重置 Timer，并新增独立 `send-hq-review-sms` 每分钟发送队列 Timer；未启用发送时不得补发历史业务。旧的 `reconcile-teacher-face-operations` Timer 必须从 `staffAccount` 触发器配置中删除。
+本函数保留老师体验额度月度重置 Timer，并新增独立 `send-hq-review-sms` 每分钟发送队列 Timer；未启用发送时不得补发历史业务。旧的 `reconcile-teacher-face-operations` Timer 已退役。本轮不改任何触发器设置；如未来重新配置，必须一次保留下列两个Timer，不得用单Timer列表覆盖。
 
 ```json
 {
@@ -165,6 +171,12 @@ v107按腾讯云驳回建议，将原签名申请733011由“露思卓儿”改�
       "name": "reset-teacher-experience-quotas-monthly",
       "type": "timer",
       "config": "0 0 0 1 * * *",
+      "enable": true
+    },
+    {
+      "name": "send-hq-review-sms",
+      "type": "timer",
+      "config": "0 * * * * * *",
       "enable": true
     }
   ]
@@ -175,7 +187,7 @@ v107按腾讯云驳回建议，将原签名申请733011由“露思卓儿”改�
 
 ## 部署与验收
 
-上传包文件名必须为 `staffAccount-v107.zip`。ZIP 根目录直接包含：
+上传包文件名必须为 `staffAccount-v108.zip`。ZIP 根目录直接包含：
 
 ```text
 index.js
@@ -183,17 +195,18 @@ teacher-team.js
 teacher-team-dashboard.js
 hq-review-sms.js
 review-sms-sender.js
+timer-guard-diagnostics.js
 package-lock.json
 package.json
 README.md
 ```
 
-不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v107`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v107`。
+不得在 ZIP 中再套 `staffAccount/` 目录。平台按根目录 `package.json` 安装依赖；交付前必须回读 ZIP 根目录的 `README.md`，确认其显示当前版本 `v108`，并确认 ZIP 内 `index.js` 的运行时版本同样为 `v108`。
 
-生产切换顺序：
+历史首次升级切换顺序（2026-11-28 v108诊断包不重跑以下SQL、不重发其他函数或客户端）：
 
 1. 在 CloudBase 身份源中配置类型 `WX_MICRO_APP` 并绑定正确小程序 AppID；设置 `On=TRUE`、`AutoSignInWhenPhoneNumberMatch=TRUE`、`TransparentMode=FALSE`、`ReuseUserId=FALSE`，同时保留现有手机号＋密码登录方式。全托管持久身份模式可能固定回显 `AutoSignUpWithProviderUser=TRUE`；这只建立 Auth 身份，业务会话仍只认既有 UID 映射，未绑定身份必须拒绝。
-2. 核对既有迁移 060—090 已执行，不重复执行历史破坏性迁移。完整备份后执行并验收 [091 组长迁移](../../database/cloudbase-console/091-README.md)，再部署 v107。091 不删除或改写现有人员及业务记录，也不自动任命任何老师。既有培训私有桶 `training-materials` 保持原配置。打包上传 `staffAccount-v107.zip`，使用 Node.js 20，保留上述环境变量和已登录非匿名用户安全规则。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
+2. 核对既有迁移 060—090 已执行，不重复执行历史破坏性迁移。完整备份后执行并验收 [091 组长迁移](../../database/cloudbase-console/091-README.md)，再部署 v107。091 不删除或改写现有人员及业务记录，也不自动任命任何老师。既有培训私有桶 `training-materials` 保持原配置。打包上传 `staffAccount-v108.zip`，使用 Node.js 20，保留上述环境变量和已登录非匿名用户安全规则。v81 的精确充值工单详情和统一产品查询继续读取 061 中不可变的赠品明细，并通过 062 的独立函数审核产品购买单。
 3. 联动部署 `customerRating v10`，保留 `verificationPhoto v14`、`teacherCreate v9` 及其私有桶、密钥和定时任务；本轮客户运营补充包含组长本人，并新增组长专用评价只读接口；照片与老师创建函数无需重复部署。`staffAccount v107` 不签发或写入客户评价。
 4. 删除 `staffAccount` 上的旧人脸补偿 Timer，只保留月度额度 Timer。
 5. 部署后先调用 `{ "action": "health" }`，确认版本和配置就绪；再分别用现有已登录会话和微信手机号授权后的会话调用无参数 `{ "action": "session" }`，确认返回的 UID、角色和门店与旧密码账号完全一致。
@@ -204,7 +217,7 @@ README.md
 ```json
 {
   "ok": true,
-  "version": "v102",
+  "version": "v108",
   "managerNodeInstalled": true,
   "teacherExperienceResetTimerTriggerName": "reset-teacher-experience-quotas-monthly",
   "teacherCreationService": "teacherCreate"

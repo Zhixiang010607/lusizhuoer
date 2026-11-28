@@ -48,7 +48,7 @@ function createReviewSmsSender({executeSql,sqlText,requireControlPlane,env=proce
       || (context.function_name && context.function_name!=="staffAccount") || !Number.isFinite(Date.parse(event.Time))) {
       throw Object.assign(Error("短信定时任务来源无效"),{code:"UNTRUSTED_TIMER_EVENT"});
     }
-    await requireControlPlane();
+    await requireControlPlane(event,context);
     const config=await configuration(), credential=credentials(env);
     if (!config.enabled || !/^140[0-9]{7}$/.test(config.appId) || !credential) return {ok:true,timer:true,deliveryReady:false,processed:0};
     const client=clientFactory(credential), began=now();
